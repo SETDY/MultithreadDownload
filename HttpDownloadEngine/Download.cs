@@ -34,9 +34,24 @@ namespace HttpDownloadEngine
         public int MaxDownloadThread { get; private set; }
 
         /// <summary>
+        /// 在下载在的任务
+        /// </summary>
+        public int DownloadTask { get; set; }
+
+        /// <summary>
+        /// 等待的任务
+        /// </summary>
+        public int WaitTask { get; set; }
+
+        /// <summary>
         /// 任务索引(每当有任务开始下载此属性则会+1(例如:[任务索引] = 0 => 开始下载 => [任务索引] = 1;))
         /// </summary>
         internal int TaskIndex { get; set; }
+
+        /// <summary>
+        /// 控制分配线程的运行(是否杜塞)
+        /// </summary>
+        private ManualResetEvent AllocateThreadRunningControl { get; set; }
 
         public Download(int maxRunningTask,int maxDownloadThread)
         {
@@ -52,15 +67,32 @@ namespace HttpDownloadEngine
             downloadTask.Path = downloadPath;
             downloadTask.Type = DownloadType.HTTP;
             downloadTask.Url = url;
-            this.Tasks.Add(downloadTask);
-            
+            this.Tasks.Add(downloadTask);//添加任务
+            this.AllocateThreadRunningControl.Set();//发出运行信号
+
         }
 
         private void Allocate()
         {
-            while(true)
+            while (true)
             {
-
+                AllocateThreadRunningControl.WaitOne();//等待运行信号(停止运行)
+                if (this.DownloadTask < this.MaxDownloadTask)
+                {
+                    this.Tasks[this.TaskIndex].CreateAllThread(this, this.TaskIndex);//创建所有线程
+                    int eachThreadShouldDownloadSize = this.SplitSize(this.Tasks[this.TaskIndex].Url, out int remaining);//获得线程下载大小
+                    this.Tasks[this.TaskIndex].InitializationAllThread(this, eachThreadShouldDownloadSize, remaining);//初始化所有线程
+                    this.TaskIndex = this.Tasks[this.TaskIndex].StartAllThread(this);//启动所有线程
+                    if (this.WaitTask > 0)//如果等待的任务大于0
+                    {
+                        this.WaitTask--;//等待的任务减少
+                    }
+                }
+                else
+                {
+                    this.WaitTask++;//等待的任务增加
+                }
+                AllocateThreadRunningControl.Reset();//取消运行信号
             }
         }
 
@@ -298,7 +330,7 @@ namespace HttpDownloadEngine
             }
         }
 
-        public void StartAllThread(ref Download download)
+        public int StartAllThread(Download download)
         {
             //遍历所有线程数据
             foreach (DownloadThread threadData in this.Threads)
@@ -307,6 +339,8 @@ namespace HttpDownloadEngine
                 threadData.Thread.Start();
             }
             download.TaskIndex++;
+            //返回任务索引
+            return download.TaskIndex++;
         }
 
         public void CloseAllThread()
