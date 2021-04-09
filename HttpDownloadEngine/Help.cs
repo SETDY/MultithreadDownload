@@ -85,7 +85,7 @@ namespace HttpDownloadEngine.Help
                 for (int i = 1; true; i++)
                 {
                     //给予临时文件名
-                    string temPath = path.Substring(0, path.IndexOf('.')) + $" ({i})" + path.Substring(path.IndexOf('.'));
+                    string temPath = path.Substring(0, path.LastIndexOf('.')) + $" ({i})" + path.Substring(path.LastIndexOf('.'));
                     //判断临时文件名是否有文件的名称与其相撞
                     if (File.Exists(temPath) == false)
                     {

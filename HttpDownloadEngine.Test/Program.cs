@@ -7,12 +7,17 @@ namespace HttpDownloadEngine.Test
     {
         static void Main(string[] args)
         {
-            string url = "https://img-home.csdnimg.cn/images/20201124032511.png";
+            string url = "http://btfile.soft5566.com/y/Total.War.THREE.KINGDOMS.v1.7.0.Incl.Dlcs.Multi.13.Steam.torrent";
             Console.WriteLine("等待回车...");
             Console.ReadLine();
             Console.WriteLine($"开始测试 链接: {url}");
-            new Download(3,8).Add(url,"F:\\");
+            Download download = new Download(3, 2);
+            download.Add(url,"F:\\");
+            download.Add(url,"F:\\");
+            download.Add(url,"F:\\");
+            download.Add(url,"F:\\");
             Console.WriteLine("完成测试");
+            Console.WriteLine($"正在等待的任务{download.WaitTask}");
             Console.ReadLine();
         }
     }

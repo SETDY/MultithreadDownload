@@ -72,6 +72,7 @@ namespace HttpDownloadEngine
             downloadTask.Type = DownloadType.HTTP;
             downloadTask.Url = url;
             this.Tasks.Add(downloadTask);//添加任务
+            this.NeedDownloadTask++;
             this.AllocateThreadRunningControl.Set();//发出运行信号
 
         }
@@ -85,8 +86,9 @@ namespace HttpDownloadEngine
                 {
                     this.Tasks[this.TaskIndex].CreateAllThread(this, this.TaskIndex);//创建所有线程
                     int eachThreadShouldDownloadSize = this.SplitSize(this.Tasks[this.TaskIndex].Url, out int remaining);//获得线程下载大小
-                    this.Tasks[this.TaskIndex].InitializationAllThread(this, eachThreadShouldDownloadSize, remaining);//初始化所有线程
+                    this.Tasks[this.TaskIndex].InitializationAllThread(this, this.TaskIndex.ToString(), eachThreadShouldDownloadSize, remaining);//初始化所有线程
                     this.TaskIndex = this.Tasks[this.TaskIndex].StartAllThread(this);//启动所有线程
+                    this.NeedDownloadTask--;
                     if (this.WaitTask > 0)//如果等待的任务大于0
                     {
                         this.WaitTask--;//等待的任务减少
@@ -96,7 +98,10 @@ namespace HttpDownloadEngine
                 {
                     this.WaitTask++;//等待的任务增加
                 }
-                AllocateThreadRunningControl.Reset();//取消运行信号
+                if(this.NeedDownloadTask == 0)
+                {
+                    AllocateThreadRunningControl.Reset();//取消运行信号
+                }
             }
         }
 
@@ -120,7 +125,7 @@ namespace HttpDownloadEngine
         /// </summary>
         /// <param name="path">路径(包含文件)</param>
         /// <returns></returns>
-        internal string[] SplitPath(string path)
+        internal string[] SplitPath(string path,string tag)
         {
             string[] paths = new string[this.MaxDownloadThread];
             for (int i = 0; i < MaxDownloadThread; i++)
@@ -130,7 +135,7 @@ namespace HttpDownloadEngine
                 //文件扩展名
                 string suffix = ".Download";
                 //将计算好的路径赋值
-                paths[i] = Path.Combine(Path.GetPathRoot(path), $"{name} ({i}){suffix}");
+                paths[i] = Path.Combine(Path.GetPathRoot(path), $"{name} [{tag}]-{i}{suffix}");
             }
             return paths;
         }
@@ -159,6 +164,7 @@ namespace HttpDownloadEngine
         /// <param name="threadID"></param>
         internal void HttpDownload(int taskIndex,int threadID)
         {
+            this.DownloadTask++;
             string url = this.Tasks[taskIndex].Url;//下载链接
             string path = this.Tasks[taskIndex].Threads[threadID].Path;//下载路径
             int position = this.Tasks[taskIndex].Threads[threadID].DownloadPosition;//下载位置
@@ -187,7 +193,7 @@ namespace HttpDownloadEngine
 
                 CompletedSizeCount += readBytesCount;//将下载数量相加
                 //将完成率赋值给线程完成率
-                this.Tasks[taskIndex].Threads[threadID].CompletionRate = Math.Round((CompletedSizeCount / webResponse.ContentLength) * 100D, 2);//算出完成率
+                this.Tasks[taskIndex].Threads[threadID].CompletionRate = Math.Round(((double)CompletedSizeCount / webResponse.ContentLength) * 100D, 2);//算出完成率
             }
             while (readBytesCount > 0 && this.Tasks[taskIndex].Threads[threadID].IsAlive == true);//是否到达文件流结尾(readBytesCount等于0就是到达文件流结尾)
             if(this.Tasks[taskIndex].Threads[threadID].IsAlive == true)//判断是否线程是否被设为"工作"
@@ -196,7 +202,7 @@ namespace HttpDownloadEngine
                 DownloadFileStream.Close();//解除对文件的占用
                 this.Tasks[taskIndex].CompleteDownloadThreadCount++;//完成下载的线程数量增加
 
-                if (this.Tasks[taskIndex].CompleteDownloadThreadCount == this.MaxDownloadTask)//是否所有线程完成下载
+                if (this.Tasks[taskIndex].CompleteDownloadThreadCount == this.MaxDownloadThread)//是否所有线程完成下载
                 {
                     //开始合并文件
                     this.Combine(taskIndex, threadID);
@@ -223,7 +229,7 @@ namespace HttpDownloadEngine
             int readBytesCount;//每次读取的字节数
             //读取缓存 //读取的数据将存放在此后写入文件
             byte[] bytes = new byte[1024];//每次的读取的大小(1224最稳,4096最快)
-            finalFileStream = new FileStream(this.Tasks[taskIndex].Path, FileMode.Create);
+            finalFileStream = new FileStream(this.Tasks[taskIndex].Path, FileMode.Open);
             //遍历所有下载线程
             foreach (DownloadThread thread in this.Tasks[taskIndex].Threads)
             {
@@ -242,8 +248,20 @@ namespace HttpDownloadEngine
             }
             finalFileStream.Flush();//释放所有数据
             finalFileStream.Close();//解除对文件的占用
+
+            this.DownloadTask--;//下载完毕减少正在下载的任务
+            if(this.WaitTask > 0)//如果还有等待的线程
+            {
+                this.AllocateThreadRunningControl.Set();//启动分配线程
+            }
+            if(this.Tasks[taskIndex].TaskComplete != null)
+            {
+                this.Tasks[taskIndex].TaskComplete.Invoke();//运行任务完成委托
+            }        
         }
     }
+
+    public delegate void DownloadTaskComplete();
 
     public class DownloadTask
     {
@@ -262,6 +280,9 @@ namespace HttpDownloadEngine
 
         public List<DownloadThread> Threads { get; internal set; }
 
+        public string Tag { get; set; }
+
+        public DownloadTaskComplete TaskComplete { get; set; }
 
         /// <summary>
         /// 完成率
@@ -314,8 +335,11 @@ namespace HttpDownloadEngine
             }
         }
 
-        public void InitializationAllThread(Download download, int eachThreadShouldDownloadSize, int remainingSize)
+        public void InitializationAllThread(Download download,string tag, int eachThreadShouldDownloadSize, int remainingSize)
         {
+            //将Tag赋值
+            this.Tag = tag;
+
             //遍历所有线程
             for (int i = 0; i < download.MaxDownloadThread; i++)
             {
@@ -338,7 +362,7 @@ namespace HttpDownloadEngine
                 //将位置赋值给线程
                 this.Threads[i].DownloadPosition = positions[i];
                 //将线程的下载路径赋值给线程
-                this.Threads[i].Path = download.SplitPath(this.Path)[i];
+                this.Threads[i].Path = download.SplitPath(this.Path, tag)[i];
             }
         }
 
@@ -350,6 +374,8 @@ namespace HttpDownloadEngine
                 //将获取的线程数据中的线程启动
                 threadData.Thread.Start();
             }
+            this.RefreshPath();
+            new FileStream(this.Path, FileMode.Create).Close();//创建最终文件流文件
             download.TaskIndex++;
             //返回任务索引
             return download.TaskIndex++;
@@ -362,6 +388,17 @@ namespace HttpDownloadEngine
             {
                 //将获取的线程数据中的线程关闭
                 threadData.IsAlive = false;
+            }
+        }
+
+        /// <summary>
+        /// 刷新文件路径
+        /// </summary>
+        private void RefreshPath()
+        {
+            if (File.Exists(this.Path))
+            {
+                this.Path = FileHelp.AutomaticFileName(this.Path);
             }
         }
 
@@ -394,6 +431,17 @@ namespace HttpDownloadEngine
         /// 完成率
         /// </summary>
         public double CompletionRate { get; internal set; }
+
+        /// <summary>
+        /// 刷新文件路径
+        /// </summary>
+        internal void RefreshPath()
+        {
+            if(File.Exists(this.Path))
+            {
+                this.Path = FileHelp.AutomaticFileName(this.Path);
+            }
+        }
 
     }
 }
