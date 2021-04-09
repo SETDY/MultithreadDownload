@@ -1,2 +1,2 @@
 # HttpDownloadEngine
-一个用于多线程多任务下载http链接文件的库
+一个用于多任务多线程下载http链接文件的库
