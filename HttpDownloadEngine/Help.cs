@@ -63,7 +63,7 @@ namespace HttpDownloadEngine.Help
             {
                 case DownloadType.HTTP:
                     //获得文件大小并返回
-                    return NetWorkHelp.CreateHttpWebRequest(url).ContentLength;
+                    return NetWorkHelp.CreateHttpWebRequest(url).GetResponse().ContentLength;
                 default:
                     throw new NullReferenceException();
             }
