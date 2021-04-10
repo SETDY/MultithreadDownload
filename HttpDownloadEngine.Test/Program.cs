@@ -17,7 +17,6 @@ namespace HttpDownloadEngine.Test
             download.Add(url,"F:\\");
             download.Add(url,"F:\\");
             Console.WriteLine("完成测试");
-            Console.WriteLine($"正在等待的任务{download.WaitTask}");
             Console.ReadLine();
         }
     }
