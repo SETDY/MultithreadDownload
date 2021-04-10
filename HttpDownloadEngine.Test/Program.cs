@@ -11,12 +11,13 @@ namespace HttpDownloadEngine.Test
             Console.WriteLine("等待回车...");
             Console.ReadLine();
             Console.WriteLine($"开始测试 链接: {url}");
-            Download download = new Download(2, 2);
-            download.Add(url, "F:\\");
-            download.Add(url, "F:\\");
-            download.Add(url, "F:\\");
-            download.Add(url, "F:\\");
+            Download download = new Download(3, 2);
+            download.Add(url,"F:\\");
+            download.Add(url,"F:\\");
+            download.Add(url,"F:\\");
+            download.Add(url,"F:\\");
             Console.WriteLine("完成测试");
+            Console.WriteLine($"正在等待的任务{download.WaitTask}");
             Console.ReadLine();
         }
     }

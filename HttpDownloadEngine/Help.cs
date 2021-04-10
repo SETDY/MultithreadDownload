@@ -40,12 +40,12 @@ namespace HttpDownloadEngine.Help
         /// <returns></returns>
         public static bool CanConnection(string url)
         {
-            try
+            //获取网站返回结果并判断是否正常
+            if(((HttpWebResponse)NetWorkHelp.CreateHttpWebRequest(url).GetResponse()).StatusCode == HttpStatusCode.OK)
             {
-                WebResponse testResponse = (HttpWebResponse)NetWorkHelp.CreateHttpWebRequest(url).GetResponse();
                 return true;
             }
-            catch (Exception)
+            else
             {
                 return false;
             }
@@ -56,10 +56,17 @@ namespace HttpDownloadEngine.Help
             return(HttpWebRequest)WebRequest.Create(url);
         }
 
-        public static long GetUrlFileSize(string url)
+        public static long GetUrlFileSize(DownloadType type,string url)
         {
-            //获得文件大小并返回
-            return NetWorkHelp.CreateHttpWebRequest(url).GetResponse().ContentLength;
+            //判断是那种类型
+            switch (type)
+            {
+                case DownloadType.HTTP:
+                    //获得文件大小并返回
+                    return NetWorkHelp.CreateHttpWebRequest(url).GetResponse().ContentLength;
+                default:
+                    throw new NullReferenceException();
+            }
         }
     }
 
@@ -92,5 +99,16 @@ namespace HttpDownloadEngine.Help
                 return path;
             }
         }
+    }
+
+    public static class DownloadAddressHelp
+    {
+        //    public static DownloadType GetAddressType(string address)
+        //    {
+        //        if(RegexHelp.IsHttp(address))
+        //        {
+
+        //        }
+        //    }
     }
 }
