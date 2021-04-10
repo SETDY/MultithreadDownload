@@ -11,11 +11,11 @@ namespace HttpDownloadEngine.Test
             Console.WriteLine("等待回车...");
             Console.ReadLine();
             Console.WriteLine($"开始测试 链接: {url}");
-            Download download = new Download(3, 2);
+            Download download = new Download(3, 8);
             download.Add(url,"F:\\");
             download.Add(url,"F:\\");
             download.Add(url,"F:\\");
-            download.Add(url,"F:\\");
+            download.Add("http://btfile.soft5566.com/y/SimAirport.Early.Access.Build.20200815.Multi.8.torrent", "F:\\");
             Console.WriteLine("完成测试");
             Console.ReadLine();
         }

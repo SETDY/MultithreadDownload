@@ -6,13 +6,14 @@ using HttpDownloadEngine.Help;
 using System.IO;
 using System.Net;
 using System.Diagnostics;
+using System.Threading.Tasks;
 
 namespace HttpDownloadEngine
 {
 
     public class Download
     {
-        public List<DownloadTask> Tasks { get; set; } = new List<DownloadTask>();
+        public List<DownloadTask> Tasks { get; internal set; } = new List<DownloadTask>();
 
         /// <summary>
         /// 最大下载任务数量
@@ -32,12 +33,12 @@ namespace HttpDownloadEngine
         /// <summary>
         /// 在下载在的任务
         /// </summary>
-        public int DownloadTask { get; set; }
+        public int DownloadTask { get; private set; }
 
         /// <summary>
         /// 等待的任务
         /// </summary>
-        public int WaitTask { get; set; }
+        public int WaitTask { get; private set; }
 
         /// <summary>
         /// 任务索引(每当有任务开始下载此属性则会+1(例如:[任务索引] = 0 => 开始下载 => [任务索引] = 1;))
@@ -99,7 +100,7 @@ namespace HttpDownloadEngine
             while (true)
             {
                 AllocateThreadRunningControl.WaitOne();//等待运行信号(停止运行)
-                if (this.DownloadTask < this.MaxDownloadTask)
+                if (this.DownloadTask < this.MaxDownloadTask && this.WaitTask > 0)
                 {
                     this.Tasks[this.TaskIndex].CreateAllThread(this.TaskIndex);//创建所有线程
                     int eachThreadShouldDownloadSize = this.SplitSize(this.Tasks[this.TaskIndex].Url, out int remaining);//获得线程下载大小
@@ -223,9 +224,14 @@ namespace HttpDownloadEngine
             {//是
                 DownloadFileStream.Flush();//释放所有数据
                 DownloadFileStream.Close();//解除对文件的占用
-                this.Tasks[taskIndex].CompleteDownloadThreadCount++;//完成下载的线程数量增加
+                lock(this.Tasks[taskIndex].downloadLocker)
+                {
+                    this.Tasks[taskIndex].CompleteDownloadThreadCount++;//完成下载的线程数量增加
+                }
+                Console.WriteLine($"{Path.GetFileName(path)} --- {threadID} --- {this.Tasks[taskIndex].CompleteDownloadThreadCount} ");
 
-                if (this.Tasks[taskIndex].CompleteDownloadThreadCount == this.MaxDownloadThread)//是否所有线程完成下载
+
+                if (this.Tasks[taskIndex].CompleteDownloadThreadCount == this.MaxDownloadThread && new FileInfo((this.Tasks[taskIndex].Path)).Length == 0)//是否所有线程完成下载
                 {
                     //开始合并文件
                     this.Combine(taskIndex, threadID);
@@ -251,8 +257,15 @@ namespace HttpDownloadEngine
             FileStream tempReadFilrStream;//用于读取临时下载文件的流
             int readBytesCount;//每次读取的字节数
             //读取缓存 //读取的数据将存放在此后写入文件
-            byte[] bytes = new byte[1024];//每次的读取的大小(1224最稳,4096最快)
-            finalFileStream = new FileStream(this.Tasks[taskIndex].Path, FileMode.Open);
+            byte[] bytes = new byte[1024];//每次的读取的大小(1024最稳,4096最快)
+            try
+            {
+                finalFileStream = new FileStream(this.Tasks[taskIndex].Path, FileMode.Open);
+            }
+            catch (Exception)
+            {
+                return;
+            }
             //遍历所有下载线程
             foreach (DownloadThread thread in this.Tasks[taskIndex].Threads)
             {
@@ -310,6 +323,8 @@ namespace HttpDownloadEngine
         /// 下载项目的目标下载类的储存
         /// </summary>
         public Download Target { get; set; }
+
+        public object downloadLocker = new object();
 
         /// <summary>
         /// 完成率
