@@ -1,7 +1,7 @@
 ﻿using System;
-using HttpDownloadEngine;
+using MultithreadDownload;
 
-namespace HttpDownloadEngine.Test
+namespace MultithreadDownload.Test
 {
     class Program
     {
@@ -11,7 +11,7 @@ namespace HttpDownloadEngine.Test
             Console.WriteLine("等待回车...");
             Console.ReadLine();
             Console.WriteLine($"开始测试 链接: {url}");
-            Download download = new Download(3, 8);
+            MultiDownload download = new MultiDownload(3, 8);
             download.Add(url,"F:\\");
             download.Add(url,"F:\\");
             download.Add(url,"F:\\");

@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace HttpDownloadEngine
+namespace MultithreadDownload.Exceptions
 {
     public class UrlFileFileSizeIsNullOrZeroException : Exception
     {

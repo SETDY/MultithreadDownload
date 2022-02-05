@@ -2,23 +2,25 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Threading;
-using HttpDownloadEngine.Help;
+using MultithreadDownload.Help;
 using System.IO;
 using System.Net;
 using System.Diagnostics;
 using System.Threading.Tasks;
+using System.Net.Http;
+using MultithreadDownload.Exceptions;
 
-namespace HttpDownloadEngine
+namespace MultithreadDownload.Downloads
 {
 
-    public class Download
+    public class MultiDownload
     {
         public List<DownloadTask> Tasks { get; internal set; } = new List<DownloadTask>();
 
         /// <summary>
-        /// 最大下载任务数量
+        /// 最大下载中任务数量
         /// </summary>
-        public int MaxDownloadTask { get; private set; }
+        public int MaxDownloadingTask { get; private set; }
 
         /// <summary>
         /// 完成下载的任务数量
@@ -41,6 +43,11 @@ namespace HttpDownloadEngine
         public int WaitTask { get; private set; }
 
         /// <summary>
+        /// 当链接的文件大小为零或NULL时是否以单线程状态下载
+        /// </summary>
+        public bool WhenFileSizeIsNullOrZeroShouldDownload { get; set; }
+
+        /// <summary>
         /// 任务索引(每当有任务开始下载此属性则会+1(例如:[任务索引] = 0 => 开始下载 => [任务索引] = 1;))
         /// </summary>
         internal int TaskIndex { get; set; }
@@ -50,9 +57,9 @@ namespace HttpDownloadEngine
         /// </summary>
         private ManualResetEvent AllocateThreadRunningControl { get; set; }
 
-        public Download(int maxRunningTask,int maxDownloadThread)
+        public MultiDownload(int maxDownloadingTask, int maxDownloadThread)
         {
-            this.MaxDownloadTask = maxRunningTask;
+            this.MaxDownloadingTask = maxDownloadingTask;
             this.MaxDownloadThread = maxDownloadThread;
             this.AllocateThreadRunningControl = new ManualResetEvent(false);//初始化变量
             Thread allocateThread = new Thread(this.Allocate) { IsBackground = true};//创建用于分配下载任务的线程
@@ -100,7 +107,7 @@ namespace HttpDownloadEngine
             while (true)
             {
                 AllocateThreadRunningControl.WaitOne();//等待运行信号(停止运行)
-                if (this.DownloadTask < this.MaxDownloadTask && this.WaitTask > 0)
+                if (this.DownloadTask < this.MaxDownloadingTask && this.WaitTask > 0)
                 {
                     this.Tasks[this.TaskIndex].CreateAllThread(this.TaskIndex);//创建所有线程
                     int eachThreadShouldDownloadSize = this.SplitSize(this.Tasks[this.TaskIndex].Url, out int remaining);//获得线程下载大小
@@ -200,7 +207,6 @@ namespace HttpDownloadEngine
             //读取缓存
             byte[] bytes = new byte[4096];//读取的数据将存放在此后写入文件
             //完成的大小数量
-            int CompletedSizeCount = 0;
             do
             {
                 //读取数据
@@ -208,9 +214,9 @@ namespace HttpDownloadEngine
                 //写入数据
                 DownloadFileStream.Write(bytes, 0, readBytesCount);
 
-                CompletedSizeCount += readBytesCount;//将下载数量相加
+                this.Tasks[taskIndex].Threads[threadID].CompletedSizeCount += readBytesCount;//将下载数量相加
                 //将完成率赋值给线程完成率
-                this.Tasks[taskIndex].Threads[threadID].CompletionRate = Math.Round(((double)CompletedSizeCount / webResponse.ContentLength) * 100D, 2);//算出完成率
+                this.Tasks[taskIndex].Threads[threadID].CompletionRate = (float)Math.Round(((float)this.Tasks[taskIndex].Threads[threadID].CompletedSizeCount / webResponse.ContentLength) * 100F, 2);//算出完成率
                 if(this.Tasks[taskIndex].Threads[threadID].IsAlive == false)// 判断是否线程是否被设为"不工作"
                 {
                     DownloadFileStream.Flush();//释放所有数据
@@ -224,7 +230,7 @@ namespace HttpDownloadEngine
             {//是
                 DownloadFileStream.Flush();//释放所有数据
                 DownloadFileStream.Close();//解除对文件的占用
-                lock(this.Tasks[taskIndex].downloadLocker)
+                lock(this.Tasks[taskIndex].DownloadLocker)//保证每次只有一个线程操作
                 {
                     this.Tasks[taskIndex].CompleteDownloadThreadCount++;//完成下载的线程数量增加
                 }
@@ -299,190 +305,4 @@ namespace HttpDownloadEngine
     }
 
     public delegate void DownloadTaskComplete();
-
-    public class DownloadTask
-    {
-        public string Url { get; internal set; }
-
-        public string Path { get; internal set; }
-
-        /// <summary>
-        /// 完成下载的线程数量
-        /// </summary>
-        public byte CompleteDownloadThreadCount { get; internal set; }
-
-        public bool IsAlive { get; internal set; }
-
-        public List<DownloadThread> Threads { get; internal set; }
-
-        public string Tag { get; set; }
-
-        public DownloadTaskComplete TaskComplete { get; set; }
-
-        /// <summary>
-        /// 下载项目的目标下载类的储存
-        /// </summary>
-        public Download Target { get; set; }
-
-        public object downloadLocker = new object();
-
-        /// <summary>
-        /// 完成率
-        /// </summary>
-        public double CompletionRate
-        {
-            get
-            {
-                double totalCompletionRate = 0;
-                //遍历所有下载线程
-                foreach (DownloadThread thread in this.Threads)
-                {
-                    totalCompletionRate += thread.CompletionRate * (1D / this.Threads.Count);//算出每个线程的占比完成率[最终线程完成率 = 线程完成率 * (1 / 线程数)]
-                }
-                return totalCompletionRate;
-            }
-        }
-
-        public DownloadTask(Download target)
-        {
-            this.Target = target;
-        }
-
-        /// <summary>
-        /// 创建所有线程
-        /// </summary>
-        /// <param name="taskIndex">任务索引</param>
-        /// <param name="eachThreadShouldDownloadSize">每个线程应该下载大小</param>
-        /// <param name="remainingSize">剩余大小</param>
-        public void CreateAllThread(int taskIndex)
-        {
-            this.Threads = new List<DownloadThread>();//新建列表
-            //遍历所有线程
-            for (int i = 0; i < this.Target.MaxDownloadThread; i++)
-            {
-                this.Threads.Add(new DownloadThread());//创建线程数据类并添加
-                int index = i;//将index存储在另一个变量，以防止越界
-                this.Threads[i].Thread = new Thread(() => this.Target.HttpDownload(taskIndex, this.Threads[index].ID));//将新建线程的赋值给属性
-                //将线程设为背景线程
-                this.Threads[i].Thread.IsBackground = true;
-            }
-        }
-
-        public void InitializationAllThread(string tag, int eachThreadShouldDownloadSize, int remainingSize)
-        {
-            //将Tag赋值
-            this.Tag = tag;
-
-            //检查参数
-            if(eachThreadShouldDownloadSize != 0)//判断eachThreadShouldDownloadSize是否不等于0
-            {//是
-                //遍历所有线程
-                for (int i = 0; i < this.Target.MaxDownloadThread; i++)
-                {
-                    //如果是最后的线程
-                    if (i == this.Target.MaxDownloadThread - 1)
-                    {
-                        //EachThreadShouldDownloadSize = 每个线程应该下载大小 + 剩余大小
-                        this.Threads[i].EachThreadShouldDownloadSize = eachThreadShouldDownloadSize + remainingSize - 1;//- 1 的原因是为了给坐标让位
-                    }
-                    else
-                    {
-                        //EachThreadShouldDownloadSize = 每个线程应该下载大小
-                        this.Threads[i].EachThreadShouldDownloadSize = eachThreadShouldDownloadSize - 1;//- 1 的原因是为了给坐标让位
-                    }
-                    //将ID赋值
-                    this.Threads[i].ID = i;
-
-                    //获得位置
-                    int[] positions = this.Target.SplitePosition(eachThreadShouldDownloadSize);
-                    //将位置赋值给线程
-                    this.Threads[i].DownloadPosition = positions[i];
-                    //将线程的下载路径赋值给线程
-                    this.Threads[i].Path = this.Target.SplitPath(this.Path, tag)[i];
-                }
-            }
-            else
-            {//否
-                throw new UrlFileFileSizeIsNullOrZeroException(this.Url);//抛出错误
-            }
-        }
-
-        public int StartAllThread()
-        {
-            //遍历所有线程数据
-            foreach (DownloadThread threadData in this.Threads)
-            {
-                //将获取的线程数据中的线程启动
-                threadData.Thread.Start();
-            }
-            this.RefreshPath();
-            new FileStream(this.Path, FileMode.Create).Close();//创建最终文件流文件
-            this.Target.TaskIndex++;
-            //返回任务索引
-            return this.Target.TaskIndex++;
-        }
-
-        public void CloseAllThread()
-        {
-            //遍历所有线程数据
-            foreach (DownloadThread threadData in this.Threads)
-            {
-                //将获取的线程数据中的线程关闭
-                threadData.IsAlive = false;
-            }
-        }
-
-        /// <summary>
-        /// 刷新文件路径
-        /// </summary>
-        private void RefreshPath()
-        {
-            if (File.Exists(this.Path))
-            {
-                this.Path = FileHelp.AutomaticFileName(this.Path);
-            }
-        }
-
-    }
-
-    public class DownloadThread
-    {
-        public int ID { get; set; }
-
-        public string Path { get; set; }
-
-        /// <summary>
-        /// 每一个线程应当下载的大小
-        /// </summary>
-        public int EachThreadShouldDownloadSize { get;internal  set; }
-
-        /// <summary>
-        /// 线程应当下载的开始位置
-        /// </summary>
-        public int DownloadPosition { get; internal set; }
-
-        /// <summary>
-        /// 下载线程是否存活
-        /// </summary>
-        public bool IsAlive { get; set; } = true;
-
-        public Thread Thread { get; set; }
-
-        /// <summary>
-        /// 完成率
-        /// </summary>
-        public double CompletionRate { get; internal set; }
-
-        /// <summary>
-        /// 刷新文件路径
-        /// </summary>
-        internal void RefreshPath()
-        {
-            if(File.Exists(this.Path))
-            {
-                this.Path = FileHelp.AutomaticFileName(this.Path);
-            }
-        }
-
-    }
 }
