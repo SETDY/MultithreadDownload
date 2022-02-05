@@ -1,5 +1,6 @@
 ﻿using System;
-using MultithreadDownload;
+using System.Threading;
+using MultithreadDownload.Downloads;
 
 namespace MultithreadDownload.Test
 {
@@ -7,16 +8,18 @@ namespace MultithreadDownload.Test
     {
         static void Main(string[] args)
         {
-            string url = "http://btfile.soft5566.com/y/Total.War.THREE.KINGDOMS.v1.7.0.Incl.Dlcs.Multi.13.Steam.torrent";
+            string url = "http://samples.mplayerhq.hu/3D/Surfcup.mp4";
             Console.WriteLine("等待回车...");
             Console.ReadLine();
             Console.WriteLine($"开始测试 链接: {url}");
             MultiDownload download = new MultiDownload(3, 8);
-            download.Add(url,"F:\\");
-            download.Add(url,"F:\\");
-            download.Add(url,"F:\\");
-            download.Add("http://btfile.soft5566.com/y/SimAirport.Early.Access.Build.20200815.Multi.8.torrent", "F:\\");
-            Console.WriteLine("完成测试");
+            download.Add(url, @"F:\DownloadTest");
+            download.Add(url, @"F:\DownloadTest");
+            download.Add(url, @"F:\DownloadTest");
+            download.Add(url, @"F:\DownloadTest");
+            Thread.Sleep(50);
+            //download.Add("http://btfile.soft5566.com/y/SimAirport.Early.Access.Build.20200815.Multi.8.torrent", "F:\\");
+            Console.WriteLine("\n完成测试");
             Console.ReadLine();
         }
     }

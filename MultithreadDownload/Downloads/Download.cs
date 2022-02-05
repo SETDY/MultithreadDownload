@@ -9,6 +9,8 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Net.Http;
 using MultithreadDownload.Exceptions;
+using MultithreadDownload.Events;
+using System.Web;
 
 namespace MultithreadDownload.Downloads
 {
@@ -33,9 +35,9 @@ namespace MultithreadDownload.Downloads
         public int MaxDownloadThread { get; private set; }
 
         /// <summary>
-        /// 在下载在的任务
+        /// 正在下载的任务
         /// </summary>
-        public int DownloadTask { get; private set; }
+        public int DownloadingTask { get; private set; }
 
         /// <summary>
         /// 等待的任务
@@ -47,6 +49,7 @@ namespace MultithreadDownload.Downloads
         /// </summary>
         public bool WhenFileSizeIsNullOrZeroShouldDownload { get; set; }
 
+
         /// <summary>
         /// 任务索引(每当有任务开始下载此属性则会+1(例如:[任务索引] = 0 => 开始下载 => [任务索引] = 1;))
         /// </summary>
@@ -57,6 +60,7 @@ namespace MultithreadDownload.Downloads
         /// </summary>
         private ManualResetEvent AllocateThreadRunningControl { get; set; }
 
+
         public MultiDownload(int maxDownloadingTask, int maxDownloadThread)
         {
             this.MaxDownloadingTask = maxDownloadingTask;
@@ -66,33 +70,21 @@ namespace MultithreadDownload.Downloads
             allocateThread.Start();//启动线程
         }
 
-        public void Add(string url,string path, DownloadTaskComplete taskComplete)
-        {
-            if(NetWorkHelp.CanConnection(url))//链接是否可以连接
-            {//是
-                //获取下载路径
-                string downloadPath = Path.Combine(path + Path.GetFileName(url));
-                DownloadTask downloadTask = new DownloadTask(this) { TaskComplete = taskComplete };//新建下载任务
-                downloadTask.Path = downloadPath;//将路径赋值
-                downloadTask.Url = url;//将链接赋值
-                this.Tasks.Add(downloadTask);//添加任务
-                this.AllocateThreadRunningControl.Set();//发出运行信号
-            }
-            else
-            {//否
-                throw new UrlCanNotConnectionException(url);//抛出连接无法连接错误
-            }
-        }
-
         public void Add(string url, string path)
         {
             if (NetWorkHelp.CanConnection(url))//链接是否可以连接
             {//是
+                if(path[path.Length - 1] != '\\')//为了修复Path.Combine方法的缺陷，防止路径合并错误
+                {
+                    path = path + '\\';
+                }
                 //获取下载路径
-                string downloadPath = Path.Combine(path + Path.GetFileName(url));
+                string downloadPath = Path.Combine(path + Path.GetFileName(HttpUtility.UrlDecode(url)));//合并路径
                 DownloadTask downloadTask = new DownloadTask(this);//新建下载任务
+                downloadTask.ID = TaskIndex;
                 downloadTask.Path = downloadPath;//将路径赋值
                 downloadTask.Url = url;//将链接赋值
+                downloadTask.State = DownloadTaskState.Waiting; 
                 this.Tasks.Add(downloadTask);//添加任务
                 this.AllocateThreadRunningControl.Set();//发出运行信号
             }
@@ -107,13 +99,13 @@ namespace MultithreadDownload.Downloads
             while (true)
             {
                 AllocateThreadRunningControl.WaitOne();//等待运行信号(停止运行)
-                if (this.DownloadTask < this.MaxDownloadingTask && this.WaitTask > 0)
+                if (this.DownloadingTask < this.MaxDownloadingTask && this.WaitTask >= 0)
                 {
                     this.Tasks[this.TaskIndex].CreateAllThread(this.TaskIndex);//创建所有线程
                     int eachThreadShouldDownloadSize = this.SplitSize(this.Tasks[this.TaskIndex].Url, out int remaining);//获得线程下载大小
                     this.Tasks[this.TaskIndex].InitializationAllThread(this.TaskIndex.ToString(), eachThreadShouldDownloadSize, remaining);//初始化所有线程
                     this.TaskIndex = this.Tasks[this.TaskIndex].StartAllThread();//启动所有线程
-                    this.DownloadTask++;
+                    this.DownloadingTask++;
                     if (this.WaitTask > 0)//如果等待的任务大于0
                     {
                         this.WaitTask--;//等待的任务减少
@@ -123,7 +115,7 @@ namespace MultithreadDownload.Downloads
                 {
                     this.WaitTask++;//等待的任务增加
                 }
-                if(this.DownloadTask + this.WaitTask + this.CompleteTask == this.Tasks.Count)
+                if(this.DownloadingTask + this.WaitTask + this.CompleteTask == this.Tasks.Count)
                 {
                     AllocateThreadRunningControl.Reset();//取消运行信号
                 }
@@ -193,6 +185,7 @@ namespace MultithreadDownload.Downloads
             string path = this.Tasks[taskIndex].Threads[threadID].Path;//下载路径
             int position = this.Tasks[taskIndex].Threads[threadID].DownloadPosition;//下载位置
             int size = this.Tasks[taskIndex].Threads[threadID].EachThreadShouldDownloadSize;//下载大小
+            this.Tasks[taskIndex].State = DownloadTaskState.Downloading;
 
             HttpWebRequest httpWebRequest = WebRequest.CreateHttp(url);//新建Http请求
             httpWebRequest.Method = "GET";//将Http请求类型设为GET
@@ -217,7 +210,7 @@ namespace MultithreadDownload.Downloads
                 this.Tasks[taskIndex].Threads[threadID].CompletedSizeCount += readBytesCount;//将下载数量相加
                 //将完成率赋值给线程完成率
                 this.Tasks[taskIndex].Threads[threadID].CompletionRate = (float)Math.Round(((float)this.Tasks[taskIndex].Threads[threadID].CompletedSizeCount / webResponse.ContentLength) * 100F, 2);//算出完成率
-                if(this.Tasks[taskIndex].Threads[threadID].IsAlive == false)// 判断是否线程是否被设为"不工作"
+                if(this.Tasks[taskIndex].State == DownloadTaskState.Cancelled)// 判断状态是否为取消
                 {
                     DownloadFileStream.Flush();//释放所有数据
                     DownloadFileStream.Close();//解除对文件的占用
@@ -225,7 +218,7 @@ namespace MultithreadDownload.Downloads
                     return;//返回
                 }
             }
-            while (readBytesCount > 0 && this.Tasks[taskIndex].Threads[threadID].IsAlive == true);//是否到达文件流结尾(readBytesCount等于0就是到达文件流结尾)
+            while (readBytesCount > 0 && this.Tasks[taskIndex].State == DownloadTaskState.Downloading);//是否到达文件流结尾(readBytesCount等于0就是到达文件流结尾)
             if(this.Tasks[taskIndex].Threads[threadID].IsAlive == true)//判断是否线程是否被设为"工作"
             {//是
                 DownloadFileStream.Flush();//释放所有数据
@@ -234,7 +227,7 @@ namespace MultithreadDownload.Downloads
                 {
                     this.Tasks[taskIndex].CompleteDownloadThreadCount++;//完成下载的线程数量增加
                 }
-                Console.WriteLine($"{Path.GetFileName(path)} --- {threadID} --- {this.Tasks[taskIndex].CompleteDownloadThreadCount} ");
+                //Console.WriteLine($"{Path.GetFileName(path)} --- {threadID} --- {this.Tasks[taskIndex].CompleteDownloadThreadCount} ");
 
 
                 if (this.Tasks[taskIndex].CompleteDownloadThreadCount == this.MaxDownloadThread && new FileInfo((this.Tasks[taskIndex].Path)).Length == 0)//是否所有线程完成下载
@@ -289,20 +282,16 @@ namespace MultithreadDownload.Downloads
                 File.Delete(thread.Path);//删除文件
             }
             finalFileStream.Flush();//释放所有数据
-            finalFileStream.Close();//解除对文件的占用
+            finalFileStream.Close();//解除对文件的占
 
-            this.DownloadTask = this.DownloadTask - 1;//下载完毕减少正在下载的任务
-            if(this.WaitTask > 0)//如果还有等待的线程
+            this.Tasks[taskIndex].State = DownloadTaskState.Completed;
+            this.DownloadingTask = this.DownloadingTask - 1;//下载完毕减少正在下载的任务
+            if (this.WaitTask > 0)//如果还有等待的线程
             {
                 this.CompleteTask++;
                 this.AllocateThreadRunningControl.Set();//启动分配线程
             }
-            if(this.Tasks[taskIndex].TaskComplete != null)
-            {
-                this.Tasks[taskIndex].TaskComplete.Invoke();//运行任务完成委托
-            }        
+            
         }
     }
-
-    public delegate void DownloadTaskComplete();
 }

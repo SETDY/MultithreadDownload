@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\HttpDownloadEngine\MultithreadDownload.csproj" />
+    <ProjectReference Include="..\MultithreadDownload\MultithreadDownload.csproj" />
   </ItemGroup>
 
 </Project>

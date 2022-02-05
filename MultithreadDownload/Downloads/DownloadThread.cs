@@ -32,7 +32,7 @@ namespace MultithreadDownload.Downloads
 
         public Thread Thread { get; set; }
 
-        public int CompletedSizeCount { get; internal set; }
+        public long CompletedSizeCount { get; internal set; }
 
         /// <summary>
         /// 完成率

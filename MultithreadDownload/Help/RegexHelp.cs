@@ -9,10 +9,6 @@ namespace MultithreadDownload.Help
 {
     public static class RegexHelp
     {
-        //public static bool IsUrl(string url)
-        //{
-
-        //}
 
         public static bool IsHttp(string url)
         {
