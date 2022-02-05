@@ -1,10 +1,11 @@
-# HttpDownloadEngine
+
+MultithreadDownload
 一个用于多任务多线程下载http链接文件的库
 
 ## 使用教程
-首先，请请引用**HttpDownloadEngine**命名空间
+首先，请请引用**MultithreadDownload.Downloads**命名空间
 ```C#
-using HttpDownloadEngine;
+using MultithreadDownload.Downloads;
 ```
 接着，请新建Download实例，两个参数分别为(最大下载任务数,单个任务最大下载线程数)
 ```C#
