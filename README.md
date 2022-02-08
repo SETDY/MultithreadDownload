@@ -9,10 +9,10 @@ using MultithreadDownload.Downloads;
 ```
 接着，请新建Download实例，两个参数分别为(最大下载任务数,单个任务最大下载线程数)
 ```C#
-Download downlaod = new Download(3,8);
+MultiDownload downlaod = new MultiDownload(3,8);
 ```
 然后，添加下载任务
 ```C#
-new Download(3,8).Add(链接,路径);
+new MultiDownload(3,8).Add(链接,路径);
 ```
 你的文件下载好了！
