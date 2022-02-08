@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
+using System.Web;
 
 namespace MultithreadDownload.Downloads
 {
@@ -58,7 +59,7 @@ namespace MultithreadDownload.Downloads
         /// <summary>
         /// 下载项目的目标下载类的储存
         /// </summary>
-        public MultiDownload Target { get; set; }
+        public MultiDownload Target { get; private set; }
          
         /// <summary>
         /// 每秒下载速度
@@ -68,12 +69,17 @@ namespace MultithreadDownload.Downloads
         /// <summary>
         /// 当下载任务的状态改变
         /// </summary>
-        public event EventHandler<DownloadStateChangeEventArgs> StateChange;
+        public event EventHandler<DownloadDataEventArgs> StateChange;
 
         /// <summary>
-        /// 计算下载速度的计时器
+        /// 每一秒执会触发此事件一次 (用以刷新数据)
         /// </summary>
-        private System.Timers.Timer downloadSpeedsTimer = new System.Timers.Timer() { Interval = 1000 };
+        public event EventHandler<DownloadDataEventArgs> Refresh;
+
+        /// <summary>
+        /// 负责这个Task的计时器
+        /// </summary>
+        private System.Timers.Timer downloadTaskTimer = new System.Timers.Timer() { Interval = 1000 };
 
         /// <summary>
         /// 上一秒下载总大小
@@ -122,6 +128,50 @@ namespace MultithreadDownload.Downloads
         /// 下载速率
         /// </summary>
         public string DownloadRate { get; private set; } = "0kb/s";
+
+        /// <summary>
+        /// 创建一个DownloadTask(不包括ID)
+        /// </summary>
+        /// <param name="url"></param>
+        /// <param name="path"></param>
+        public static DownloadTask Create(string url, string path,MultiDownload target)
+        {
+            if (NetWorkHelp.CanConnection(url))//链接是否可以连接
+            {//是
+                if (path[path.Length - 1] != '\\')//为了修复Path.Combine方法的缺陷，防止路径合并错误
+                {
+                    path = path + '\\';
+                }
+                //获取下载路径
+                string downloadPath = System.IO.Path.Combine(path + System.IO.Path.GetFileName(HttpUtility.UrlDecode(url)));//合并路径
+                DownloadTask downloadTask = new DownloadTask(target);//新建下载任务
+                downloadTask.Path = downloadPath;//将路径赋值
+                downloadTask.Url = url;//将链接赋值
+                downloadTask.State = DownloadTaskState.Waiting;
+                return downloadTask;
+            }
+            else
+            {//否
+                throw new UrlCanNotConnectionException(url);//抛出连接无法连接错误
+            }
+        }
+
+        /// <summary>
+        /// 检查DownloadTask是否正确(不包括TaskID)
+        /// </summary>
+        /// <returns></returns>
+        public static bool Check(DownloadTask downloadTask)
+        {
+            if(NetWorkHelp.CanConnection(downloadTask.Url) == true 
+                && PathHelp.IsRightForRegex(downloadTask.Path))
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
 
         public DownloadTask(MultiDownload target)
         {
@@ -208,18 +258,35 @@ namespace MultithreadDownload.Downloads
         /// </summary>
         public void StartTimer()
         {
-            this.downloadSpeedsTimer.Elapsed += new ElapsedEventHandler(DownloadSpeedPerSecond);//绑定时间事件
-            this.downloadSpeedsTimer.Start();//开始计时
+            this.downloadTaskTimer.Elapsed += new ElapsedEventHandler(DownloadTaskPerSecond);//绑定时间事件
+            this.downloadTaskTimer.Start();//开始计时
         }
 
-        private void DownloadSpeedPerSecond(object sender, ElapsedEventArgs e)
+        private void DownloadTaskPerSecond(object sender, ElapsedEventArgs e)
+        {
+            this.DownloadSpeedPerSecond();//计算每秒下载速度
+            this.Refresh.Invoke(this,new DownloadDataEventArgs(this));//触发事件
+        }
+
+        private void DownloadSpeedPerSecond()
         {
             long gap = this.theSecondDownloadSize - this.lastSecondDownloadSize;//算出差距
             this.DownloadRate = gap.ToDownloadRate();
             this.lastSecondDownloadSize = this.theSecondDownloadSize;
-            
         }
 
+        /// <summary>
+        /// 将此任务的所有(包括线程)关闭
+        /// </summary>
+        public void CloseTask()
+        {
+            this.CloseAllThread();
+            this.downloadTaskTimer.Close();
+        }
+        
+        /// <summary>
+        /// 仅将此任务的线程关闭
+        /// </summary>
         public void CloseAllThread()
         {
             //遍历所有线程数据
@@ -242,7 +309,7 @@ namespace MultithreadDownload.Downloads
         {
             if(this.StateChange != null)
             {
-                DownloadStateChangeEventArgs eventArgs = new DownloadStateChangeEventArgs()
+                DownloadDataEventArgs eventArgs = new DownloadDataEventArgs()
                 {
                     Name = name,
                     Url = url,
@@ -260,7 +327,7 @@ namespace MultithreadDownload.Downloads
         {
             if (File.Exists(this.Path))
             {
-                this.Path = FileHelp.AutomaticFileName(this.Path);
+                this.Path = PathHelp.AutomaticFileName(this.Path);
             }
         }
     }

@@ -14,5 +14,29 @@ namespace MultithreadDownload.Help
         {
             return Regex.IsMatch(url, "https?://");
         }
+
+        public static bool IsRightPath(string path)
+        {
+            if(path != "")
+            {
+                Regex regex = new Regex(@"^([a-zA-Z]:\\)?[^\/\:\*\?\""\<\>\|\,]*$");
+                Match match = regex.Match(path);//是否匹配
+                if(match.Success == false)
+                {
+                    return false;
+                }
+                regex = new Regex(@"^[^\/\:\*\?\""\<\>\|\,]+$");
+                match = regex.Match(path);//是否匹配
+                if (match.Success == false)
+                {
+                    return false;
+                }
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
     }
 }

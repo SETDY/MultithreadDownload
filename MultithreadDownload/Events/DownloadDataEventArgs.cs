@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace MultithreadDownload.Events
 {
-    public class DownloadStateChangeEventArgs : EventArgs
+    public class DownloadDataEventArgs : EventArgs
     {
         public string Name { get; set; }
 
@@ -17,12 +17,17 @@ namespace MultithreadDownload.Events
 
         public DownloadTaskState State { get; set; }
 
-        public DownloadStateChangeEventArgs()
-        {
+        public DownloadDataEventArgs() { }
 
+        public DownloadDataEventArgs(DownloadTask downloadTask)
+        {
+            this.Name = System.IO.Path.GetFileName(downloadTask.Path);
+            this.Url = downloadTask.Url;
+            this.Path = downloadTask.Path;
+            this.State = downloadTask.State;
         }
 
-        public DownloadStateChangeEventArgs(string url,string path,string name, DownloadTaskState downloadTaskState)
+        public DownloadDataEventArgs(string url,string path,string name, DownloadTaskState downloadTaskState)
         {
             this.Name = name;
             this.Url = url;

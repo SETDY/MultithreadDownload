@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace MultithreadDownload.Help
 {
-    public static class FileHelp
+    public static class PathHelp
     {
         /// <summary>
         /// 自动获取名称相撞的文件应该取得名称
@@ -34,6 +34,15 @@ namespace MultithreadDownload.Help
             {
                 return path;
             }
+        }
+
+        /// <summary>
+        /// 使用正则表达式检测路径是否正确        
+        /// </summary>
+        /// <returns>是否正确</returns>
+        public static bool IsRightForRegex(string path)
+        {
+            return RegexHelp.IsRightPath(path);
         }
     }
 }

@@ -45,9 +45,9 @@ namespace MultithreadDownload.Downloads
         public int WaitTask { get; private set; }
 
         /// <summary>
-        /// 当链接的文件大小为零或NULL时是否以单线程状态下载
+        /// 当链接的文件大小为零或NULL时是否以单线程状态下载(未完成)
         /// </summary>
-        public bool WhenFileSizeIsNullOrZeroShouldDownload { get; set; }
+        //public bool WhenFileSizeIsNullOrZeroShouldDownload { get; set; }
 
 
         /// <summary>
@@ -60,6 +60,19 @@ namespace MultithreadDownload.Downloads
         /// </summary>
         private ManualResetEvent AllocateThreadRunningControl { get; set; }
 
+        public DownloadTask this[int index]
+        {
+            get
+            {
+                return this.Tasks[index];
+            }
+
+            set
+            {
+                this.Tasks[index] = value;
+            }
+        }
+
 
         public MultiDownload(int maxDownloadingTask, int maxDownloadThread)
         {
@@ -70,28 +83,20 @@ namespace MultithreadDownload.Downloads
             allocateThread.Start();//启动线程
         }
 
-        public void Add(string url, string path)
+        /// <summary>
+        /// 添加下载任务
+        /// </summary>
+        /// <param name="url">HTTO链接</param>
+        /// <param name="path">存放路径</param>
+        /// <returns>下载任务编号</returns>
+        /// <exception cref="UrlCanNotConnectionException">链接无法链接</exception>
+        public int Add(string url, string path)
         {
-            if (NetWorkHelp.CanConnection(url))//链接是否可以连接
-            {//是
-                if(path[path.Length - 1] != '\\')//为了修复Path.Combine方法的缺陷，防止路径合并错误
-                {
-                    path = path + '\\';
-                }
-                //获取下载路径
-                string downloadPath = Path.Combine(path + Path.GetFileName(HttpUtility.UrlDecode(url)));//合并路径
-                DownloadTask downloadTask = new DownloadTask(this);//新建下载任务
-                downloadTask.ID = TaskIndex;
-                downloadTask.Path = downloadPath;//将路径赋值
-                downloadTask.Url = url;//将链接赋值
-                downloadTask.State = DownloadTaskState.Waiting; 
-                this.Tasks.Add(downloadTask);//添加任务
-                this.AllocateThreadRunningControl.Set();//发出运行信号
-            }
-            else
-            {//否
-                throw new UrlCanNotConnectionException(url);//抛出连接无法连接错误
-            }
+            DownloadTask task = DownloadTask.Create(url, path, this);//新建DownloadTask
+            task.ID = TaskIndex;
+            this.Tasks.Add(task);//添加任务
+            this.AllocateThreadRunningControl.Set();//发出运行信号
+            return task.ID;
         }
 
         private void Allocate()
@@ -179,6 +184,7 @@ namespace MultithreadDownload.Downloads
         /// </summary>
         /// <param name="taskIndex"></param>
         /// <param name="threadID"></param>
+        [Obsolete("此方法中的一些类已被弃用，但目前未有替代方法,请等待更新")]
         internal void HttpDownload(int taskIndex,int threadID)
         {
             string url = this.Tasks[taskIndex].Url;//下载链接

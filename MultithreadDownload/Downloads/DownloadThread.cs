@@ -46,7 +46,7 @@ namespace MultithreadDownload.Downloads
         {
             if (File.Exists(this.Path))
             {
-                this.Path = FileHelp.AutomaticFileName(this.Path);
+                this.Path = PathHelp.AutomaticFileName(this.Path);
             }
         }
 
