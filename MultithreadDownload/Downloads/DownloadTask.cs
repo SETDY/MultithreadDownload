@@ -265,7 +265,10 @@ namespace MultithreadDownload.Downloads
         private void DownloadTaskPerSecond(object sender, ElapsedEventArgs e)
         {
             this.DownloadSpeedPerSecond();//计算每秒下载速度
-            this.Refresh.Invoke(this,new DownloadDataEventArgs(this));//触发事件
+            if(this.Refresh != null)//有方法绑定此事件才Invoke，从而修复空调用异常
+            {
+                this.Refresh.Invoke(this,new DownloadDataEventArgs(this));//触发事件
+            }
         }
 
         private void DownloadSpeedPerSecond()
