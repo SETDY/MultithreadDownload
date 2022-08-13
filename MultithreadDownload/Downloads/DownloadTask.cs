@@ -136,7 +136,7 @@ namespace MultithreadDownload.Downloads
         /// <param name="path"></param>
         public static DownloadTask Create(string url, string path,MultiDownload target)
         {
-            if (NetWorkHelp.CanConnection(url))//链接是否可以连接
+            if (NetWorkHelp.CanConnectionUrl(url))//链接是否可以连接
             {//是
                 if (path[path.Length - 1] != '\\')//为了修复Path.Combine方法的缺陷，防止路径合并错误
                 {
@@ -162,7 +162,7 @@ namespace MultithreadDownload.Downloads
         /// <returns></returns>
         public static bool Check(DownloadTask downloadTask)
         {
-            if(NetWorkHelp.CanConnection(downloadTask.Url) == true 
+            if(NetWorkHelp.CanConnectionUrl(downloadTask.Url) == true 
                 && PathHelp.IsRightForRegex(downloadTask.Path))
             {
                 return true;
