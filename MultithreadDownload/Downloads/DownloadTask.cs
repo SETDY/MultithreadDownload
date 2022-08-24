@@ -250,7 +250,7 @@ namespace MultithreadDownload.Downloads
             new FileStream(this.Path, FileMode.Create).Close();//创建最终文件流文件
             this.Target.TaskIndex++;
             //返回任务索引
-            return this.Target.TaskIndex++;
+            return this.Target.TaskIndex;
         }
 
         /// <summary>

@@ -36,5 +36,17 @@ namespace MultithreadDownload.Help
                 return $"{fileSize} b/s";
             }
         }
+
+        public static bool IsIndexOutOfBounds(this int index,int count)
+        {
+            if(index > count - 1)//index是否大于数组项目的长度减一
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
     }
 }
