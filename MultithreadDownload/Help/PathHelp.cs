@@ -20,13 +20,13 @@ namespace MultithreadDownload.Help
             {
                 for (int i = 1; true; i++)
                 {
-                    //给予临时文件名
-                    string temPath = path.Substring(0, path.LastIndexOf('.')) + $" ({i})" + path.Substring(path.LastIndexOf('.'));
-                    //判断临时文件名是否有文件的名称与其相撞
-                    if (File.Exists(temPath) == false)
+                    //给予临时文件路径
+                    string tempFilePath = Path.GetFileNameWithoutExtension(path) + $" ({i})" + Path.GetExtension(path);
+                    //判断临时文件路径是否有文件的名称与其相撞
+                    if (File.Exists(tempFilePath) == false)
                     {
-                        //返回临时文件名
-                        return temPath;
+                        //返回临时文件路径
+                        return tempFilePath;
                     }
                 }
             }

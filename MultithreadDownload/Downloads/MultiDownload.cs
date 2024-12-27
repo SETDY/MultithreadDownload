@@ -11,6 +11,8 @@ using System.Net.Http;
 using MultithreadDownload.Exceptions;
 using MultithreadDownload.Events;
 using System.Web;
+using System.Drawing;
+using System.Net.Http.Headers;
 
 namespace MultithreadDownload.Downloads
 {
@@ -117,7 +119,7 @@ namespace MultithreadDownload.Downloads
                 if (this.DownloadingTask < this.MaxDownloadingTask && this.WaitTask >= 0)
                 {
                     this.Tasks[this.TaskIndex].CreateAllThread(this.TaskIndex);//创建所有线程
-                    int eachThreadShouldDownloadSize = this.SplitSize(this.Tasks[this.TaskIndex].Url, out int remaining);//获得线程下载大小
+                    long eachThreadShouldDownloadSize = this.SplitSize(this.Tasks[this.TaskIndex].Url, out long remaining);//获得线程下载大小
                     this.Tasks[this.TaskIndex].InitializationAllThread(this.TaskIndex.ToString(), eachThreadShouldDownloadSize, remaining);//初始化所有线程
                     this.TaskIndex = this.Tasks[this.TaskIndex].StartAllThread();//启动所有线程
                     this.DownloadingTask++;
@@ -142,13 +144,13 @@ namespace MultithreadDownload.Downloads
         /// </summary>
         /// <param name="remainingSize">剩余的大小(除完后的余数)</param>
         /// <returns>每个线程应该下载的大小</returns>
-        private int SplitSize(string url, out int remainingSize)
+        private long SplitSize(string url, out long remainingSize)
         {
             long fileSize = NetWorkHelp.GetUrlFileSizeAsync(url).GetAwaiter().GetResult();
 
             //每一个线程应当下载的大小
-            int eachThreadShouldDownloadSize = (int)fileSize / this.MaxDownloadThread;//文件大小/最大下载线程数
-            remainingSize = (int)fileSize % this.MaxDownloadThread;//取余数
+            long eachThreadShouldDownloadSize = (long)fileSize / this.MaxDownloadThread;//文件大小/最大下载线程数
+            remainingSize = (long)fileSize % this.MaxDownloadThread;//取余数
             return eachThreadShouldDownloadSize;
         }
 
@@ -178,9 +180,9 @@ namespace MultithreadDownload.Downloads
         /// </summary>
         /// <param name="eachThreadShouldDownloadSize"></param>
         /// <returns>位置</returns>
-        internal int[] SplitePosition(int eachThreadShouldDownloadSize)
+        internal long[] SplitePosition(long eachThreadShouldDownloadSize)
         {
-            int[] reutnPosition = new int[this.MaxDownloadThread];
+            long[] reutnPosition = new long[this.MaxDownloadThread];
             for (int i = 0; i < this.MaxDownloadThread; i++)
             {
                 //获得文件在下载式因在哪一出位置开始下载并赋值
@@ -190,96 +192,151 @@ namespace MultithreadDownload.Downloads
         }
 
         /// <summary>
-        /// 下载文件
+        /// 使用Http协议下载文件
         /// </summary>
-        /// <param name="taskIndex"></param>
-        /// <param name="threadID"></param>
-        [Obsolete("此方法中的一些类已被弃用，但目前未有替代方法,请等待更新")]
-        internal void HttpDownload(int taskIndex,int threadID)
+        /// <param name="taskIndex">任务编号</param>
+        /// <param name="threadID">线程编号</param>
+        /// <returns></returns>
+        internal void SendDownloadFileRequestByHttp(int taskIndex, int threadID)
         {
-            string url = this.Tasks[taskIndex].Url;//下载链接
-            string path = this.Tasks[taskIndex].Threads[threadID].Path;//下载路径
-            int position = this.Tasks[taskIndex].Threads[threadID].DownloadPosition;//下载位置
-            int size = this.Tasks[taskIndex].Threads[threadID].EachThreadShouldDownloadSize;//下载大小
-            this.Tasks[taskIndex].State = DownloadTaskState.Downloading;
-
-            HttpWebRequest httpWebRequest = WebRequest.CreateHttp(url);//新建Http请求
-            httpWebRequest.Method = "GET";//将Http请求类型设为GET
-            httpWebRequest.AddRange(position, position + size);//添加请求文件时的偏移(文件位置)
-            WebResponse webResponse = (WebResponse)httpWebRequest.GetResponse();//发送请求并获得Http回应
-            //将存储在响应流
-            Stream responseStream = webResponse.GetResponseStream();//获取Http回应中返回的文件
+            //新建DownloadTaskThreadInfo对象
+            DownloadTaskThreadInfo taskThreadInfo = new DownloadTaskThreadInfo(this, taskIndex, threadID);
+            //得到响应流
+            Stream responseStream = this.GetStream(taskThreadInfo);
+            if(responseStream == null)
+            {
+                Debug.WriteLine($"线程{taskThreadInfo.ThreadID} 请求失败");
+                this.Tasks[taskThreadInfo.TaskID].Cancel();
+                return;
+            }
             //新建文件流用于操作文件
-            FileStream DownloadFileStream = new FileStream(path, FileMode.Create);
+            FileStream downloadFileStream = new FileStream(taskThreadInfo.Path, FileMode.Create);
+            Debug.WriteLine($"线程{taskThreadInfo.ThreadID} 开始下载");
+            this.Tasks[taskThreadInfo.TaskID].State = DownloadTaskState.Downloading;
+            int readBytesCount = 0;
+            do
+            {
+                readBytesCount = this.DownloadFile(responseStream, downloadFileStream, taskThreadInfo);
+                //Debug.WriteLine($"线程{taskThreadInfo.ThreadID} CompletedSize:{readBytesCount}");
+                if (readBytesCount == -1)
+                {
+                    Debug.WriteLine($"下载任务失败，因为于线程{taskThreadInfo.ThreadID}中readBytesCount为-1");
+                    this.Tasks[taskThreadInfo.TaskID].Cancel();
+                    return;
+                }
+                this.CaculateCompleteNumber(taskThreadInfo, readBytesCount);
+            }
+            while (readBytesCount > 0 && this.Tasks[taskThreadInfo.TaskID].State == DownloadTaskState.Downloading);//是否到达文件流结尾(readBytesCount等于0就是到达文件流结尾)
+            this.PostDownload(downloadFileStream, taskThreadInfo);
+        }
+
+        private Stream GetStream(DownloadTaskThreadInfo taskThreadInfo)
+        {
+            //新建HttpClient对象
+            HttpClient httpClient = new HttpClient();
+            //新建Http请求信息
+            HttpRequestMessage httpRequestMessage = new HttpRequestMessage(HttpMethod.Get, taskThreadInfo.Url);
+            //添加请求文件时的偏移(文件请求范围)
+            httpRequestMessage.Headers.Range = new RangeHeaderValue(taskThreadInfo.DownloadPosition, 
+                taskThreadInfo.DownloadPosition + taskThreadInfo.EachThreadShouldDownloadSize);
+            try
+            {
+                Debug.WriteLine($"线程{taskThreadInfo.ThreadID} 开始请求");
+                //发送请求并获得Http回应
+                HttpResponseMessage response = httpClient.Send(httpRequestMessage);
+                Debug.WriteLine($"线程{taskThreadInfo.ThreadID} 请求成功");
+                //检查请求是否成功
+                response.EnsureSuccessStatusCode();
+                //赋值响应流
+                Stream responseStream = response.Content.ReadAsStream();
+                return responseStream;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+
+        }
+
+        private int DownloadFile(Stream responseStream, FileStream downloadFileStream, DownloadTaskThreadInfo taskThreadInfo)
+        {
             //读取的字节数
             int readBytesCount = 0;
             //读取缓存
             byte[] bytes = new byte[4096];//读取的数据将存放在此后写入文件
-            //失败尝试次数
+                                          //失败尝试次数
             short tryCount = 0;
+
             do
             {
-                do
+                try
                 {
-                    try
+                    //如果尝试次数大于或等于TRYTIMES
+                    if (tryCount >= TRYTIMES)
                     {
-                        //如果尝试次数大于或等于TRYTIMES
-                        if (tryCount >= TRYTIMES)
-                        {
-                            Debug.WriteLine($"线程[{threadID}] 5次尝试请求并读取数据失败，该下载任务取消");
-                            this.Tasks[taskIndex].Cancel();//取消该任务
-                            break;
-                        }
-                        //读取数据
-                        readBytesCount = responseStream.Read(bytes, 0, bytes.Length);
+                        Debug.WriteLine($"线程[{taskThreadInfo.ThreadID}] 5次尝试请求并读取数据失败，该下载任务取消");
+                        this.Tasks[taskThreadInfo.TaskID].Cancel();//取消该任务
+                        break;
                     }
-                    catch (Exception)
-                    {
-                        Debug.WriteLine($"线程[{threadID}] 读取数据失败，等待{WAITTIMES / 1000}秒后进行第{tryCount + 1}次重试");
-                        tryCount++;
-                        Thread.Sleep((int)WAITTIMES);//等待WAITTIMES1
-                    }
+                    //读取数据
+                    readBytesCount = responseStream.Read(bytes, 0, bytes.Length);
                 }
-                while (tryCount != 0);
-
-                if (this.Tasks[taskIndex].State == DownloadTaskState.Cancelled)// 判断状态是否为取消
+                catch (Exception)
                 {
-                    DownloadFileStream.Flush();//释放所有数据
-                    DownloadFileStream.Close();//解除对文件的占用
-                    File.Delete(path);//删除下载的文件
-                    return;//返回
+                    Debug.WriteLine($"线程[{taskThreadInfo.ThreadID}] 读取数据失败，等待{WAITTIMES / 1000}秒后进行第{tryCount + 1}次重试");
+                    tryCount++;
+                    Thread.Sleep((int)WAITTIMES);//等待WAITTIMES1
                 }
-
-                //写入数据
-                DownloadFileStream.Write(bytes, 0, readBytesCount);
-
-                this.Tasks[taskIndex].Threads[threadID].CompletedSizeCount += readBytesCount;//将下载数量相加
-                //将完成率赋值给线程完成率
-                this.Tasks[taskIndex].Threads[threadID].CompletionRate = (float)Math.Round(((float)this.Tasks[taskIndex].Threads[threadID].CompletedSizeCount / webResponse.ContentLength) * 100F, 2);//算出完成率
             }
-            while (readBytesCount > 0 && this.Tasks[taskIndex].State == DownloadTaskState.Downloading);//是否到达文件流结尾(readBytesCount等于0就是到达文件流结尾)
-            if(this.Tasks[taskIndex].Threads[threadID].IsAlive == true)//判断是否线程是否被设为"工作"
+            while (tryCount != 0);
+
+            //下载状态是否为取消
+            if (this.Tasks[taskThreadInfo.TaskID].State == DownloadTaskState.Cancelled)// 判断状态是否为取消
+            {
+                downloadFileStream.Flush();//释放所有数据
+                downloadFileStream.Close();//解除对文件的占用
+                File.Delete(taskThreadInfo.Path);//删除下载的文件
+                return -1;//返回
+            }
+
+            //写入数据
+            downloadFileStream.Write(bytes, 0, readBytesCount);
+
+            //返回下载字节数量
+            return readBytesCount;
+        }
+
+        private void CaculateCompleteNumber(DownloadTaskThreadInfo taskThreadInfo,int readBytesCount)
+        {
+            this.Tasks[taskThreadInfo.TaskID].Threads[taskThreadInfo.ThreadID].CompletedSizeCount += readBytesCount;//将下载数量相加
+                                                                                                                    //将完成率赋值给线程完成率
+            this.Tasks[taskThreadInfo.TaskID].Threads[taskThreadInfo.ThreadID].CompletionRate =
+                (float)Math.Round(((float)this.Tasks[taskThreadInfo.TaskID].Threads[taskThreadInfo.ThreadID].CompletedSizeCount / this.Tasks[taskThreadInfo.TaskID].
+                Threads[taskThreadInfo.ThreadID].EachThreadShouldDownloadSize) * 100F, 2);//算出完成率
+        }
+
+        private void PostDownload(FileStream downloadFileStream, DownloadTaskThreadInfo taskThreadInfo)
+        {
+            if (this.Tasks[taskThreadInfo.TaskID].Threads[taskThreadInfo.ThreadID].IsAlive == true)//判断是否线程是否被设为"工作"
             {//是
-                DownloadFileStream.Flush();//释放所有数据
-                DownloadFileStream.Close();//解除对文件的占用
-                lock(this.Tasks[taskIndex].DownloadLocker)//保证每次只有一个线程操作
+                downloadFileStream.Flush();//释放所有数据
+                downloadFileStream.Close();//解除对文件的占用
+                lock (this.Tasks[taskThreadInfo.TaskID].DownloadLocker)//保证每次只有一个线程操作
                 {
-                    this.Tasks[taskIndex].CompleteDownloadThreadCount++;//完成下载的线程数量增加
+                    this.Tasks[taskThreadInfo.TaskID].CompleteDownloadThreadCount++;//完成下载的线程数量增加
                 }
-                //Console.WriteLine($"{Path.GetFileName(path)} --- {threadID} --- {this.Tasks[taskIndex].CompleteDownloadThreadCount} ");
 
-
-                if (this.Tasks[taskIndex].CompleteDownloadThreadCount == this.MaxDownloadThread && new FileInfo((this.Tasks[taskIndex].Path)).Length == 0)//是否所有线程完成下载
+                if (this.Tasks[taskThreadInfo.TaskID].CompleteDownloadThreadCount == this.MaxDownloadThread && new FileInfo((this.Tasks[taskThreadInfo.TaskID].Path)).Length == 0)//是否所有线程完成下载
                 {
                     //开始合并文件
-                    this.Combine(taskIndex, threadID);
+                    this.Combine(taskThreadInfo.TaskID, taskThreadInfo.ThreadID);
                 }
             }
             else
             {//否
-                DownloadFileStream.Flush();//释放所有数据
-                DownloadFileStream.Close();//解除对文件的占用
-                File.Delete(path);//删除下载的文件
+                downloadFileStream.Flush();//释放所有数据
+                downloadFileStream.Close();//解除对文件的占用
+                File.Delete(taskThreadInfo.Path);//删除下载的文件
                 return;//返回
             }
         }
@@ -290,7 +347,7 @@ namespace MultithreadDownload.Downloads
         /// <param name="taskIndex"></param>
         /// <param name="threadID"></param>
         private void Combine(int taskIndex, int threadID)
-        {
+            {
             FileStream finalFileStream;//最终文件流
             FileStream tempReadFilrStream;//用于读取临时下载文件的流
             int readBytesCount;//每次读取的字节数
@@ -331,6 +388,36 @@ namespace MultithreadDownload.Downloads
                 this.AllocateThreadRunningControl.Set();//启动分配线程
             }
             
+        }
+    }
+
+    public class DownloadTaskThreadInfo
+    {
+        public MultiDownload MultiDownloadObject { get; set; }
+        public int TaskID { get; set; }
+        public int ThreadID { get; set; }
+        public string Url { get; set; }
+        public string Path { get; set; }
+        public long DownloadPosition { get; set; }
+        public long EachThreadShouldDownloadSize { get; set; }
+
+        public DownloadTaskThreadInfo(MultiDownload multiDownloadObject ,int taskID,int threadID)
+        {
+            try
+            {
+                MultiDownloadObject = multiDownloadObject;
+                this.TaskID = taskID;
+                this.ThreadID = threadID;
+                this.Url = this.MultiDownloadObject.Tasks[taskID].Url;
+                this.Path = this.MultiDownloadObject.Tasks[taskID].Threads[threadID].Path;
+                this.DownloadPosition = this.MultiDownloadObject.Tasks[taskID].Threads[this.ThreadID].DownloadPosition;
+                this.EachThreadShouldDownloadSize = this.MultiDownloadObject.Tasks[taskID].Threads[this.ThreadID].EachThreadShouldDownloadSize;
+            }
+            catch (IndexOutOfRangeException)
+            {
+                Debug.WriteLine($"异常：IndexOutOfRangeException 对于  taskID为 {taskID} 且 threadID为 {threadID}");
+                throw;
+            }
         }
     }
 }

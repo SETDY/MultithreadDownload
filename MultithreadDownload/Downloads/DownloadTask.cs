@@ -60,11 +60,6 @@ namespace MultithreadDownload.Downloads
         /// 下载项目的目标下载类的储存
         /// </summary>
         public MultiDownload Target { get; private set; }
-         
-        /// <summary>
-        /// 每秒下载速度
-        /// </summary>
-        public float DownloadSpeeds { get; private set; }
 
         /// <summary>
         /// 当下载任务的状态改变
@@ -120,6 +115,10 @@ namespace MultithreadDownload.Downloads
                         totalCompletionRate += thread.CompletionRate * (1F / this.Threads.Count);//算出每个线程的占比完成率[最终线程完成率 = 线程完成率 * (1 / 线程数)]
                     }
                 }
+                else if(this.State == DownloadTaskState.Completed)
+                {
+                    totalCompletionRate = 100;
+                }
                 return (float)Math.Round(totalCompletionRate,3);//取值3位小数
             }
         }
@@ -127,7 +126,7 @@ namespace MultithreadDownload.Downloads
         /// <summary>
         /// 下载速率
         /// </summary>
-        public string DownloadRate { get; private set; } = "0kb/s";
+        public string DownloadSpeedRate { get; private set; } = "0kb/s";
 
         /// <summary>
         /// 创建一个DownloadTask(不包括ID)
@@ -192,13 +191,13 @@ namespace MultithreadDownload.Downloads
             {
                 this.Threads.Add(new DownloadThread());//创建线程数据类并添加
                 int index = i;//将index存储在另一个变量，以防止越界
-                this.Threads[i].Thread = new Thread(() => this.Target.HttpDownload(taskIndex, this.Threads[index].ID));//将新建线程的赋值给属性
+                this.Threads[i].Thread = new Thread(() => this.Target.SendDownloadFileRequestByHttp(taskIndex, this.Threads[index].ID));//将新建线程的赋值给属性
                 //将线程设为背景线程
                 this.Threads[i].Thread.IsBackground = true;
             }
         }
 
-        public void InitializationAllThread(string tag, int eachThreadShouldDownloadSize, int remainingSize)
+        public void InitializationAllThread(string tag, long eachThreadShouldDownloadSize, long remainingSize)
         {
             //将Tag赋值
             this.Tag = tag;
@@ -224,7 +223,7 @@ namespace MultithreadDownload.Downloads
                     this.Threads[i].ID = i;
 
                     //获得位置
-                    int[] positions = this.Target.SplitePosition(eachThreadShouldDownloadSize);
+                    long[] positions = this.Target.SplitePosition(eachThreadShouldDownloadSize);
                     //将位置赋值给线程
                     this.Threads[i].DownloadPosition = positions[i];
                     //将线程的下载路径赋值给线程
@@ -274,7 +273,7 @@ namespace MultithreadDownload.Downloads
         private void DownloadSpeedPerSecond()
         {
             long gap = this.theSecondDownloadSize - this.lastSecondDownloadSize;//算出差距
-            this.DownloadRate = gap.ToDownloadRate();
+            this.DownloadSpeedRate = gap.ToDownloadRate();
             this.lastSecondDownloadSize = this.theSecondDownloadSize;
         }
 
@@ -306,6 +305,7 @@ namespace MultithreadDownload.Downloads
         public void Cancel()
         {
             this.State = DownloadTaskState.Cancelled;
+            CloseTask();
         }
 
         internal void InvokeStateChangeEvent(string name,string url,string path,DownloadTaskState state)

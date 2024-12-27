@@ -18,12 +18,12 @@ namespace MultithreadDownload.Downloads
         /// <summary>
         /// 每一个线程应当下载的大小
         /// </summary>
-        public int EachThreadShouldDownloadSize { get; internal set; }
+        public long EachThreadShouldDownloadSize { get; internal set; }
 
         /// <summary>
         /// 线程应当下载的开始位置
         /// </summary>
-        public int DownloadPosition { get; internal set; }
+        public long DownloadPosition { get; internal set; }
 
         /// <summary>
         /// 下载线程是否存活
