@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -10,14 +11,16 @@ namespace MultithreadDownload.Help
 {
     public static class NetWorkHelp
     {
+        private static readonly HttpClient httpClient = new HttpClient();
+
         /// <summary>
         /// 是否是可连接特定网址
         /// </summary>
         /// <param name="url">网址</param>
         /// <returns></returns>
-        public static bool CanConnectionUrl(string url)
+        public static async Task<bool> CanConnectionUrlAsync(string url)
         {
-            if(RegexHelp.IsUrl(url) == false)//正则判断是否是Url
+            if (RegexHelp.IsUrl(url) == false)//正则判断是否是Url
             {
                 return false;
             }
@@ -26,7 +29,7 @@ namespace MultithreadDownload.Help
             {
                 return false;
             }
-            if(NetWorkHelp.GetWebStatusCode(url) != "200")//判断网站返回是否正确
+            if (await NetWorkHelp.GetWebStatusCodeAsync(url) != "200")//判断网站返回是否正确
             {
                 return false;
             }
@@ -34,29 +37,18 @@ namespace MultithreadDownload.Help
         }
 
         //仅检测链接头，不会获取链接的结果。所以速度很快，超时的时间单位为毫秒
-        public static string GetWebStatusCode(string url)
+        public static async Task<string> GetWebStatusCodeAsync(string url)
         {
-            HttpWebRequest req = null;
             try
             {
-                req = (HttpWebRequest)WebRequest.CreateDefault(new Uri(url));
-                req.Method = "HEAD";  //这是关键        
-                HttpWebResponse res = (HttpWebResponse)req.GetResponse();
-                return Convert.ToInt32(res.StatusCode).ToString();
+                var request = new HttpRequestMessage(HttpMethod.Head, url);
+                var response = await httpClient.SendAsync(request);
+                return ((int)response.StatusCode).ToString();
             }
             catch (Exception ex)
             {
                 return ex.Message;
             }
-            finally
-            {
-                if (req != null)
-                {
-                    req.Abort();
-                    req = null;
-                }
-            }
-
         }
 
         //导入判断网络是否连接的 .dll  
@@ -69,10 +61,11 @@ namespace MultithreadDownload.Help
             return (HttpWebRequest)WebRequest.Create(url);
         }
 
-        public static long GetUrlFileSize(string url)
+        public static async Task<long> GetUrlFileSizeAsync(string url)
         {
             //获得文件大小并返回
-            return NetWorkHelp.CreateHttpWebRequest(url).GetResponse().ContentLength;
+            var response = await httpClient.SendAsync(new HttpRequestMessage(HttpMethod.Head, url));
+            return response.Content.Headers.ContentLength ?? 0;
         }
     }
 }

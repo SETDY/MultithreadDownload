@@ -20,6 +20,16 @@ namespace MultithreadDownload.Downloads
         public List<DownloadTask> Tasks { get; internal set; } = new List<DownloadTask>();
 
         /// <summary>
+        /// 重试次数
+        /// </summary>
+        private const uint TRYTIMES = 5;
+
+        /// <summary>
+        /// 重试等待时间
+        /// </summary>
+        private const uint WAITTIMES = 5000;
+
+        /// <summary>
         /// 最大下载中任务数量
         /// </summary>
         public int MaxDownloadingTask { get; private set; }
@@ -132,9 +142,9 @@ namespace MultithreadDownload.Downloads
         /// </summary>
         /// <param name="remainingSize">剩余的大小(除完后的余数)</param>
         /// <returns>每个线程应该下载的大小</returns>
-        private int SplitSize(string url,out int remainingSize)
+        private int SplitSize(string url, out int remainingSize)
         {
-            long fileSize = NetWorkHelp.GetUrlFileSize(url);
+            long fileSize = NetWorkHelp.GetUrlFileSizeAsync(url).GetAwaiter().GetResult();
 
             //每一个线程应当下载的大小
             int eachThreadShouldDownloadSize = (int)fileSize / this.MaxDownloadThread;//文件大小/最大下载线程数
@@ -152,12 +162,12 @@ namespace MultithreadDownload.Downloads
             string[] paths = new string[this.MaxDownloadThread];
             for (int i = 0; i < MaxDownloadThread; i++)
             {
-                //文件名(不含扩展名)
-                string name = Path.GetFileName(path).Substring(0, Path.GetFileName(path).LastIndexOf('.'));
-                //文件扩展名
-                string suffix = ".Download";
+                //目标文件名(不含扩展名)
+                string targetFileNameWE = Path.GetFileNameWithoutExtension(path);
+                //临时文件名文件扩展名
+                string extension = ".Download";
                 //将计算好的路径赋值
-                paths[i] = Path.Combine(Path.GetPathRoot(path), $"{name} [{tag}]-{i}{suffix}");
+                paths[i] = Path.Combine(Path.GetPathRoot(path), $"{targetFileNameWE} [{tag}]-{i}{extension}");
             }
             return paths;
         }
@@ -205,24 +215,47 @@ namespace MultithreadDownload.Downloads
             int readBytesCount = 0;
             //读取缓存
             byte[] bytes = new byte[4096];//读取的数据将存放在此后写入文件
-            //完成的大小数量
+            //失败尝试次数
+            short tryCount = 0;
             do
             {
-                //读取数据
-                readBytesCount = responseStream.Read(bytes, 0, bytes.Length);
-                //写入数据
-                DownloadFileStream.Write(bytes, 0, readBytesCount);
+                do
+                {
+                    try
+                    {
+                        //如果尝试次数大于或等于TRYTIMES
+                        if (tryCount >= TRYTIMES)
+                        {
+                            Debug.WriteLine($"线程[{threadID}] 5次尝试请求并读取数据失败，该下载任务取消");
+                            this.Tasks[taskIndex].Cancel();//取消该任务
+                            break;
+                        }
+                        //读取数据
+                        readBytesCount = responseStream.Read(bytes, 0, bytes.Length);
+                    }
+                    catch (Exception)
+                    {
+                        Debug.WriteLine($"线程[{threadID}] 读取数据失败，等待{WAITTIMES / 1000}秒后进行第{tryCount + 1}次重试");
+                        tryCount++;
+                        Thread.Sleep((int)WAITTIMES);//等待WAITTIMES1
+                    }
+                }
+                while (tryCount != 0);
 
-                this.Tasks[taskIndex].Threads[threadID].CompletedSizeCount += readBytesCount;//将下载数量相加
-                //将完成率赋值给线程完成率
-                this.Tasks[taskIndex].Threads[threadID].CompletionRate = (float)Math.Round(((float)this.Tasks[taskIndex].Threads[threadID].CompletedSizeCount / webResponse.ContentLength) * 100F, 2);//算出完成率
-                if(this.Tasks[taskIndex].State == DownloadTaskState.Cancelled)// 判断状态是否为取消
+                if (this.Tasks[taskIndex].State == DownloadTaskState.Cancelled)// 判断状态是否为取消
                 {
                     DownloadFileStream.Flush();//释放所有数据
                     DownloadFileStream.Close();//解除对文件的占用
                     File.Delete(path);//删除下载的文件
                     return;//返回
                 }
+
+                //写入数据
+                DownloadFileStream.Write(bytes, 0, readBytesCount);
+
+                this.Tasks[taskIndex].Threads[threadID].CompletedSizeCount += readBytesCount;//将下载数量相加
+                //将完成率赋值给线程完成率
+                this.Tasks[taskIndex].Threads[threadID].CompletionRate = (float)Math.Round(((float)this.Tasks[taskIndex].Threads[threadID].CompletedSizeCount / webResponse.ContentLength) * 100F, 2);//算出完成率
             }
             while (readBytesCount > 0 && this.Tasks[taskIndex].State == DownloadTaskState.Downloading);//是否到达文件流结尾(readBytesCount等于0就是到达文件流结尾)
             if(this.Tasks[taskIndex].Threads[threadID].IsAlive == true)//判断是否线程是否被设为"工作"

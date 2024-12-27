@@ -9,21 +9,27 @@ namespace MultithreadDownload.Test
     {
         static void Main(string[] args)
         {
-            Stopwatch stopwatch = Stopwatch.StartNew();
-            //string url = "http://samples.mplayerhq.hu/3D/Surfcup.mp4";
-            string url = "https://sample-videos.com/video123/flv/720/big_buck_bunny_720p_1mb.flv";
+            string url = "http://samples.mplayerhq.hu/3D/Surfcup.mp4";
+            //string url = "https://sample-videos.com/video123/flv/720/big_buck_bunny_720p_1mb.flv";
+            //string url = "http://speedtest.zju.edu.cn/1000M";
             Console.WriteLine("等待回车...");
             Console.ReadLine();
             Console.WriteLine($"开始测试 链接: {url}");
-            MultiDownload download = new MultiDownload(3, 8);
+            MultiDownload download = new MultiDownload(3, 16);
+            Stopwatch stopwatch = Stopwatch.StartNew();
             download.Add(url, @"G:\");
-            stopwatch.Stop();
-            Console.WriteLine($"Time:{stopwatch.Elapsed.TotalSeconds}s");
             //download.Add(url, @"F:\DownloadTest");
             //download.Add(url, @"F:\DownloadTest");
             //download.Add(url, @"F:\DownloadTest");
             Thread.Sleep(50);
+            while (download.Tasks[0].CompletionRate != 100)
+            {
+                Console.WriteLine($"已完成 {download.Tasks[0].CompletionRate}%");
+                Thread.Sleep(100);
+            }
             //download.Add("http://btfile.soft5566.com/y/SimAirport.Early.Access.Build.20200815.Multi.8.torrent", "F:\\");
+            stopwatch.Stop();
+            Console.WriteLine($"Time:{stopwatch.Elapsed.TotalSeconds}s");
             Console.WriteLine("\n完成测试");
             Console.ReadLine();
         }
