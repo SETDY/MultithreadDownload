@@ -20,8 +20,12 @@ namespace MultithreadDownload.Help
             {
                 for (int i = 1; true; i++)
                 {
+                    //获取文件的目录
+                    string directoryName = Path.GetDirectoryName(path);
+                    //获取文件的名称
+                    string tempFileName = Path.GetFileNameWithoutExtension(path) + $" ({i})" + Path.GetExtension(path);
                     //给予临时文件路径
-                    string tempFilePath = Path.GetFileNameWithoutExtension(path) + $" ({i})" + Path.GetExtension(path);
+                    string tempFilePath = Path.Combine(directoryName, tempFileName);
                     //判断临时文件路径是否有文件的名称与其相撞
                     if (File.Exists(tempFilePath) == false)
                     {

@@ -5,13 +5,14 @@ using System.Net;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace MultithreadDownload.Help
 {
     public static class NetWorkHelp
     {
-        private static readonly HttpClient httpClient = new HttpClient();
+        private static readonly HttpClient httpClient = new HttpClient { Timeout = TimeSpan.FromMilliseconds(2000) };
 
         /// <summary>
         /// 是否是可连接特定网址
@@ -41,9 +42,18 @@ namespace MultithreadDownload.Help
         {
             try
             {
-                var request = new HttpRequestMessage(HttpMethod.Head, url);
-                var response = await httpClient.SendAsync(request);
-                return ((int)response.StatusCode).ToString();
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Head, url);
+                //程序运行时，如果超过2秒没有返回结果，则取消请求
+                using (CancellationTokenSource cts = 
+                    new CancellationTokenSource(TimeSpan.FromMilliseconds(2000)))
+                {
+                    var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
+                    return ((int)response.StatusCode).ToString();
+                }
+            }
+            catch (TaskCanceledException)
+            {
+                return "请求超时";
             }
             catch (Exception ex)
             {
@@ -56,16 +66,25 @@ namespace MultithreadDownload.Help
         //判断网络状况的方法,返回值true为连接，false为未连接  
         public extern static bool InternetGetConnectedState(out int conState, int reder);
 
-        public static HttpWebRequest CreateHttpWebRequest(string url)
-        {
-            return (HttpWebRequest)WebRequest.Create(url);
-        }
-
         public static async Task<long> GetUrlFileSizeAsync(string url)
         {
-            //获得文件大小并返回
-            var response = await httpClient.SendAsync(new HttpRequestMessage(HttpMethod.Head, url));
-            return response.Content.Headers.ContentLength ?? 0;
+            try
+            {
+                //程序运行时，如果超过2秒没有返回结果，则取消请求
+                using (var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(2000)))
+                {
+                    var response = await httpClient.SendAsync(new HttpRequestMessage(HttpMethod.Head, url), cts.Token);
+                    return response.Content.Headers.ContentLength ?? 0;
+                }
+            }
+            catch (TaskCanceledException)
+            {
+                return 0; // 超时返回0
+            }
+            catch (Exception)
+            {
+                return 0; // 其他异常返回0
+            }
         }
     }
 }

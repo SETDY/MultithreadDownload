@@ -1,6 +1,7 @@
 ﻿using MultithreadDownload.Events;
 using MultithreadDownload.Exceptions;
 using MultithreadDownload.Help;
+using MultithreadDownload.Ways;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -126,7 +127,39 @@ namespace MultithreadDownload.Downloads
         /// <summary>
         /// 下载速率
         /// </summary>
-        public string DownloadSpeedRate { get; private set; } = "0kb/s";
+        public string DownloadSpeedRate { get; private set; } = "0kib/s";
+
+        #region 静态方法
+        /// <summary>
+        /// 启动一个任务
+        /// </summary>
+        internal static void StartTask(DownloadTask downloadTask)
+        {
+            //创建一个任务的所有线程
+            downloadTask.CreateAllThread(downloadTask.ID);
+            //获得线程下载大小
+            long eachThreadShouldDownloadSize =
+                General_DownloadManagement.SplitSize(downloadTask.Target.MaxDownloadThread, downloadTask.Url, out long remaining);
+            //初始化所有线程
+            downloadTask.InitializationAllThread(downloadTask.ID.ToString(), eachThreadShouldDownloadSize, remaining);
+            //启动所有线程
+            downloadTask.StartAllDownloadThread();
+        }
+
+        /// <summary>
+        /// 收尾一个任务
+        /// </summary>
+        internal static void EndTask(DownloadTask downloadTask)
+        {
+            downloadTask.State = DownloadTaskState.Completed;
+            downloadTask.Target.DownloadingTask = downloadTask.Target.DownloadingTask - 1;//下载完毕减少正在下载的任务
+            if (downloadTask.Target.WaitingTask > 0)//如果还有等待的线程
+            {
+                downloadTask.Target.CompletedTask++;
+                downloadTask.Target.StartAllocate();//启动分配线程
+            }
+        }
+        #endregion
 
         /// <summary>
         /// 创建一个DownloadTask(不包括ID)
@@ -197,6 +230,7 @@ namespace MultithreadDownload.Downloads
             }
         }
 
+        //TODO: 重构此方法
         public void InitializationAllThread(string tag, long eachThreadShouldDownloadSize, long remainingSize)
         {
             //将Tag赋值
@@ -223,11 +257,11 @@ namespace MultithreadDownload.Downloads
                     this.Threads[i].ID = i;
 
                     //获得位置
-                    long[] positions = this.Target.SplitePosition(eachThreadShouldDownloadSize);
+                    long[] positions = General_DownloadManagement.SplitePosition(this.Target,eachThreadShouldDownloadSize);
                     //将位置赋值给线程
                     this.Threads[i].DownloadPosition = positions[i];
                     //将线程的下载路径赋值给线程
-                    this.Threads[i].Path = this.Target.SplitPath(this.Path, tag)[i];
+                    this.Threads[i].Path = General_DownloadManagement.SplitPath(this.Target,this.Path, tag)[i];
                 }
             }
             else
@@ -236,7 +270,11 @@ namespace MultithreadDownload.Downloads
             }
         }
 
-        public int StartAllThread()
+        /// <summary>
+        /// 启动所有下载线程
+        /// </summary>
+        /// <returns></returns>
+        public void StartAllDownloadThread()
         {
             //遍历所有线程数据
             foreach (DownloadThread threadData in this.Threads)
@@ -247,9 +285,6 @@ namespace MultithreadDownload.Downloads
             this.StartTimer();//启动计时器
             this.RefreshPath();
             new FileStream(this.Path, FileMode.Create).Close();//创建最终文件流文件
-            this.Target.TaskIndex++;
-            //返回任务索引
-            return this.Target.TaskIndex;
         }
 
         /// <summary>
