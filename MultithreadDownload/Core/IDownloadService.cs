@@ -14,7 +14,7 @@ namespace MultithreadDownload.Core
         /// </summary>
         /// <param name="threadInfo">Information about the current download thread.</param>
         /// <returns>A stream representing the target part of the file.</returns>
-        Stream GetStream(DownloadTaskThreadInfo threadInfo);
+        Result<Stream> GetStream(MultithreadDownload.Threading.DownloadThread threadInfo);
 
         /// <summary>
         /// Performs the actual download using the given input and output streams.
