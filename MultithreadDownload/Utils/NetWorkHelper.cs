@@ -1,18 +1,46 @@
-﻿using System;
+﻿using MultithreadDownload.Utils;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Net;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace MultithreadDownload.Help
 {
-    public static class NetWorkHelp
+    /// <summary>
+    /// A class that provides network-related helper methods.
+    /// </summary>
+    public static class NetWorkHelper
     {
-        private static readonly HttpClient httpClient = new HttpClient { Timeout = TimeSpan.FromMilliseconds(2000) };
+        /// <summary>
+        /// A static instance of HttpClient for making HTTP requests.
+        /// </summary>
+        /// <remarks>
+        /// Althought tt is recommended to use a single instance of HttpClient for the lifetime of the application,
+        /// the class will be use a specific instance of HttpClient which is only for this class
+        /// becase the HttpClient poot which now used has been use for download file.
+        /// </remarks>
+        private static readonly HttpClient s_client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(2000) };
+
+        /// <summary>
+        /// Checks if the given URL is valid and can be connected.
+        /// </summary>
+        /// <returns></returns>
+        public static Result<bool> IsVaildHttpLink(string link)
+        {
+            // If the link is null or empty, return a failure result.
+            // Otherwise, use Regex to check if the link is valid.
+            if (string.IsNullOrEmpty(link))
+                return Result<bool>.Failure("The link is null or empty.");
+            Regex regex = new Regex("https?://");
+            return Result<bool>.Success(regex.IsMatch(link));
+        }
 
         /// <summary>
         /// 是否是可连接特定网址

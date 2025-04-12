@@ -7,7 +7,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace MultithreadDownload.Helpers
+namespace MultithreadDownload.Utils
 {
     public static class PathHelper
     {

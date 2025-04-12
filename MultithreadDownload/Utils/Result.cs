@@ -1,4 +1,4 @@
-﻿namespace MultithreadDownload.Helpers
+﻿namespace MultithreadDownload.Utils
 {
     /// <summary>
     /// Represents the result of an operation, which can be either a success or a failure.
