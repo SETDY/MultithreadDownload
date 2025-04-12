@@ -2,7 +2,6 @@
 using MultithreadDownload.Downloads;
 using MultithreadDownload.Exceptions;
 using MultithreadDownload.Help;
-using MultithreadDownload.Threading;
 using MultithreadDownload.Utils;
 using System;
 using System.Collections.Generic;
@@ -45,6 +44,25 @@ namespace MultithreadDownload.Tasks
         private DownloadSpeedMonitor s_speedMonitor = new DownloadSpeedMonitor();
         #endregion
 
+        private DownloadTask(IDownloadContext downloadContext)
+        {
+            this.DownloadContext = downloadContext;
+            InitionalizeDownloadThreads();
+            this.DownloadThreads = new List<DownloadThread>();
+        }
+
+        private void InitionalizeDownloadThreads(byte maxThread)
+        {
+            // If the download thread list is not null or empty, throw an exception
+            // Otherwise, initialize download threads
+            if (this.DownloadThreads == null || this.DownloadThreads.Count != 0) { throw new Exception("The download thread list is not null or empty."); }
+            for (int i = 0; i < maxThread; i++)
+            {
+                DownloadThread thread = new DownloadThread(i,this.DownloadContext,);
+                this.DownloadThreads.Add(thread);
+            }
+        }
+
 
         /// <summary>
         /// Get the number of threads that have been completed download.
@@ -70,25 +88,18 @@ namespace MultithreadDownload.Tasks
         /// <param name="path"></param>
         public static DownloadTask Create(int ID, string url, string path, MultiDownload target)
         {
-            if (NetWorkHelp.CanConnectionUrlAsync(url).GetAwaiter().GetResult())//链接是否可以连接
-            {//是
-                if (path[path.Length - 1] != '\\')//为了修复Path.Combine方法的缺陷，防止路径合并错误
-                {
-                    path = path + '\\';
-                }
-                //获取下载路径
-                string downloadPath = System.IO.Path.Combine(path + System.IO.Path.GetFileName(HttpUtility.UrlDecode(url)));//合并路径
-                DownloadTask downloadTask = new DownloadTask(target);//新建下载任务
-                downloadTask.Path = downloadPath;//将路径赋值
-                downloadTask.Url = url;//将链接赋值
-                downloadTask.State = DownloadTaskState.Waiting;
-                return downloadTask;
-            }
-            else
-            {//否
-                throw new UrlCanNotConnectionException(url);//抛出连接无法连接错误
-            }
-        }
+            if (!(HttpNetworkHelper.LinkCanConnectionAsync(url).Result)) { throw new UrlCanNotConnectionException(url); }
 
-    }
+            if (path[path.Length - 1] != '\\')//为了修复Path.Combine方法的缺陷，防止路径合并错误
+            {
+                path = path + '\\';
+            }
+            //获取下载路径
+            string downloadPath = System.IO.Path.Combine(path + System.IO.Path.GetFileName(HttpUtility.UrlDecode(url)));//合并路径
+            DownloadTask downloadTask = new DownloadTask(target);//新建下载任务
+            downloadTask.Path = downloadPath;//将路径赋值
+            downloadTask.Url = url;//将链接赋值
+            downloadTask.State = DownloadTaskState.Waiting;
+            return downloadTask;
+        }
 }

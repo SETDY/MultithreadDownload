@@ -9,7 +9,7 @@ using MultithreadDownload.Core;
 using MultithreadDownload.Helpers;
 using MultithreadDownload.Exceptions;
 using MultithreadDownload.Ways;
-using MultithreadDownload.Threading;
+using MultithreadDownload.Tasks;
 
 namespace MultithreadDownload.Protocols
 {

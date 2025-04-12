@@ -1,0 +1,122 @@
+﻿using MultithreadDownload.Utils;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Net;
+using System.Net.Http;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace MultithreadDownload.Utils
+{
+    /// <summary>
+    /// A class that provides http network-related helper methods.
+    /// </summary>
+    public static class HttpNetworkHelper
+    {
+        /// <summary>
+        /// A static instance of HttpClient for making HTTP requests.
+        /// </summary>
+        /// <remarks>
+        /// Althought tt is recommended to use a single instance of HttpClient for the lifetime of the application,
+        /// the class will be use a specific instance of HttpClient which is only for this class
+        /// becase the HttpClient poot which now used has been use for download file.
+        /// </remarks>
+        private static readonly HttpClient s_client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(2000) };
+
+        /// <summary>
+        /// Get the current network connection state.
+        /// </summary>
+        /// <param name="conState">Internet Connected State</param>
+        /// <param name="reder">should be 0</param>
+        /// <returns>Whether the Internet is connected</returns>
+        [DllImport("wininet.dll", EntryPoint = "InternetGetConnectedState")]
+        private extern static bool InternetGetConnectedState(out int conState, int reder);
+
+        /// <summary>
+        /// Checks if the given URL is valid and can be connected.
+        /// </summary>
+        /// <returns></returns>
+        public static Result<bool> IsVaildHttpLink(string link)
+        {
+            // If the link is null or empty, return a failure result.
+            // Otherwise, use Regex to check if the link is valid.
+            if (string.IsNullOrEmpty(link))
+                return Result<bool>.Failure("The link is null or empty.");
+            Regex regex = new Regex("https?://");
+            return Result<bool>.Success(regex.IsMatch(link));
+        }
+
+        /// <summary>
+        /// Get the status code of a web page asynchronously.
+        /// </summary>
+        /// <remarks>
+        /// Since the method only check the status code of the web page,
+        /// it is fast and does not require downloading the entire page.
+        /// </remarks>
+        /// <param name="link"></param>
+        /// <returns></returns>
+        public static async Task<HttpStatusCode> GetWebStatusCodeAsync(string link)
+        {
+            try
+            {
+                // Send a HEAD request to the URL to get the status code.
+                // If the request takes longer than 2 seconds, cancel it.
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Head, link);
+                using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(2000)))
+                {
+                    HttpResponseMessage response = await s_client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
+                    return response.StatusCode;
+                }
+            }
+            catch (TimeoutException)
+            {
+                return HttpStatusCode.InternalServerError;
+            }
+        }
+
+        /// <summary>
+        /// Checks if the given URL can be connected.
+        /// </summary>
+        /// <param name="link">The http link you want to check<param>
+        /// <returns>Whether the link can be connected</returns>
+        public static async Task<bool> LinkCanConnectionAsync(string link)
+        {
+            Result<bool> primaryResult = IsVaildHttpLink(link);
+            if (!primaryResult.IsSuccess) { return false; }
+            if (!InternetGetConnectedState(out int internetConnectedState, 0)) { return false; }
+            if (await GetWebStatusCodeAsync(link) != HttpStatusCode.OK) { return false; }
+            return true;
+        }
+
+        /// <summary>
+        /// Get the file size of a link asynchronously.
+        /// </summary>
+        /// <param name="link">The link you want to get the file size</param>
+        /// <returns>The file size of the link as bytes</returns>
+        public static async Task<long> GetLinkFileSizeAsync(string link)
+        {
+            // If the link is null or empty, return 0.
+            // Otherwise, send a HEAD request to the URL to get the file size and return its file size.
+            // If the request takes longer than 2 seconds, cancel it.
+            // If the request fails, return 0.
+            if (string.IsNullOrEmpty(link)) { return 0; }
+            try
+            {
+                using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(2000)))
+                {
+                    var response = await s_client.SendAsync(new HttpRequestMessage(HttpMethod.Head, link), cts.Token);
+                    return response.Content.Headers.ContentLength ?? 0;
+                }
+            }
+            catch (Exception)
+            {
+                return 0;
+            }
+        }
+    }
+}

@@ -1,6 +1,4 @@
 ﻿using MultithreadDownload.Core;
-using MultithreadDownload.Help;
-using MultithreadDownload.Helpers;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -9,9 +7,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace MultithreadDownload.Threading
+namespace MultithreadDownload.Tasks
 {
-    public class DownloadThread
+    public class DownloadThread : IDownloadThread
     {
         /// <summary>
         /// The ID of the download thread. This is used to identify the thread in the download task.
@@ -21,7 +19,7 @@ namespace MultithreadDownload.Threading
         /// <summary>
         /// The download context that contains information about the download operation.
         /// </summary>
-        public readonly IDownloadContext DownloadContext;
+        public IDownloadContext DownloadContext { get; private set; }
 
         /// <summary>
         /// The status of the download thread.
@@ -30,9 +28,9 @@ namespace MultithreadDownload.Threading
         {
             get
             {
-                if (this.WorkerThread != null)
+                if (WorkerThread != null)
                 {
-                    return this.WorkerThread.IsAlive;
+                    return WorkerThread.IsAlive;
                 }
                 else
                 {
@@ -52,29 +50,49 @@ namespace MultithreadDownload.Threading
         public long CompletedBytesSizeCount { get; internal set; }
 
         /// <summary>
-        /// The progress reporter for reporting download progress.
+        /// The download progress of the file that has been downloaded by this thread.
         /// </summary>
-        private IProgress<sbyte> ProgressReporter { get; set; }
+        public sbyte Progress { get; set; }
 
         /// <summary>
-        /// The cancellation token for cancelling the download operation.
+        /// The cancellation token source for cancelling the download operation.
         /// </summary>
-        public CancellationTokenSource CancellationTokenSource { get; private set; }
+        private CancellationTokenSource Cancellation { get; set; }
+        IDownloadContext IDownloadThread.DownloadContext { get => DownloadContext; set => DownloadContext = value; }
 
-        public DownloadThread(int id, IDownloadContext downloadContext, Thread workerThread, IProgress<sbyte> progressReporter, CancellationTokenSource cancellationToken)
+        public DownloadThread(int id, IDownloadContext downloadContext, Thread workerThread)
         {
             // Initialize the properties
             this.ID = id;
             this.DownloadContext = downloadContext;
             this.WorkerThread = workerThread;
-            this.ProgressReporter = progressReporter;
-            this.CancellationTokenSource = cancellationToken;
+            this.Cancellation = new CancellationTokenSource();
+        }
+
+        public void Start()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Pause()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Resume()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Stop()
+        {
+            throw new NotImplementedException();
         }
 
         internal void AddCompletedBytesSizeCount(long size)
         {
             // Set the completed bytes size count for this thread
-            this.CompletedBytesSizeCount += size;
+            CompletedBytesSizeCount += size;
         }
 
         /// <summary>
@@ -92,10 +110,10 @@ namespace MultithreadDownload.Threading
             {
                 // If the progress is -1, it indicates that the download has been cancelled.
                 // If the progress is 100, it indicates that the download is complete
-                this.CancellationTokenSource.Cancel();
+                CancellationTokenSource.Cancel();
             }
             // Report the download progress
-            this.ProgressReporter.Report(progress);
+            ProgressReporter.Report(progress);
         }
 
         /// <summary>
@@ -108,8 +126,8 @@ namespace MultithreadDownload.Threading
             // Otherwise, cancel the thread and wait for it to finish
             if (WorkerThread == null) { return Result<bool>.Failure("Thread is not exist so it cannot be cancelled"); }
             if (WorkerThread.IsAlive == false) { return Result<bool>.Failure("Thread is not alive so it cannot be cancelled"); }
-            this.CancellationTokenSource.Cancel();
-            this.WorkerThread.Join();
+            CancellationTokenSource.Cancel();
+            WorkerThread.Join();
             return Result<bool>.Success(true);
         }
     }

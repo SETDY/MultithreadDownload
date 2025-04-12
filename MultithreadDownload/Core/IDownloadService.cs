@@ -1,5 +1,6 @@
 ﻿using MultithreadDownload.Downloads;
 using MultithreadDownload.Helpers;
+using MultithreadDownload.Tasks;
 using System.IO;
 
 namespace MultithreadDownload.Core
@@ -23,7 +24,7 @@ namespace MultithreadDownload.Core
         /// <param name="outputStream">The output stream to which data is written.</param>
         /// <param name="threadInfo">Information about the current download thread.</param>
         /// <returns>A <see cref="Result{T}"/> indicating whether the operation was successful, and the number of bytes written.</returns>
-        Result<int> DownloadFile(Stream inputStream, Stream outputStream, MultithreadDownload.Threading.DownloadThread threadInfo);
+        Result<int> DownloadFile(Stream inputStream, Stream outputStream, DownloadThread threadInfo);
 
         /// <summary>
         /// Handles post-processing tasks after a all parts of file has been downloaded.
@@ -31,6 +32,6 @@ namespace MultithreadDownload.Core
         /// <param name="output">The stream containing the downloaded data.</param>
         /// <param name="threadInfo">Information about the current download thread.</param>
         /// <returns>A <see cref="Result{T}"/> indicating success or failure.</returns>
-        Result<int> PostDownloadProcessing(Stream output, MultithreadDownload.Threading.DownloadThread);
+        Result<int> PostDownloadProcessing(Stream output, DownloadThread);
     }
 }
