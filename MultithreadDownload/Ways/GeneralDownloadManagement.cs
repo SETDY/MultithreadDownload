@@ -1,11 +1,6 @@
 ﻿using MultithreadDownload.Downloads;
-using MultithreadDownload.Help;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace MultithreadDownload.Ways
 {
@@ -52,7 +47,6 @@ namespace MultithreadDownload.Ways
             }
             finalFileStream.Flush();//释放所有数据
             finalFileStream.Close();//解除对文件的占
-
         }
 
         /// <summary>
@@ -89,7 +83,6 @@ namespace MultithreadDownload.Ways
             }
             return paths;
         }
-
 
         /// <summary>
         /// 分割文件位置

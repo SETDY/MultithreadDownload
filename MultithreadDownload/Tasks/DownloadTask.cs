@@ -1,14 +1,10 @@
 ﻿using MultithreadDownload.Core;
 using MultithreadDownload.Downloads;
+using MultithreadDownload.Events;
 using MultithreadDownload.Exceptions;
-using MultithreadDownload.Help;
+using MultithreadDownload.Threading;
 using MultithreadDownload.Utils;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Web;
 
 namespace MultithreadDownload.Tasks
 {
@@ -18,6 +14,7 @@ namespace MultithreadDownload.Tasks
     public class DownloadTask
     {
         #region Properties
+
         /// <summary>
         /// Task ID for identifying the download task.
         /// </summary>
@@ -29,40 +26,97 @@ namespace MultithreadDownload.Tasks
         public IDownloadContext DownloadContext { get; private set; }
 
         /// <summary>
-        /// The DownloadThread list that contains all the DownloadThread(Not thread!) for this download task.
-        /// </summary>
-        public List<DownloadThread> DownloadThreads { get; private set; }
-
-        /// <summary>
         /// The state of the download task.
         /// </summary>
-        public DownloadTaskState State { get; private set; }
-
-        /// <summary>
-        /// The downloa speed monitor for monitoring the download speed.
-        /// </summary>
-        private DownloadSpeedMonitor s_speedMonitor = new DownloadSpeedMonitor();
-        #endregion
-
-        private DownloadTask(IDownloadContext downloadContext)
+        public DownloadTaskState State
         {
-            this.DownloadContext = downloadContext;
-            InitionalizeDownloadThreads();
-            this.DownloadThreads = new List<DownloadThread>();
-        }
-
-        private void InitionalizeDownloadThreads(byte maxThread)
-        {
-            // If the download thread list is not null or empty, throw an exception
-            // Otherwise, initialize download threads
-            if (this.DownloadThreads == null || this.DownloadThreads.Count != 0) { throw new Exception("The download thread list is not null or empty."); }
-            for (int i = 0; i < maxThread; i++)
+            get
             {
-                DownloadThread thread = new DownloadThread(i,this.DownloadContext,);
-                this.DownloadThreads.Add(thread);
+                return this._state;
+            }
+            private set
+            {
+                // Set the state of the download task and invoke the state change event.
+                this._state = value;
+                this.StateChange?.Invoke(this, new DownloadDataEventArgs(this));
             }
         }
 
+        private DownloadTaskState _state;
+
+        public IDownloadThreadManager DownloadThreadManager { get; private set; }
+
+        /// <summary>
+        /// 当下载任务的状态改变
+        /// </summary>
+        public event EventHandler<DownloadDataEventArgs> StateChange;
+
+        /// <summary>
+        /// The download speed monitor for monitoring the download speed.
+        /// </summary>
+        public readonly DownloadSpeedMonitor SpeedMonitor = new DownloadSpeedMonitor();
+
+        private readonly DownloadWorkDelegate s_work;
+
+        #endregion Properties
+
+        private DownloadTask(DownloadWorkDelegate workDelegate, IDownloadThreadManagerFactory factory, IDownloadContext downloadContext)
+        {
+            // Initialize the download task with the given download delegate, download context ,and factory.
+            // Initialize the speed monitor with the method to get the downloaded size.
+            this.s_work = workDelegate;
+            this.DownloadContext = downloadContext;
+            this.DownloadThreadManager = factory.Create(new DownloadThreadFactory(),
+                this.DownloadContext, this.s_work, 5);
+            this.StartSpeedMonitor();
+        }
+
+        /// <summary>
+        /// Start the download speed monitor.
+        /// </summary>
+        /// <exception cref="NullReferenceException">The download thread manager is null.</exception>
+        private void StartSpeedMonitor()
+        {
+            // Start the speed monitor with the method to get the downloaded size.
+            this.SpeedMonitor.Start(() =>
+            {
+                Result<long> result = this.GetCompletedDownloadSize();
+                if (result.IsSuccess)
+                {
+                    return result.Value;
+                }
+                else
+                {
+                    throw new NullReferenceException(result.ErrorMessage);
+                }
+            });
+        }
+
+        public Result<bool> Start()
+        {
+            // If the download task is already running, return an error message.
+            // Otherwise, start the download task and it will invoke the state change event.
+            if (this.State == DownloadTaskState.Running) { return Result<bool>.Failure("The download task is already running."); }
+
+            this.State = DownloadTaskState.Running;
+            this.DownloadThreadManager.Start();
+            return Result<bool>.Success(true);
+        }
+
+        /// <summary>
+        /// Get the completed size of the file that is being downloaded by this task.
+        /// </summary>
+        /// <returns></returns>
+        public Result<long> GetCompletedDownloadSize()
+        {
+            if (this.DownloadThreadManager == null) { return Result<long>.Failure("The thread manager is null."); }
+            long size = 0;
+            foreach (IDownloadThread thread in this.DownloadThreadManager.GetThreads())
+            {
+                size += thread.CompletedBytesSizeCount;
+            }
+            return Result<long>.Success(size);
+        }
 
         /// <summary>
         /// Get the number of threads that have been completed download.
@@ -70,10 +124,9 @@ namespace MultithreadDownload.Tasks
         /// <returns>The number of thread that have been completed download.</returns>
         public Result<byte> GetCompletedThreadCount()
         {
-            if (this.DownloadThreads != null)
+            if (this.DownloadThreadManager != null)
             {
-                return Result<byte>.Success((byte)this.DownloadThreads.
-                    Count(t => t.IsAlive == false));
+                return Result<byte>.Success((byte)this.DownloadThreadManager.CompletedThreadsCount);
             }
             else
             {
@@ -82,24 +135,23 @@ namespace MultithreadDownload.Tasks
         }
 
         /// <summary>
-        /// 
+        /// Create a new download task with the given parameters.
         /// </summary>
         /// <param name="url"></param>
         /// <param name="path"></param>
-        public static DownloadTask Create(int ID, string url, string path, MultiDownload target)
+        public static DownloadTask Create(int ID, DownloadWorkDelegate workDelegate, IDownloadContext downloadContext)
         {
-            if (!(HttpNetworkHelper.LinkCanConnectionAsync(url).Result)) { throw new UrlCanNotConnectionException(url); }
-
-            if (path[path.Length - 1] != '\\')//为了修复Path.Combine方法的缺陷，防止路径合并错误
+            // If the download context is valid, create a new download task with the given parameters.
+            // Otherwise, throw an exception.
+            if (downloadContext.IsPropertiesVaild().IsSuccess)
             {
-                path = path + '\\';
+                return new DownloadTask(workDelegate,
+                    new DownloadThreadManagerFactory(), downloadContext);
             }
-            //获取下载路径
-            string downloadPath = System.IO.Path.Combine(path + System.IO.Path.GetFileName(HttpUtility.UrlDecode(url)));//合并路径
-            DownloadTask downloadTask = new DownloadTask(target);//新建下载任务
-            downloadTask.Path = downloadPath;//将路径赋值
-            downloadTask.Url = url;//将链接赋值
-            downloadTask.State = DownloadTaskState.Waiting;
-            return downloadTask;
+            else
+            {
+                throw new DownloadContextInvaildException(downloadContext);
+            }
         }
+    }
 }

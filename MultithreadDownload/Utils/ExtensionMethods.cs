@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace MultithreadDownload.Utils
 {
@@ -18,7 +14,7 @@ namespace MultithreadDownload.Utils
             // Convert the download speed to a Gib/s
             if (downloadSpeedAsBytes >= 1024 * 1024 * 1024)
             {
-                return $"{Math.Round((double)downloadSpeedAsBytes / (1024 * 1024 * 1024),2)} GiB/s";
+                return $"{Math.Round((double)downloadSpeedAsBytes / (1024 * 1024 * 1024), 2)} GiB/s";
             }
             // Convert the download speed to a Mib/s
             else if (downloadSpeedAsBytes >= 1024 * 1024)
@@ -35,7 +31,7 @@ namespace MultithreadDownload.Utils
 
         public static bool IsIndexOutOfBounds(this int index, int count)
         {
-            if(index > count - 1)//index是否大于数组项目的长度减一
+            if (index > count - 1)//index是否大于数组项目的长度减一
             {
                 return true;
             }

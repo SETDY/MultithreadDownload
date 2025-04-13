@@ -1,14 +1,10 @@
 ﻿using MultithreadDownload.Events;
 using MultithreadDownload.Exceptions;
-using MultithreadDownload.Help;
 using MultithreadDownload.Ways;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Timers;
 using System.Web;
 
@@ -33,15 +29,15 @@ namespace MultithreadDownload.Downloads
         /// <summary>
         /// 任务的状态
         /// </summary>
-        public DownloadTaskState State 
-        { 
+        public DownloadTaskState State
+        {
             get
             {
                 return this.stateCache;
             }
             internal set
             {
-                if(this.stateCache != value)
+                if (this.stateCache != value)
                 {
                     this.stateCache = value;
                     this.InvokeStateChangeEvent
@@ -108,7 +104,7 @@ namespace MultithreadDownload.Downloads
             get
             {
                 float totalCompletionRate = 0;
-                if(this.State == DownloadTaskState.Downloading)//防止过快获得完成度而产生NULL异常
+                if (this.State == DownloadTaskState.Downloading)//防止过快获得完成度而产生NULL异常
                 {
                     //遍历所有下载线程
                     foreach (DownloadThread thread in this.Threads)
@@ -116,11 +112,11 @@ namespace MultithreadDownload.Downloads
                         totalCompletionRate += thread.CompletionRate * (1F / this.Threads.Count);//算出每个线程的占比完成率[最终线程完成率 = 线程完成率 * (1 / 线程数)]
                     }
                 }
-                else if(this.State == DownloadTaskState.Completed)
+                else if (this.State == DownloadTaskState.Completed)
                 {
                     totalCompletionRate = 100;
                 }
-                return (float)Math.Round(totalCompletionRate,3);//取值3位小数
+                return (float)Math.Round(totalCompletionRate, 3);//取值3位小数
             }
         }
 
@@ -130,6 +126,7 @@ namespace MultithreadDownload.Downloads
         public string DownloadSpeedRate { get; private set; } = "0kib/s";
 
         #region 静态方法
+
         /// <summary>
         /// 启动一个任务
         /// </summary>
@@ -159,14 +156,15 @@ namespace MultithreadDownload.Downloads
                 downloadTask.Target.StartAllocate();//启动分配线程
             }
         }
-        #endregion
+
+        #endregion 静态方法
 
         /// <summary>
         /// 创建一个DownloadTask(不包括ID)
         /// </summary>
         /// <param name="url"></param>
         /// <param name="path"></param>
-        public static DownloadTask Create(string url, string path,MultiDownload target)
+        public static DownloadTask Create(string url, string path, MultiDownload target)
         {
             if (NetWorkHelp.CanConnectionUrlAsync(url).GetAwaiter().GetResult())//链接是否可以连接
             {//是
@@ -194,7 +192,7 @@ namespace MultithreadDownload.Downloads
         /// <returns></returns>
         public static bool Check(DownloadTask downloadTask)
         {
-            if(NetWorkHelp.CanConnectionUrlAsync(downloadTask.Url).GetAwaiter().GetResult() == true
+            if (NetWorkHelp.CanConnectionUrlAsync(downloadTask.Url).GetAwaiter().GetResult() == true
                 && PathHelp.IsRightForRegex(downloadTask.Path))
             {
                 return true;
@@ -257,11 +255,11 @@ namespace MultithreadDownload.Downloads
                     this.Threads[i].ID = i;
 
                     //获得位置
-                    long[] positions = General_DownloadManagement.SplitePosition(this.Target,eachThreadShouldDownloadSize);
+                    long[] positions = General_DownloadManagement.SplitePosition(this.Target, eachThreadShouldDownloadSize);
                     //将位置赋值给线程
                     this.Threads[i].DownloadPosition = positions[i];
                     //将线程的下载路径赋值给线程
-                    this.Threads[i].Path = General_DownloadManagement.SplitPath(this.Target,this.Path, tag)[i];
+                    this.Threads[i].Path = General_DownloadManagement.SplitPath(this.Target, this.Path, tag)[i];
                 }
             }
             else
@@ -299,9 +297,9 @@ namespace MultithreadDownload.Downloads
         private void DownloadTaskPerSecond(object sender, ElapsedEventArgs e)
         {
             this.DownloadSpeedPerSecond();//计算每秒下载速度
-            if(this.Refresh != null)//有方法绑定此事件才Invoke，从而修复空调用异常
+            if (this.Refresh != null)//有方法绑定此事件才Invoke，从而修复空调用异常
             {
-                this.Refresh.Invoke(this,new DownloadDataEventArgs(this));//触发事件
+                this.Refresh.Invoke(this, new DownloadDataEventArgs(this));//触发事件
             }
         }
 
@@ -320,7 +318,7 @@ namespace MultithreadDownload.Downloads
             this.CloseAllThread();
             this.downloadTaskTimer.Close();
         }
-        
+
         /// <summary>
         /// 仅将此任务的线程关闭
         /// </summary>
@@ -343,9 +341,9 @@ namespace MultithreadDownload.Downloads
             CloseTask();
         }
 
-        internal void InvokeStateChangeEvent(string name,string url,string path,DownloadTaskState state)
+        internal void InvokeStateChangeEvent(string name, string url, string path, DownloadTaskState state)
         {
-            if(this.StateChange != null)
+            if (this.StateChange != null)
             {
                 DownloadDataEventArgs eventArgs = new DownloadDataEventArgs()
                 {

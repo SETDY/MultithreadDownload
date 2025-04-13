@@ -1,10 +1,5 @@
 ﻿using MultithreadDownload.Core;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
+using MultithreadDownload.Utils;
 
 namespace MultithreadDownload.Protocols
 {
@@ -57,6 +52,26 @@ namespace MultithreadDownload.Protocols
             this.RangeOffset = rangeOffset;
             this.Url = url;
             this.CompletedSize = 0;
+        }
+
+        public Result<bool> IsPropertiesVaild()
+        {
+            // Check if the target path is valid
+            if (string.IsNullOrEmpty(TargetPath))
+            {
+                return Result<bool>.Failure("Target path is not valid.");
+            }
+            // Check if the URL is valid
+            if (string.IsNullOrEmpty(Url) || !(HttpNetworkHelper.LinkCanConnectionAsync(this.Url).Result))
+            {
+                return Result<bool>.Failure("URL is not valid.");
+            }
+            // Check if the range start and offset are valid
+            if (RangeStart < 0 || RangeOffset <= 0)
+            {
+                return Result<bool>.Failure("Range start or offset is not valid.");
+            }
+            return Result<bool>.Success(true);
         }
 
         public void SetCompletedSize(long size)

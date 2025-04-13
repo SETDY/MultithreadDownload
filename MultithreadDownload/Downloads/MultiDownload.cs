@@ -1,23 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Threading;
-using MultithreadDownload.Help;
-using System.IO;
-using System.Net;
-using System.Diagnostics;
-using System.Threading.Tasks;
-using System.Net.Http;
-using MultithreadDownload.Exceptions;
-using MultithreadDownload.Events;
-using System.Web;
-using System.Drawing;
-using System.Net.Http.Headers;
+﻿using MultithreadDownload.Exceptions;
 using MultithreadDownload.Ways;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Threading;
 
 namespace MultithreadDownload.Downloads
 {
-
     public class MultiDownload
     {
         public List<DownloadTask> Tasks { get; internal set; } = new List<DownloadTask>();
@@ -54,7 +44,6 @@ namespace MultithreadDownload.Downloads
         /// </summary>
         //public bool WhenFileSizeIsNullOrZeroShouldDownload { get; set; }
 
-
         /// <summary>
         /// 下一个要下载的任务的ID (每当有任务开始下载此属性则会+1(例如:[任务索引] = 0 => 开始下载 => [任务索引] = 1;))
         /// </summary>
@@ -78,18 +67,18 @@ namespace MultithreadDownload.Downloads
             }
         }
 
-
         public MultiDownload(int maxDownloadingTask, int maxDownloadThread)
         {
             this.MaxDownloadingTask = maxDownloadingTask;
             this.MaxDownloadThread = maxDownloadThread;
             this.Http_DownloadManagement = new HyperTextTransferProtocol_DownloadManagement(this);
             this.AllocateThreadRunningControl = new ManualResetEvent(false);//初始化变量
-            Thread allocateThread = new Thread(this.Allocate) { IsBackground = true};//创建用于分配下载任务的线程
+            Thread allocateThread = new Thread(this.Allocate) { IsBackground = true };//创建用于分配下载任务的线程
             allocateThread.Start();//启动线程
         }
 
         #region 公开方法——辅助性
+
         /// <summary>
         /// 是否有任务等待分配的状态
         /// </summary>
@@ -146,8 +135,8 @@ namespace MultithreadDownload.Downloads
                 return true;
             }
         }
-        #endregion
 
+        #endregion 公开方法——辅助性
 
         /// <summary>
         /// 添加下载任务
@@ -230,7 +219,7 @@ namespace MultithreadDownload.Downloads
             DownloadTaskThreadInfo taskThreadInfo = new DownloadTaskThreadInfo(this, taskIndex, threadID);
             //得到响应流
             Stream responseStream = Http_DownloadManagement.GetStream(taskThreadInfo);
-            if(responseStream == null)
+            if (responseStream == null)
             {
                 Debug.WriteLine($"线程{taskThreadInfo.ThreadID} 请求失败");
                 this.Tasks[taskThreadInfo.TaskID].Cancel();
@@ -282,7 +271,7 @@ namespace MultithreadDownload.Downloads
         public long DownloadPosition { get; set; }
         public long EachThreadShouldDownloadSize { get; set; }
 
-        public DownloadTaskThreadInfo(MultiDownload multiDownloadObject ,int taskID,int threadID)
+        public DownloadTaskThreadInfo(MultiDownload multiDownloadObject, int taskID, int threadID)
         {
             try
             {

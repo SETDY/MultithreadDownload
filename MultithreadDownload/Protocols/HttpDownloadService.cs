@@ -1,25 +1,23 @@
-﻿using MultithreadDownload.Downloads;
+﻿using MultithreadDownload.Core;
+using MultithreadDownload.Downloads;
+using MultithreadDownload.Tasks;
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Net.Http.Headers;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Threading;
-using MultithreadDownload.Core;
-using MultithreadDownload.Helpers;
-using MultithreadDownload.Exceptions;
-using MultithreadDownload.Ways;
-using MultithreadDownload.Tasks;
 
 namespace MultithreadDownload.Protocols
 {
     /// <summary>
-    /// HttpDownloadService is a class that implements IDownloadService interface 
+    /// HttpDownloadService is a class that implements IDownloadService interface
     /// which is for downloading file through http.
     /// </summary>
     public class HttpDownloadService : IDownloadService
     {
         #region Implement of GetStream method
+
         /// <summary>
         /// Max retry times
         /// </summary>
@@ -66,7 +64,7 @@ namespace MultithreadDownload.Protocols
                 new HttpRequestMessage(HttpMethod.Get, url);
             httpRequestMessage.Headers.Range =
                 new RangeHeaderValue(downloadPosition, downloadPosition + downloadOffset);
-                return httpRequestMessage;
+            return httpRequestMessage;
         }
 
         /// <summary>
@@ -126,7 +124,8 @@ namespace MultithreadDownload.Protocols
                 return Result<HttpResponseMessage>.Failure($"Request failed: {ex.Message}");
             }
         }
-        #endregion
+
+        #endregion Implement of GetStream method
 
         public Result<int> DownloadFile(Stream inputStream, Stream outputStream, DownloadThread downloadThread)
         {
@@ -154,14 +153,13 @@ namespace MultithreadDownload.Protocols
                         $"for {((HttpDownloadContext)downloadThread.DownloadContext).Url}");
                     Thread.Sleep(WAIT_TIME);
                     tryCount++;
-                    continue;   
+                    continue;
                 }
-                
             }
             // If the download is still failed after MAX_RETRY times or user cancel the download task
             // Clean up the download progress by closing and disposing the output stream and
             // return a failure result with the error message.
-            CleanDownloadProgess(outputStream,null);
+            CleanDownloadProgess(outputStream, null);
             return Result<int>.Failure(
                 $"While thread failed to read data after {MAX_RETRY} attempts, " +
                 $"the download task is cancelled for {((HttpDownloadContext)downloadThread.DownloadContext).Url}");
@@ -214,7 +212,7 @@ namespace MultithreadDownload.Protocols
             // for why the filePath is null, it means that the download is not completed
             // e.g. The download only executed to DownloadFile().
             // Return a success result if the operation is successful
-            if (targetStream == null ) { Result<bool>.Failure("Output stream is null"); }
+            if (targetStream == null) { Result<bool>.Failure("Output stream is null"); }
             try
             {
                 targetStream.Flush();

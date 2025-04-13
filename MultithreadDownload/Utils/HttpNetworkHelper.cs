@@ -1,12 +1,7 @@
-﻿using MultithreadDownload.Utils;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Linq.Expressions;
+﻿using System;
 using System.Net;
 using System.Net.Http;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -35,7 +30,7 @@ namespace MultithreadDownload.Utils
         /// <param name="reder">should be 0</param>
         /// <returns>Whether the Internet is connected</returns>
         [DllImport("wininet.dll", EntryPoint = "InternetGetConnectedState")]
-        private extern static bool InternetGetConnectedState(out int conState, int reder);
+        private static extern bool InternetGetConnectedState(out int conState, int reder);
 
         /// <summary>
         /// Checks if the given URL is valid and can be connected.

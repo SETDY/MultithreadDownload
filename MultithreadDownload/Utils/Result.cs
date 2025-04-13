@@ -13,6 +13,7 @@
         public bool IsSuccess { get; }
 
 #nullable enable
+
         /// <summary>
         /// Gets the value of the result if the operation was successful; otherwise, null.
         /// </summary>
@@ -22,6 +23,7 @@
         /// Gets the error message if the operation failed; otherwise, null.
         /// </summary>
         public string? ErrorMessage { get; }
+
 #nullable disable
 
         private Result(T value)

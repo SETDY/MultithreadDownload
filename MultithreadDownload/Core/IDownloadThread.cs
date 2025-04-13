@@ -1,60 +1,52 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading;
+﻿using MultithreadDownload.Downloads;
+using MultithreadDownload.Utils;
+using System;
 using System.Threading.Tasks;
 
 namespace MultithreadDownload.Core
 {
     public interface IDownloadThread
     {
-        /// <summary>  
-        /// The ID of the download thread. This is used to identify the thread in the download task.  
-        /// </summary>  
-        public int ID { get; set; }
+        /// <summary>
+        /// The size of the file that has been downloaded by this thread.
+        /// </summary>
+        public long CompletedBytesSizeCount { get; }
 
-        /// <summary>  
-        /// The download context that contains information about the download operation.  
-        /// </summary>  
-        public IDownloadContext DownloadContext { get; set; }
+        /// <summary>
+        /// The current state of the download thread.
+        /// </summary>
+        DownloadTaskState State { get; }
 
-        /// <summary>  
-        /// The status of the download thread.  
-        /// </summary>  
-        public bool IsAlive
-        {
-            get
-            {
-                if (WorkerThread != null)
-                {
-                    return WorkerThread.IsAlive;
-                }
-                else
-                {
-                    return false;
-                }
-            }
-        }
-
-        /// <summary>  
-        /// The thread that will execute the download operation.  
-        /// </summary>  
-        public Thread WorkerThread { get; set; }
-
-        /// <summary>  
-        /// The size of the file that has been downloaded by this thread.  
-        /// </summary>  
-        public long CompletedBytesSizeCount { get; internal set; }
+        /// <summary>
+        /// The task that will execute the download operation.
+        /// </summary>
+        public Task WorkerTask { get; set; }
 
         /// <summary>
         /// The download progress of the file that has been downloaded by this thread.
         /// </summary>
-        public sbyte Progress { get; set; }
+        IProgress<sbyte> Progresser { get; }
 
+        /// <summary>
+        /// Start newly the download thread.
+        /// </summary>
         void Start();
+
+        /// <summary>
+        /// Pause the download thread.
+        /// </summary>
         void Pause();
+
+        /// <summary>
+        /// Resume the download thread.
+        /// </summary>
         void Resume();
-        void Stop();
+
+        /// <summary>
+        /// Cancel the download thread.
+        /// </summary>
+        Result<bool> Cancel();
+
+        void SetProgresser(IProgress<sbyte> progresser);
     }
 }

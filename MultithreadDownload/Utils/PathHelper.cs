@@ -1,11 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
+﻿using System.IO;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace MultithreadDownload.Utils
 {
@@ -31,7 +25,7 @@ namespace MultithreadDownload.Utils
             for (int i = 1; true; i++)
             {
                 // Get the temporary file name
-                string tempFileName = 
+                string tempFileName =
                     Path.GetFileNameWithoutExtension(fileName) + $" ({i})" + Path.GetExtension(fileName);
                 // Create the full path for the temporary file and check if it exists
                 // If it does not exist, return the path
@@ -52,7 +46,7 @@ namespace MultithreadDownload.Utils
         {
             // If the path is a empty string  => not a valid path
             if ("".Equals(path)) { return false; }
-            // Check the path is whether valid by using regex and system methods 
+            // Check the path is whether valid by using regex and system methods
             if (IsVaildPathByRegex(path) && IsVaildPathBySystem(path))
             {
                 return true;
@@ -61,7 +55,6 @@ namespace MultithreadDownload.Utils
             {
                 return false;
             }
-
         }
 
         /// <summary>

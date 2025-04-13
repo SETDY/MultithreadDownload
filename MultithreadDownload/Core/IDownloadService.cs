@@ -1,6 +1,4 @@
-﻿using MultithreadDownload.Downloads;
-using MultithreadDownload.Helpers;
-using MultithreadDownload.Tasks;
+﻿using MultithreadDownload.Tasks;
 using System.IO;
 
 namespace MultithreadDownload.Core

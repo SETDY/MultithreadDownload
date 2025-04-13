@@ -1,11 +1,7 @@
 ﻿using MultithreadDownload.Core;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Threading;
 using MultithreadDownload.Utils;
+using System;
+using System.Threading;
 
 namespace MultithreadDownload.Tasks
 {
@@ -50,7 +46,7 @@ namespace MultithreadDownload.Tasks
             s_timer = new Timer(_ =>
             {
                 long currentSize = s_getDownloadedSize.Invoke();
-                string downloadSpeed = ((long)((currentSize - s_lastDownloadedSize) / 1)).ToSpeed(); 
+                string downloadSpeed = ((long)((currentSize - s_lastDownloadedSize) / 1)).ToSpeed();
                 s_lastDownloadedSize = currentSize;
 
                 SpeedUpdated?.Invoke(downloadSpeed);

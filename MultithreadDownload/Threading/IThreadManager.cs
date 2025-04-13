@@ -1,29 +1,29 @@
-﻿using MultithreadDownload.Tasks;
+﻿using MultithreadDownload.Core;
+using MultithreadDownload.Utils;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace MultithreadDownload.Threading
 {
     /// <summary>
     /// Interface for managing download threads.
     /// </summary>
-    public interface IThreadManager
+    public interface IDownloadThreadManager
     {
+        int CompletedThreadsCount { get; }
+
+        event Action<IDownloadThread> ThreadCompleted;
+
         void Start();
 
         void Pause();
 
         void Resume();
 
-        void Stop();
+        void Cancel();
 
-        void AddThread(DownloadThread thread);
+        Result<bool> CreateThread();
 
-        IEnumerable<DownloadThread> GetThreads();
-
-        event Action<DownloadThread> ThreadCompleted;
+        IEnumerable<IDownloadThread> GetThreads();
     }
 }
