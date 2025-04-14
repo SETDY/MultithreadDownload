@@ -3,7 +3,7 @@ using MultithreadDownload.Utils;
 using System;
 using System.Threading.Tasks;
 
-namespace MultithreadDownload.Core
+namespace MultithreadDownload.Threads
 {
     public interface IDownloadThread
     {
@@ -16,6 +16,11 @@ namespace MultithreadDownload.Core
         /// The current state of the download thread.
         /// </summary>
         DownloadTaskState State { get; }
+
+        /// <summary>
+        /// The path to the file segment that this thread is responsible for downloading.
+        /// </summary>
+        public string FileSegmentPath { get; set; }
 
         /// <summary>
         /// The task that will execute the download operation.

@@ -1,7 +1,7 @@
 ﻿using MultithreadDownload.Core;
-using MultithreadDownload.Threading;
+using MultithreadDownload.Threads;
 
-namespace MultithreadDownload.Tasks
+namespace MultithreadDownload.Threading
 {
     public interface IDownloadThreadFactory
     {

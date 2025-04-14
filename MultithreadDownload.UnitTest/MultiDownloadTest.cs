@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.TestPlatform.CommunicationUtilities.ObjectModel;
+using MultithreadDownload.Core;
 using MultithreadDownload.Downloads;
 using System.Diagnostics;
 
