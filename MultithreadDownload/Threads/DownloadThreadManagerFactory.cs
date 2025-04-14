@@ -1,5 +1,4 @@
 ﻿using MultithreadDownload.Core;
-using MultithreadDownload.Tasks;
 
 namespace MultithreadDownload.Threading
 {

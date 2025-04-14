@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace MultithreadDownload.Core
+namespace MultithreadDownload.Tasks
 {
     /// <summary>
     /// An interface for monitoring download speed.

@@ -3,8 +3,10 @@ using MultithreadDownload.Downloads;
 using MultithreadDownload.Events;
 using MultithreadDownload.Exceptions;
 using MultithreadDownload.Threading;
+using MultithreadDownload.Threads;
 using MultithreadDownload.Utils;
 using System;
+using System.Runtime.CompilerServices;
 
 namespace MultithreadDownload.Tasks
 {
@@ -18,7 +20,7 @@ namespace MultithreadDownload.Tasks
         /// <summary>
         /// Task ID for identifying the download task.
         /// </summary>
-        public int ID { get; set; }
+        public Guid ID { get; set; }
 
         /// <summary>
         /// The download context that contains information about the download operation.
@@ -39,35 +41,52 @@ namespace MultithreadDownload.Tasks
                 // Set the state of the download task and invoke the state change event.
                 this._state = value;
                 this.StateChange?.Invoke(this, new DownloadDataEventArgs(this));
+                if (this._state == DownloadTaskState.Completed)
+                {
+                    this.Completed?.Invoke();
+                }
             }
         }
 
+        /// <summary>
+        /// The field of the property State.
+        /// </summary>
         private DownloadTaskState _state;
 
+        /// <summary>
+        /// The thread manager of the task which contain all the threads.
+        /// </summary>
         public IDownloadThreadManager DownloadThreadManager { get; private set; }
 
         /// <summary>
-        /// 当下载任务的状态改变
+        /// When the state of download is completed, this event will be invoked
         /// </summary>
         public event EventHandler<DownloadDataEventArgs> StateChange;
+
+        /// <summary>
+        /// When the download is completed, this event will be invoked.
+        /// </summary>
+        /// <remarks>
+        /// It can be seen as the higher implement of StateChange, suitabling some paticulat situation.
+        /// </remarks>
+        public event Action Completed;
 
         /// <summary>
         /// The download speed monitor for monitoring the download speed.
         /// </summary>
         public readonly DownloadSpeedMonitor SpeedMonitor = new DownloadSpeedMonitor();
 
-        private readonly DownloadWorkDelegate s_work;
-
         #endregion Properties
 
-        private DownloadTask(DownloadWorkDelegate workDelegate, IDownloadThreadManagerFactory factory, IDownloadContext downloadContext)
+        private DownloadTask(Guid taskID, byte maxThreads ,DownloadWorkDelegate mainDownloadWorkDelegate, IDownloadThreadManagerFactory factory, IDownloadContext downloadContext)
         {
             // Initialize the download task with the given download delegate, download context ,and factory.
             // Initialize the speed monitor with the method to get the downloaded size.
-            this.s_work = workDelegate;
+            this.ID = taskID;
+            this._state = DownloadTaskState.Waiting;
             this.DownloadContext = downloadContext;
             this.DownloadThreadManager = factory.Create(new DownloadThreadFactory(),
-                this.DownloadContext, this.s_work, 5);
+                this.DownloadContext, mainDownloadWorkDelegate, maxThreads);
             this.StartSpeedMonitor();
         }
 
@@ -96,11 +115,44 @@ namespace MultithreadDownload.Tasks
         {
             // If the download task is already running, return an error message.
             // Otherwise, start the download task and it will invoke the state change event.
-            if (this.State == DownloadTaskState.Running) { return Result<bool>.Failure("The download task is already running."); }
+            if (this.State == DownloadTaskState.Downloading) { return Result<bool>.Failure("The download task is already running."); }
 
-            this.State = DownloadTaskState.Running;
+            this.State = DownloadTaskState.Downloading;
             this.DownloadThreadManager.Start();
             return Result<bool>.Success(true);
+        }
+
+        public Result<bool> Start(Action onComplete)
+        {
+            // If the download task is already running, return an error message.
+            // Otherwise, start the download task and it will invoke the state change event.
+            // After the task is completed, onComplete action will be invoked.
+            if (this.State == DownloadTaskState.Downloading) { return Result<bool>.Failure("The download task is already running."); }
+
+            this.State = DownloadTaskState.Downloading;
+            this.DownloadThreadManager.Start();
+            this.Completed += onComplete;
+            return Result<bool>.Success(true);
+        }
+
+        //TODO: 完成断点续传功能
+        public void Pause()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Resume()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Cancel()
+        {
+            // If the download task is already cancelled, return an error message.
+            // Otherwise, cancel the download task and it will invoke the state change event.
+            if (this.State == DownloadTaskState.Cancelled) { throw new InvalidOperationException("The download task is already cancelled."); }
+            this.State = DownloadTaskState.Cancelled;
+            this.DownloadThreadManager.Cancel();
         }
 
         /// <summary>
@@ -139,13 +191,13 @@ namespace MultithreadDownload.Tasks
         /// </summary>
         /// <param name="url"></param>
         /// <param name="path"></param>
-        public static DownloadTask Create(int ID, DownloadWorkDelegate workDelegate, IDownloadContext downloadContext)
+        public static DownloadTask Create(Guid ID, DownloadWorkDelegate workDelegate, IDownloadContext downloadContext)
         {
             // If the download context is valid, create a new download task with the given parameters.
             // Otherwise, throw an exception.
             if (downloadContext.IsPropertiesVaild().IsSuccess)
             {
-                return new DownloadTask(workDelegate,
+                return new DownloadTask(ID, workDelegate,
                     new DownloadThreadManagerFactory(), downloadContext);
             }
             else

@@ -1,6 +1,9 @@
 ﻿using MultithreadDownload.Core;
 using MultithreadDownload.Downloads;
 using MultithreadDownload.Tasks;
+using MultithreadDownload.Threading;
+using MultithreadDownload.Threads;
+using MultithreadDownload.Utils;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -16,6 +19,7 @@ namespace MultithreadDownload.Protocols
     /// </summary>
     public class HttpDownloadService : IDownloadService
     {
+
         #region Implement of GetStream method
 
         /// <summary>
@@ -127,7 +131,7 @@ namespace MultithreadDownload.Protocols
 
         #endregion Implement of GetStream method
 
-        public Result<int> DownloadFile(Stream inputStream, Stream outputStream, DownloadThread downloadThread)
+        public Result<int> DownloadFile(Stream inputStream, Stream outputStream, IDownloadThread downloadThread)
         {
             // Download the file from the input stream(Internet) to the output stream(Local drive).
             // If the download is successful, get the bytes of file and write it into file
@@ -136,7 +140,8 @@ namespace MultithreadDownload.Protocols
             // If still failed, return a failure result with the error message.
             int readBytesCount = 0;
             byte[] fileBytes = new byte[4096];
-            for (int tryCount = 0; tryCount < MAX_RETRY && !downloadThread.CancellationTokenSource.IsCancellationRequested; tryCount++)
+            downloadThread.SetState(DownloadTaskState.Downloading);
+            for (int tryCount = 0; tryCount < MAX_RETRY && downloadThread.State == DownloadTaskState.Downloading; tryCount++)
             {
                 try
                 {
@@ -170,7 +175,7 @@ namespace MultithreadDownload.Protocols
         /// </summary>
         /// <param name="downloadThread">The thread that is downloading the file</param>
         /// <param name="readBytesCount">The number of bytes that have been read</param>
-        private void SetCompletedByteNumbers(DownloadThread downloadThread, int readBytesCount)
+        private void SetCompletedByteNumbers(IDownloadThread downloadThread, int readBytesCount)
         {
             // Add the completed byte numbers for the download thread
             // Set the download progress for the download thread
@@ -179,7 +184,7 @@ namespace MultithreadDownload.Protocols
                 (sbyte)(downloadThread.CompletedBytesSizeCount / ((HttpDownloadContext)downloadThread.DownloadContext).RangeOffset * 100));
         }
 
-        public Result<int> PostDownloadProcessing(Stream outputStream, DownloadThread downloadThread)
+        public Result<bool> PostDownloadProcessing(Stream outputStream, IDownloadThread downloadThread)
         {
             // If the worker thread is not alive, it means that the download task has been cancelled
             // Clean up the download progress by closing and disposing the output stream and delete the file
@@ -189,30 +194,33 @@ namespace MultithreadDownload.Protocols
             if (!downloadThread.IsAlive)
             {
                 this.CleanDownloadProgess(outputStream, downloadThread.DownloadContext.TargetPath);
-                return Result<int>.Failure(
+                return Result<bool>.Failure(
                     $"Thread {downloadThread.ID} is not alive, " +
                     $"the download task is cancelled for {((HttpDownloadContext)downloadThread.DownloadContext).Url}");
             }
 
+            //TODOASAP: Combine the file segments into a single file
+
             this.CleanDownloadProgess(outputStream, null);
             downloadThread.SetDownloadProgress(100);
-            DownloadTask.EndTask(taskThreadInfo.MultiDownloadObject.Tasks[taskThreadInfo.TaskID]);
+            return Result<bool>.Success(true);
         }
 
+#nullable enable
         /// <summary>
         /// Clean up the download progress by closing and disposing the output stream
         /// </summary>
         /// <param name="targettream">The stream you want to clean</param>
         /// <param name="filePath">The path of the downloading file</param>
         /// <returns>Whether the operation is success or not</returns>
-        private Result<bool> CleanDownloadProgess(Stream targetStream, string? filePath)
+        private Result<bool> CleanDownloadProgess(Stream? targetStream, string? filePath)
         {
             // Clean up the download progress by closing and disposing the output stream
             // If the filePath is not null, delete the file
             // for why the filePath is null, it means that the download is not completed
             // e.g. The download only executed to DownloadFile().
             // Return a success result if the operation is successful
-            if (targetStream == null) { Result<bool>.Failure("Output stream is null"); }
+            if (targetStream == null) { return Result<bool>.Failure("Output stream is null"); }
             try
             {
                 targetStream.Flush();
@@ -230,5 +238,6 @@ namespace MultithreadDownload.Protocols
                 return Result<bool>.Failure($"Failed to clean download progress: {ex.Message}");
             }
         }
+#nullable disable
     }
 }

@@ -1,7 +1,8 @@
-﻿using MultithreadDownload.Core;
+﻿using MultithreadDownload.Threads;
 using MultithreadDownload.Utils;
 using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace MultithreadDownload.Threading
 {
@@ -14,7 +15,7 @@ namespace MultithreadDownload.Threading
 
         event Action<IDownloadThread> ThreadCompleted;
 
-        void Start();
+        void Start(Stream inputStream, Stream[] outputStream);
 
         void Pause();
 
@@ -22,7 +23,7 @@ namespace MultithreadDownload.Threading
 
         void Cancel();
 
-        Result<bool> CreateThread();
+        Result<bool> CreateThread(Action mainWork);
 
         IEnumerable<IDownloadThread> GetThreads();
     }

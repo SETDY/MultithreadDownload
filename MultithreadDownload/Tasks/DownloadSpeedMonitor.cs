@@ -1,5 +1,4 @@
-﻿using MultithreadDownload.Core;
-using MultithreadDownload.Utils;
+﻿using MultithreadDownload.Utils;
 using System;
 using System.Threading;
 

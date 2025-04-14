@@ -1,12 +1,13 @@
 ﻿using MultithreadDownload.Core;
 using MultithreadDownload.Downloads;
-using MultithreadDownload.Threading;
+using MultithreadDownload.Threads;
 using MultithreadDownload.Utils;
 using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace MultithreadDownload.Tasks
+namespace MultithreadDownload.Threading
 {
     public class DownloadThread : IDownloadThread
     {
@@ -18,12 +19,17 @@ namespace MultithreadDownload.Tasks
         /// <summary>
         /// The state of the download thread. This indicates whether the thread is running, paused, or stopped.
         /// </summary>
-        public DownloadTaskState State { get; set; }
+        public DownloadTaskState State { get; internal set; }
 
         /// <summary>
         /// The download context that contains information about the download operation.
         /// </summary>
         public IDownloadContext DownloadContext { get; private set; }
+
+        /// <summary>
+        /// The path to the file segment that this thread is responsible for downloading.
+        /// </summary>
+        public string FileSegmentPath { get; set; }
 
         /// <summary>
         /// The task that will execute the download operation.
@@ -55,28 +61,28 @@ namespace MultithreadDownload.Tasks
         /// </summary>
         private readonly CancellationTokenSource s_cancellation;
 
-        private readonly DownloadWorkDelegate s_work;
+        private readonly Action<Stream,Stream,IDownloadThread> s_work;
 
-        public DownloadThread(int id, IDownloadContext downloadContext, DownloadWorkDelegate work)
+        public DownloadThread(int id, IDownloadContext downloadContext, Action<Stream, Stream, IDownloadThread> work)
         {
             // Initialize the properties
-            this.ID = id;
-            this.DownloadContext = downloadContext;
-            this.s_work = work;
-            this.s_cancellation = new CancellationTokenSource();
+            ID = id;
+            DownloadContext = downloadContext;
+            s_work = work;
+            s_cancellation = new CancellationTokenSource();
         }
 
         /// <summary>
         /// Starts the download operation in a new thread.
         /// </summary>
-        public void Start()
+        public void Start(Stream inputStream, Stream outputStream)
         {
-            this.IsAlive = true;
-            this.WorkerTask = Task.Run(() =>
+            IsAlive = true;
+            WorkerTask = Task.Run(() =>
             {
-                this.s_work(this);
-                this.IsAlive = false;
-                this.Completed?.Invoke(this);
+                s_work(inputStream, outputStream, this);
+                IsAlive = false;
+                Completed?.Invoke(this);
             });
         }
 
@@ -95,15 +101,19 @@ namespace MultithreadDownload.Tasks
             throw new NotImplementedException();
         }
 
-        internal void AddCompletedBytesSizeCount(long size)
+        public void AddCompletedBytesSizeCount(long size)
         {
+            if (size < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(size), "Size cannot be negative.");
+            }
             // Set the completed bytes size count for this thread
             CompletedBytesSizeCount += size;
         }
 
         public void SetProgresser(IProgress<sbyte> progresser)
         {
-            this.Progresser = progresser;
+            Progresser = progresser;
         }
 
         /// <summary>
@@ -121,10 +131,20 @@ namespace MultithreadDownload.Tasks
             {
                 // If the progress is -1, it indicates that the download has been cancelled.
                 // If the progress is 100, it indicates that the download is complete
-                this.s_cancellation.Cancel();
+                s_cancellation.Cancel();
             }
             // Report the download progress
-            this.Progresser.Report(progress);
+            Progresser.Report(progress);
+        }
+
+        /// <summary>
+        /// Sets the state of the download thread.
+        /// </summary>
+        /// <param name="taskState">The state of task to set.</param>
+        public void SetState(DownloadTaskState taskState)
+        {
+            // Set the state of the download thread
+            State = taskState;
         }
 
         /// <summary>
@@ -135,9 +155,9 @@ namespace MultithreadDownload.Tasks
         {
             // If the thread is null or not alive, return failure result.
             // Otherwise, cancel the thread and wait for it to finish
-            if (this.s_work == null) { return Result<bool>.Failure("Thread is not exist so it cannot be cancelled"); }
-            if (this.IsAlive == false) { return Result<bool>.Failure("Thread is not alive so it cannot be cancelled"); }
-            this.s_cancellation.Cancel();
+            if (s_work == null) { return Result<bool>.Failure("Thread is not exist so it cannot be cancelled"); }
+            if (IsAlive == false) { return Result<bool>.Failure("Thread is not alive so it cannot be cancelled"); }
+            s_cancellation.Cancel();
             return Result<bool>.Success(true);
         }
     }

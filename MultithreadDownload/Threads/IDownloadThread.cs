@@ -1,21 +1,40 @@
-﻿using MultithreadDownload.Downloads;
+﻿using MultithreadDownload.Core;
+using MultithreadDownload.Downloads;
 using MultithreadDownload.Utils;
 using System;
+using System.IO;
 using System.Threading.Tasks;
 
-namespace MultithreadDownload.Core
+namespace MultithreadDownload.Threads
 {
     public interface IDownloadThread
     {
+        /// <summary>
+        /// The ID of the download thread. This is used to identify the thread in the download task.
+        /// </summary>
+        public int ID { get; }
+
         /// <summary>
         /// The size of the file that has been downloaded by this thread.
         /// </summary>
         public long CompletedBytesSizeCount { get; }
 
+        public IDownloadContext DownloadContext { get;}
+
         /// <summary>
         /// The current state of the download thread.
         /// </summary>
         DownloadTaskState State { get; }
+
+        /// <summary>
+        /// The status of the download thread.
+        /// </summary>
+        public bool IsAlive { get;}
+
+        /// <summary>
+        /// The path to the file segment that this thread is responsible for downloading.
+        /// </summary>
+        public string FileSegmentPath { get; set; }
 
         /// <summary>
         /// The task that will execute the download operation.
@@ -30,7 +49,7 @@ namespace MultithreadDownload.Core
         /// <summary>
         /// Start newly the download thread.
         /// </summary>
-        void Start();
+        void Start(Stream inputStream, Stream outputStream);
 
         /// <summary>
         /// Pause the download thread.
@@ -48,5 +67,11 @@ namespace MultithreadDownload.Core
         Result<bool> Cancel();
 
         void SetProgresser(IProgress<sbyte> progresser);
+
+        internal void SetState(DownloadTaskState state);
+
+        void SetDownloadProgress(sbyte progress);
+
+        internal void AddCompletedBytesSizeCount(long count);
     }
 }

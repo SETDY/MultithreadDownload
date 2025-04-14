@@ -1,14 +1,16 @@
 ﻿using MultithreadDownload.Core;
-using MultithreadDownload.Tasks;
+using MultithreadDownload.Protocols;
+using MultithreadDownload.Threads;
 using MultithreadDownload.Utils;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace MultithreadDownload.Threading
 {
-    public delegate void DownloadWorkDelegate(IDownloadThread thread);
-
     public class DownloadThreadManager : IDownloadThreadManager
     {
         /// <summary>
@@ -32,11 +34,6 @@ namespace MultithreadDownload.Threading
         private readonly IDownloadContext s_downloadContext;
 
         /// <summary>
-        /// The delegate that will be executed by the download thread.
-        /// </summary>
-        private DownloadWorkDelegate s_work;
-
-        /// <summary>
         /// The maximum number of threads that can be used for downloading.
         /// </summary>
         private readonly byte s_maxThreads;
@@ -46,10 +43,15 @@ namespace MultithreadDownload.Threading
         /// </summary>
         private readonly IDownloadThreadFactory s_factory;
 
-        public DownloadThreadManager(IDownloadThreadFactory factory, IDownloadContext downloadContext, DownloadWorkDelegate work, byte maxThreads)
+        /// <summary>
+        /// Constructor for the DownloadThreadManager class.
+        /// </summary>
+        /// <param name="factory">The factory for creating download threads.</param>
+        /// <param name="downloadContext">The context that contains information about the download operation.</param>
+        /// <param name="maxThreads">The maximum number of threads that can be used for downloading.</param>
+        public DownloadThreadManager(IDownloadThreadFactory factory, byte maxThreads, IDownloadContext downloadContext)
         {
             // Initialize the properties
-            this.s_work = work;
             this.s_downloadContext = downloadContext;
             this.s_maxThreads = maxThreads;
             this.s_factory = factory;
@@ -60,13 +62,17 @@ namespace MultithreadDownload.Threading
         /// Creates a new download thread.
         /// </summary>
         /// <returns>Whether the thread was created successfully or not.</returns>
-        public Result<bool> CreateThread()
+        /// <remarks>
+        /// The work delegate is the main download work that will be executed by the download thread.
+        /// The main download work is IDownloadSerivce.DownloadFile()
+        /// </remarks>
+        public Result<bool> CreateThread(Action mainWork)
         {
             if (this.s_threads.Count > this.s_maxThreads) { Result<bool>.Failure("The number of download threads is at the maximum postition."); }
             // Create a new thread with the factory
             // Set the progresser for the thread
             // Add the thread to the list of threads
-            IDownloadThread downloadThread = this.s_factory.Create(0, this.s_downloadContext, this.s_work);
+            IDownloadThread downloadThread = this.s_factory.Create(0, this.s_downloadContext, mainWork);
             this.SetThreadProgresser(downloadThread);
             s_threads.Append(downloadThread);
             return Result<bool>.Success(true);
@@ -94,11 +100,16 @@ namespace MultithreadDownload.Threading
         /// <summary>
         /// Starts all download threads.
         /// </summary>
-        public void Start()
+        /// <param name="inputStream">The input stream to read from.</param>
+        /// <param name="outputStreams">The output streams of each of threads to write to.</param>
+        public void Start(Stream inputStream, Stream[] outputStreams)
         {
-            foreach (IDownloadThread thread in s_threads)
+            // If the length of the output streams is not equal to the number of threads, throw an exception
+            // Otherwise, start each thread with the input stream and the corresponding output stream
+            if (outputStreams.Length != this.s_threads.Count) { throw new ArgumentException("The number of output streams must be equal to the number of threads."); }
+            for (int i = 0; i < outputStreams.Length; i++)
             {
-                thread.Start();
+                this.s_threads[i].Start(inputStream, outputStreams[i]);
             }
         }
 
