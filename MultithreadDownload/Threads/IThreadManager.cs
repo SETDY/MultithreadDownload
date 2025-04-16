@@ -11,7 +11,9 @@ namespace MultithreadDownload.Threading
     /// </summary>
     public interface IDownloadThreadManager
     {
-        int CompletedThreadsCount { get; }
+        byte CompletedThreadsCount { get; }
+
+        byte MaxParallelThreads { get; }
 
         event Action<IDownloadThread> ThreadCompleted;
 

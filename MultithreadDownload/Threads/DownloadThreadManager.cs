@@ -16,7 +16,18 @@ namespace MultithreadDownload.Threading
         /// <summary>
         /// The number of completed threads.
         /// </summary>
-        public int CompletedThreadsCount { get; private set; }
+        public byte CompletedThreadsCount { get; private set; }
+
+        /// <summary>
+        /// The number of completed threads.
+        /// </summary>
+        public byte MaxParallelThreads
+        {
+            get
+            {
+                return this.s_maxThreads;
+            }
+        }
 
         /// <summary>
         /// Event that is triggered when a download thread is completed.

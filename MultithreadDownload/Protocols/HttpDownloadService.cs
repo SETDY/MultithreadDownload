@@ -1,5 +1,6 @@
 ﻿using MultithreadDownload.Core;
 using MultithreadDownload.Downloads;
+using MultithreadDownload.IO;
 using MultithreadDownload.Tasks;
 using MultithreadDownload.Threading;
 using MultithreadDownload.Threads;
@@ -7,6 +8,7 @@ using MultithreadDownload.Utils;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading;
@@ -184,36 +186,39 @@ namespace MultithreadDownload.Protocols
                 (sbyte)(downloadThread.CompletedBytesSizeCount / ((HttpDownloadContext)downloadThread.DownloadContext).RangeOffset * 100));
         }
 
-        public Result<bool> PostDownloadProcessing(Stream outputStream, IDownloadThread downloadThread)
+        public Result<bool> PostDownloadProcessing(Stream outputStream, DownloadTask task)
         {
             // If the worker thread is not alive, it means that the download task has been cancelled
             // Clean up the download progress by closing and disposing the output stream and delete the file
             // However, if the worker thread is alive, it means that the download task is completed
             // In this case, we need to clean up the download progress by closing and disposing the output stream
             // but do not delete the file
-            if (!downloadThread.IsAlive)
+            // After that, we need to combine the segments of the file to a single file
+            if (task.DownloadThreadManager.CompletedThreadsCount != task.DownloadThreadManager.MaxParallelThreads)
             {
-                this.CleanDownloadProgess(outputStream, downloadThread.DownloadContext.TargetPath);
+                this.CleanDownloadProgess(outputStream, 
+                    task.DownloadThreadManager.GetThreads().Select(x => x.FileSegmentPath).ToArray());
                 return Result<bool>.Failure(
-                    $"Thread {downloadThread.ID} is not alive, " +
-                    $"the download task is cancelled for {((HttpDownloadContext)downloadThread.DownloadContext).Url}");
+                    $"Task {task.ID} does not be completed and cannot do PostDownloadProcessing().Therefore, The task has be cancelled");
             }
 
-            //TODOASAP: Combine the file segments into a single file
-
-            this.CleanDownloadProgess(outputStream, null);
-            downloadThread.SetDownloadProgress(100);
+            Result<bool> result = FileSegmentHelper.CombineSegmentsSafe(task);
+            if (!result.IsSuccess)
+            {
+                Debug.WriteLine($"Failed to combine segments: {result.ErrorMessage}");
+                return Result<bool>.Failure($"Failed to combine segments: {result.ErrorMessage}");
+            }
+            this.CleanDownloadProgess(outputStream);
             return Result<bool>.Success(true);
         }
 
-#nullable enable
         /// <summary>
         /// Clean up the download progress by closing and disposing the output stream
         /// </summary>
         /// <param name="targettream">The stream you want to clean</param>
         /// <param name="filePath">The path of the downloading file</param>
         /// <returns>Whether the operation is success or not</returns>
-        private Result<bool> CleanDownloadProgess(Stream? targetStream, string? filePath)
+        private Result<bool> CleanDownloadProgess(Stream targetStream)
         {
             // Clean up the download progress by closing and disposing the output stream
             // If the filePath is not null, delete the file
@@ -226,9 +231,31 @@ namespace MultithreadDownload.Protocols
                 targetStream.Flush();
                 targetStream.Close();
                 targetStream.Dispose();
-                if (filePath != null)
+                return Result<bool>.Success(true);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to clean download progress: {ex.Message}");
+                return Result<bool>.Failure($"Failed to clean download progress: {ex.Message}");
+            }
+        }
+
+        private Result<bool> CleanDownloadProgess(Stream targetStream, string[] filePath)
+        {
+            // Clean up the download progress by closing and disposing the output stream
+            // If the filePath is not null, delete the file
+            // for why the filePath is null, it means that the download is not completed
+            // e.g. The download only executed to DownloadFile().
+            // Return a success result if the operation is successful
+            if (targetStream == null) { return Result<bool>.Failure("Output stream is null"); }
+            try
+            {
+                targetStream.Flush();
+                targetStream.Close();
+                targetStream.Dispose();
+                foreach (string path in filePath)
                 {
-                    File.Delete(filePath);
+                    File.Delete(path);
                 }
                 return Result<bool>.Success(true);
             }
@@ -238,6 +265,6 @@ namespace MultithreadDownload.Protocols
                 return Result<bool>.Failure($"Failed to clean download progress: {ex.Message}");
             }
         }
-#nullable disable
+
     }
 }

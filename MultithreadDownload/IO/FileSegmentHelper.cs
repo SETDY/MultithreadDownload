@@ -48,18 +48,20 @@ namespace MultithreadDownload.IO
             // Create the final file stream and enumerate through the threads to combine their segments.
             // After that, flush and close the final file stream.
             // If the whole process success, return success.
-            // Otherwise, return failure.
+            // Otherwise, invoke the FailureProcessOfFileStream method to handle the failure process.
+            // Then, return failure.
             FileStream finalFileStream = new FileStream(downloadTask.DownloadContext.TargetPath, FileMode.Open);
             foreach (DownloadThread thread in downloadTask.DownloadThreadManager.GetThreads())
             {
                 Result<bool> result = CombineFileSegmentSafe(thread, thread.FileSegmentPath, ref finalFileStream);
                 if(!result.IsSuccess)
                 {
-                    FailureProcessOfFileStream(ref finalFileStream, downloadTask.DownloadContext.TargetPath);
+                    FailureProcessOfFileStream(ref finalFileStream,
+                        downloadTask.DownloadThreadManager.GetThreads().Select(x => x.FileSegmentPath).ToArray());
                     return Result<bool>.Failure($"Cannot combine file segment: {thread.FileSegmentPath}");
                 }
             }
-            FailureProcessOfFileStream(ref finalFileStream, downloadTask.DownloadContext.TargetPath);
+            FailureProcessOfFileStream(ref finalFileStream, downloadTask.DownloadThreadManager.GetThreads().Select(x => x.FileSegmentPath).ToArray());
             return Result<bool>.Success(true);
         }
 
@@ -114,7 +116,7 @@ namespace MultithreadDownload.IO
         /// </summary>
         /// <param name="fileStream">The file stream to handle.</param>
         /// <param name="filePath">The path of the file to delete.</param>
-        private static void FailureProcessOfFileStream(ref FileStream fileStream, string filePath)
+        private static void FailureProcessOfFileStream(ref FileStream fileStream, string[] fileSegementPaths)
         {
             // If the file stream is not null, flush and close it then delete the file
             // If the process fails, just return
@@ -125,7 +127,34 @@ namespace MultithreadDownload.IO
             }
             try
             {
-                File.Delete(filePath);
+                foreach (string filePath in fileSegementPaths)
+                {
+                    File.Delete(filePath);
+                }
+            }
+            catch (Exception)
+            {
+                return;
+            }
+        }
+
+        /// <summary>
+        /// Handles the failure process of a file stream.
+        /// </summary>
+        /// <param name="fileStream">The file stream to handle.</param>
+        /// <param name="filePath">The path of the file to delete.</param>
+        private static void FailureProcessOfFileStream(ref FileStream fileStream, string fileSegementPaths)
+        {
+            // If the file stream is not null, flush and close it then delete the file
+            // If the process fails, just return
+            if (fileStream != null)
+            {
+                fileStream.Flush();
+                fileStream.Close();
+            }
+            try
+            {
+                File.Delete(fileSegementPaths);
             }
             catch (Exception)
             {

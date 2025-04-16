@@ -8,6 +8,7 @@ using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -36,6 +37,11 @@ namespace MultithreadDownload.Schedulers
         private readonly Task s_allocator;
 
         /// <summary>
+        /// The provider that provides the work for the download tasks.
+        /// </summary>
+        private readonly DownloadTaskWorkProvider s_workProvider;
+
+        /// <summary>
         /// The number of maximum concurrent downloads.
         /// </summary>
         public byte MaxDownloadingTasks { get; private set; }
@@ -54,11 +60,12 @@ namespace MultithreadDownload.Schedulers
         /// </remarks>
         public event EventHandler<DownloadDataEventArgs> TasksProgressCompleted;
 
-        public DownloadTaskScheduler(byte maxDownloadingTasks)
+        public DownloadTaskScheduler(byte maxDownloadingTasks, DownloadTaskWorkProvider workProvider)
         {
             // Initialize the properties
             this.MaxDownloadingTasks = maxDownloadingTasks;
             this.s_downloadSlots = new SemaphoreSlim(this.MaxDownloadingTasks);
+            this.s_workProvider = workProvider;
 
             // Initialize the allocator task
             // If there are no tasks in the queue, the allocator task will wait for a task to be added.
@@ -87,10 +94,10 @@ namespace MultithreadDownload.Schedulers
         /// Add a task to the queue.
         /// </summary>
         /// <param name="task">The task to add.</param>
-        public void AddTask(IDownloadContext downloadContext, IDownloadService downloadService)
+        public void AddTask(IDownloadContext downloadContext)
         {
             DownloadTask task = DownloadTask.Create(Guid.NewGuid(),
-                downloadService.GetDownloadWorkDelegate(),
+                workProvider.Execute_MainWork,
                 downloadContext);
             this.s_taskQueue.Add(task);
         }
@@ -111,7 +118,12 @@ namespace MultithreadDownload.Schedulers
         {
             foreach (DownloadTask task in this.s_taskQueue)
             {
-                task.Resume();
+                Result<Stream> result = this.s_workProvider.GetTaskFinalStream(task.DownloadContext);
+                if (!result.IsSuccess)
+                {
+                    throw new Exception("GetTaskFinalStream failed");
+                }
+                task.Start(this.s_workProvider.Execute_FinalizeWork(result.Value))
             }
         }
 
