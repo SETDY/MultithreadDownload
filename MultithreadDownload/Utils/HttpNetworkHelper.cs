@@ -93,24 +93,27 @@ namespace MultithreadDownload.Utils
         /// </summary>
         /// <param name="link">The link you want to get the file size</param>
         /// <returns>The file size of the link as bytes</returns>
-        public static async Task<long> GetLinkFileSizeAsync(string link)
+        public static async Task<Result<long>> GetLinkFileSizeAsync(string link)
         {
             // If the link is null or empty, return 0.
             // Otherwise, send a HEAD request to the URL to get the file size and return its file size.
             // If the request takes longer than 2 seconds, cancel it.
-            // If the request fails, return 0.
-            if (string.IsNullOrEmpty(link)) { return 0; }
+            // If the request fails, return Failure.
+            if (string.IsNullOrEmpty(link)) { return Result<long>.Failure($"{link} cannot be null or emprt."); }
             try
             {
                 using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(2000)))
                 {
-                    var response = await s_client.SendAsync(new HttpRequestMessage(HttpMethod.Head, link), cts.Token);
-                    return response.Content.Headers.ContentLength ?? 0;
+                    long fileSize = (await s_client.SendAsync(new HttpRequestMessage(HttpMethod.Head, link), cts.Token))
+                        .Content.Headers.ContentLength ?? 0;
+
+                    if (fileSize < 0) { return Result<long>.Failure("Failed to get the file size."); }
+                    return Result<long>.Success(fileSize);
                 }
             }
             catch (Exception)
             {
-                return 0;
+                return Result<long>.Failure("Failed to get the file size.");
             }
         }
     }

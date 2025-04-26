@@ -17,7 +17,7 @@ namespace MultithreadDownload.Threading
 
         event Action<IDownloadThread> ThreadCompleted;
 
-        void Start(Stream inputStream, Stream[] outputStream);
+        void Start(Stream[] inputStream, Stream[] outputStream);
 
         void Pause();
 
@@ -25,7 +25,7 @@ namespace MultithreadDownload.Threading
 
         void Cancel();
 
-        Result<bool> CreateThread(Action mainWork);
+        Result<bool> CreateThread(Action<Stream, Stream, IDownloadThread> mainWork);
 
         IEnumerable<IDownloadThread> GetThreads();
     }

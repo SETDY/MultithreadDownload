@@ -1,5 +1,4 @@
 ﻿using Microsoft.Win32.SafeHandles;
-using MultithreadDownload.Core;
 using MultithreadDownload.IO;
 using MultithreadDownload.Protocols;
 using MultithreadDownload.Tasks;
@@ -14,7 +13,7 @@ using System.Threading.Tasks;
 
 namespace MultithreadDownload.Schedulers
 {
-    public class DownloadTaskWorkProvider
+    public class DownloadTaskWorkProvider : IDownloadTaskWorkProvider
     {
         /// <summary>
         /// Execute the main work of the download task.
@@ -24,11 +23,11 @@ namespace MultithreadDownload.Schedulers
         /// <returns></returns>
         public Result<bool> Execute_MainWork(IDownloadService downloadService, DownloadTask task)
         {
-            Result<Stream> inputStream = downloadService.GetStream(task.DownloadContext);
-            if (!inputStream.IsSuccess) { return Result<bool>.Failure("GetStream failed"); }
-            Result<Stream[]> outputStream = GetTaskStreams((byte)task.DownloadThreadManager.GetThreads().Count(), task.DownloadContext);
-            if (!outputStream.IsSuccess) { return Result<bool>.Failure("GetTaskStreams failed"); }
-            task.DownloadThreadManager.Start(inputStream.Value, outputStream.Value);
+            Result<Stream[]> inputStreams = downloadService.GetStreams(task.DownloadContext);
+            if (!inputStreams.IsSuccess) { return Result<bool>.Failure("GetStream failed"); }
+            Result<Stream[]> outputStreams = GetTaskStreams((byte)task.DownloadThreadManager.GetThreads().Count(), task.DownloadContext);
+            if (!outputStreams.IsSuccess) { return Result<bool>.Failure("GetTaskStreams failed"); }
+            task.DownloadThreadManager.Start(inputStreams.Value, outputStreams.Value);
             return Result<bool>.Success(true);
         }
 
@@ -99,6 +98,13 @@ namespace MultithreadDownload.Schedulers
             }
         }
 
+        /// <summary>
+        /// Finalize the work of the download task.
+        /// </summary>
+        /// <param name="outStream">The output stream to write to.</param>
+        /// <param name="downloadService">The download service to use.</param>
+        /// <param name="task">The download task to finalize.</param>
+        /// <returns>Whether the finalization was successful or not.</returns>
         public Result<bool> Execute_FinalizeWork(Stream outStream,IDownloadService downloadService, DownloadTask task)
         {
             // Finalize the work of the download task.

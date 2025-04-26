@@ -1,4 +1,4 @@
-﻿using MultithreadDownload.Core;
+﻿using MultithreadDownload.Protocols;
 using System;
 
 namespace MultithreadDownload.Exceptions

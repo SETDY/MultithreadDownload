@@ -1,4 +1,4 @@
-﻿using MultithreadDownload.Core;
+﻿using MultithreadDownload.Protocols;
 
 namespace MultithreadDownload.Threading
 {
@@ -12,13 +12,11 @@ namespace MultithreadDownload.Threading
         /// </summary>
         /// <param name="downloadThreadFactory">The factory for creating download threads.</param>
         /// <param name="downloadContext">The download context of the download task.</param>
-        /// <param name="work">The delegate that will be executed by the download thread.</param>
         /// <param name="maxThreads">The maximum number of threads that can be used for downloading.</param>
         /// <returns></returns>
-        public IDownloadThreadManager Create(IDownloadThreadFactory downloadThreadFactory, IDownloadContext downloadContext,
-            DownloadWorkDelegate work, byte maxThreads)
+        public IDownloadThreadManager Create(IDownloadThreadFactory downloadThreadFactory, IDownloadContext downloadContext, byte maxThreads)
         {
-            return new DownloadThreadManager(downloadThreadFactory, downloadContext, work, maxThreads);
+            return new DownloadThreadManager(downloadThreadFactory, maxThreads, downloadContext);
         }
     }
 }

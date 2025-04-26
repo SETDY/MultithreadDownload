@@ -1,5 +1,4 @@
-﻿using MultithreadDownload.Core;
-using MultithreadDownload.Downloads;
+﻿using MultithreadDownload.Downloads;
 using MultithreadDownload.Events;
 using MultithreadDownload.Protocols;
 using MultithreadDownload.Tasks;
@@ -16,7 +15,7 @@ using System.Threading.Tasks;
 
 namespace MultithreadDownload.Schedulers
 {
-    public class DownloadTaskScheduler : IDownloadTaskScheduler
+    public class DownloadTaskScheduler : IDownloadTaskScheduler, IDisposable
     {
         /// <summary>
         /// The queue of tasks to be executed.
@@ -36,19 +35,21 @@ namespace MultithreadDownload.Schedulers
         /// </summary>
         private readonly Task s_allocator;
 
+        private readonly IDownloadService s_downloadService;
+
         /// <summary>
         /// The provider that provides the work for the download tasks.
         /// </summary>
-        private readonly DownloadTaskWorkProvider s_workProvider;
+        private readonly IDownloadTaskWorkProvider s_workProvider;
 
         /// <summary>
         /// The number of maximum concurrent downloads.
         /// </summary>
-        public byte MaxDownloadingTasks { get; private set; }
+        public byte MaxParallelTasks { get; private set; }
 
         /// <summary>
         /// The event will be invoked when the progress of a task changes.
-        /// which means the task is downloaded newly or the task is added to the queue.
+        /// which means the task is downloaded newly and the task is added to the queue.
         /// </summary>
         public event EventHandler<DownloadDataEventArgs> TaskQueueProgressChanged;
 
@@ -60,45 +61,116 @@ namespace MultithreadDownload.Schedulers
         /// </remarks>
         public event EventHandler<DownloadDataEventArgs> TasksProgressCompleted;
 
-        public DownloadTaskScheduler(byte maxDownloadingTasks, DownloadTaskWorkProvider workProvider)
+        public DownloadTaskScheduler(byte maxDownloadingTasks, IDownloadService downloadService, IDownloadTaskWorkProvider workProvider)
         {
             // Initialize the properties
-            this.MaxDownloadingTasks = maxDownloadingTasks;
-            this.s_downloadSlots = new SemaphoreSlim(this.MaxDownloadingTasks);
-            this.s_workProvider = workProvider;
+            this.MaxParallelTasks = maxDownloadingTasks;
+            s_downloadSlots = new SemaphoreSlim(this.MaxParallelTasks);
+            s_workProvider = workProvider;
+            s_downloadService = downloadService;
 
             // Initialize the allocator task
             // If there are no tasks in the queue, the allocator task will wait for a task to be added.
             // If there are enough slots available, the allocator task will start the task.
             // The process will continue until the software is stopped.
-            this.s_allocator = Task.Factory.StartNew(() =>
+            this.s_allocator = new Task(() =>
             {
-                foreach (DownloadTask task in this.s_taskQueue.GetConsumingEnumerable())
+                foreach (DownloadTask task in s_taskQueue.GetConsumingEnumerable())
                 {
-                    // The download slots -1 if there is available solt
+                    // The download slots -1 if there is available solt and force start the task
                     // Otherwise, block the task to wait
                     this.s_downloadSlots.Wait();
-
-                    task.Start(() =>
-                    {
-                        // The download slots +1
-                        // Invoke the event when the task is completed
-                        this.s_downloadSlots.Release();
-                        this.TasksProgressCompleted.Invoke(task, new DownloadDataEventArgs(task));
-                    });
+                    task.Start(s_workProvider, s_downloadService);
                 }
             }, TaskCreationOptions.LongRunning);
+        }
+
+        /// <summary>
+        /// Dispose the task scheduler.
+        /// </summary>
+        /// <remarks>
+        /// Since the task scheduler manages the donwload tasks, 
+        /// these tasks which were managered by the task scheduler will be cancelled too when the scheduler has been dispose.
+        /// </remarks>
+        public void Dispose()
+        {
+            // Cancel all tasks in the queue
+            // Dispose the allocator, the task queue and the download slots
+            this.GetTasks().ToList().ForEach(task => task.Cancel());
+            s_allocator.Dispose();
+            s_taskQueue?.Dispose();
+            s_downloadSlots?.Dispose();
+        }
+        #region Methods of task allocator
+
+        /// <summary>
+        /// Start the queue process of the tasks(allocator).
+        /// </summary>
+        /// <returns>Whether the allocator are paused successfully.</returns>
+        /// <remarks>
+        /// It will only start the allocator task but not the tasks in the queue.
+        /// </remarks>
+        public Result<bool> Start()
+        {
+            if (s_allocator.Status != TaskStatus.Running) { Result<bool>.Failure("The allocator is already started."); }
+            s_allocator.Start();
+            return Result<bool>.Success(true);
+        }
+
+        /// <summary>
+        /// Pause the queue process of the tasks.
+        /// </summary>
+        /// <returns>Whether the allocator are paused successfully.</returns>
+        /// <remarks>
+        /// It will only start the allocator task but not the tasks in the queue.
+        /// </remarks>
+        public Result<bool> Pause()
+        {
+            // Pause the allocator task
+            // The tasks in the queue will be paused
+            if (s_allocator.Status != TaskStatus.WaitingForActivation) { Result<bool>.Failure("The allocator is already paused."); }
+
+            s_allocator.Wait();
+            return Result<bool>.Success(true);
+        }
+#endregion
+
+        #region Mothods about download task
+
+        /// <summary>
+        /// Add a task to the queue.
+        /// </summary>
+        /// <param name="downloadContext">The download context to use.</param>
+        public void AddTask(IDownloadContext downloadContext)
+        {
+            // Create a new task with the given download context and maximum number of threads
+            // Hook the event such that the queue progress can be invoked when the task is completed.
+            DownloadTask task = DownloadTask.Create(Guid.NewGuid(), this.MaxParallelTasks, downloadContext);
+            task.Completed += delegate
+            {
+                // The download slots +1
+                // Invoke the event when the task is completed
+                this.s_downloadSlots.Release();
+                this.TasksProgressCompleted.Invoke(task, new DownloadDataEventArgs(task));
+            };
+            this.s_taskQueue.Add(task);
+            this.TaskQueueProgressChanged.Invoke(task, new DownloadDataEventArgs(task));
         }
 
         /// <summary>
         /// Add a task to the queue.
         /// </summary>
         /// <param name="task">The task to add.</param>
-        public void AddTask(IDownloadContext downloadContext)
+        public void AddTask(DownloadTask task)
         {
-            DownloadTask task = DownloadTask.Create(Guid.NewGuid(),
-                workProvider.Execute_MainWork,
-                downloadContext);
+            // Hook the event such that the queue progress can be invoked when the task is completed.
+            task.Completed += delegate
+            {
+                // The download slots +1
+                // Invoke the event when the task is completed
+                this.s_downloadSlots.Release();
+                this.TasksProgressCompleted.Invoke(task, new DownloadDataEventArgs(task));
+            };
             this.s_taskQueue.Add(task);
         }
 
@@ -111,27 +183,12 @@ namespace MultithreadDownload.Schedulers
             return s_taskQueue.ToArray();
         }
 
-        /// <summary>
-        /// Start the scheduler to process the tasks in the queue.
-        /// </summary>
-        public void Start()
-        {
-            foreach (DownloadTask task in this.s_taskQueue)
-            {
-                Result<Stream> result = this.s_workProvider.GetTaskFinalStream(task.DownloadContext);
-                if (!result.IsSuccess)
-                {
-                    throw new Exception("GetTaskFinalStream failed");
-                }
-                task.Start(this.s_workProvider.Execute_FinalizeWork(result.Value))
-            }
-        }
 
         /// <summary>
         /// Pause a task that is in the queue.
         /// </summary>
         /// <param name="taskId">The id of the task to pause.</param>
-        public Result<bool> Pause(Guid taskID)
+        public Result<bool> PauseTask(Guid taskID)
         {
             // If the task is downloading, pause the task that satisfies taskID
             // Otherwise, return failure result.
@@ -150,7 +207,7 @@ namespace MultithreadDownload.Schedulers
         /// Resume a task that is already paused
         /// </summary>
         /// <param name="taskId"></param>
-        public Result<bool> Resume(Guid taskID)
+        public Result<bool> ResumeTask(Guid taskID)
         {
             // If the task is downloading, resume the task that satisfies taskID
             // Otherwise, return failure result.
@@ -169,7 +226,7 @@ namespace MultithreadDownload.Schedulers
         /// Resume a task that is in the queue.
         /// </summary>
         /// <param name="taskId">The id of the task to resume.</param>
-        public Result<bool> Cancel(Guid taskID)
+        public Result<bool> CancelTask(Guid taskID)
         {
             // If the task is downloading, cancel the task that satisfies taskID
             // Otherwise, return failure result.
@@ -188,7 +245,7 @@ namespace MultithreadDownload.Schedulers
         /// Cancel all tasks that is in the queue.
         /// </summary>
         /// <returns>Whether the tasks are cancelled successfully.</returns>
-        public Result<bool> CancelAll()
+        public Result<bool> CancelTasks()
         {
             try
             {
@@ -203,5 +260,6 @@ namespace MultithreadDownload.Schedulers
                 return Result<bool>.Failure("Cannot cancel all tasks, error message: " + ex);
             }
         }
+        #endregion
     }
 }

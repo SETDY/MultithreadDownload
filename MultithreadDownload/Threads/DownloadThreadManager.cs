@@ -1,5 +1,4 @@
-﻿using MultithreadDownload.Core;
-using MultithreadDownload.Protocols;
+﻿using MultithreadDownload.Protocols;
 using MultithreadDownload.Threads;
 using MultithreadDownload.Utils;
 using System;
@@ -63,9 +62,10 @@ namespace MultithreadDownload.Threading
         public DownloadThreadManager(IDownloadThreadFactory factory, byte maxThreads, IDownloadContext downloadContext)
         {
             // Initialize the properties
-            this.s_downloadContext = downloadContext;
-            this.s_maxThreads = maxThreads;
-            this.s_factory = factory;
+            s_threads = new List<IDownloadThread>();
+            s_downloadContext = downloadContext;
+            s_maxThreads = maxThreads;
+            s_factory = factory;
             this.CompletedThreadsCount = 0;
         }
 
@@ -77,13 +77,13 @@ namespace MultithreadDownload.Threading
         /// The work delegate is the main download work that will be executed by the download thread.
         /// The main download work is IDownloadSerivce.DownloadFile()
         /// </remarks>
-        public Result<bool> CreateThread(Action mainWork)
+        public Result<bool> CreateThread(Action<Stream, Stream, IDownloadThread> mainWork)
         {
             if (this.s_threads.Count > this.s_maxThreads) { Result<bool>.Failure("The number of download threads is at the maximum postition."); }
             // Create a new thread with the factory
             // Set the progresser for the thread
             // Add the thread to the list of threads
-            IDownloadThread downloadThread = this.s_factory.Create(0, this.s_downloadContext, mainWork);
+            IDownloadThread downloadThread = s_factory.Create(0, s_downloadContext, mainWork);
             this.SetThreadProgresser(downloadThread);
             s_threads.Append(downloadThread);
             return Result<bool>.Success(true);
@@ -113,14 +113,14 @@ namespace MultithreadDownload.Threading
         /// </summary>
         /// <param name="inputStream">The input stream to read from.</param>
         /// <param name="outputStreams">The output streams of each of threads to write to.</param>
-        public void Start(Stream inputStream, Stream[] outputStreams)
+        public void Start(Stream[] inputStream, Stream[] outputStreams)
         {
             // If the length of the output streams is not equal to the number of threads, throw an exception
             // Otherwise, start each thread with the input stream and the corresponding output stream
             if (outputStreams.Length != this.s_threads.Count) { throw new ArgumentException("The number of output streams must be equal to the number of threads."); }
             for (int i = 0; i < outputStreams.Length; i++)
             {
-                this.s_threads[i].Start(inputStream, outputStreams[i]);
+                this.s_threads[i].Start(inputStream[i], outputStreams[i]);
             }
         }
 

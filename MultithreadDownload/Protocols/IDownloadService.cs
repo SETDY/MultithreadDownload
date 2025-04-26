@@ -1,5 +1,4 @@
-﻿using MultithreadDownload.Core;
-using MultithreadDownload.Tasks;
+﻿using MultithreadDownload.Tasks;
 using MultithreadDownload.Threading;
 using MultithreadDownload.Threads;
 using MultithreadDownload.Utils;
@@ -14,11 +13,12 @@ namespace MultithreadDownload.Protocols
     {
 
         /// <summary>
-        /// Get the stream of download file
+        /// Get the streams for each of the download threads of the download task.
         /// </summary>
-        /// <param name="downloadContext">The context of the download.</param>
-        /// <returns>The stream of the file to be downloaded.</returns>
-        Result<Stream> GetStream(IDownloadContext downloadContext);
+        /// <param name="downloadContext"></param>
+        /// <param name="rangePostions"></param>
+        /// <returns>The streams for each of the download threads of the download task</returns>
+        Result<Stream[]> GetStreams(IDownloadContext downloadContext);
 
         /// <summary>
         /// Performs the actual download using the given input and output streams.

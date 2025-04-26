@@ -1,5 +1,4 @@
-﻿using MultithreadDownload.Core;
-using MultithreadDownload.Downloads;
+﻿using MultithreadDownload.Downloads;
 using MultithreadDownload.IO;
 using MultithreadDownload.Tasks;
 using MultithreadDownload.Threading;
@@ -22,7 +21,7 @@ namespace MultithreadDownload.Protocols
     public class HttpDownloadService : IDownloadService
     {
 
-        #region Implement of GetStream method
+        #region Implement of GetStreams method
 
         /// <summary>
         /// Max retry times
@@ -34,7 +33,40 @@ namespace MultithreadDownload.Protocols
         /// </summary>
         private const int WAIT_TIME = 5000;
 
-        public Result<Stream> GetStream(IDownloadContext downloadContext)
+        /// <summary>
+        /// Get the streams for each of the download threads of the download task.
+        /// </summary>
+        /// <param name="downloadContext"></param>
+        /// <param name="rangePostions"></param>
+        /// <returns>The streams for each of the download threads of the download task</returns>
+        public Result<Stream[]> GetStreams(IDownloadContext downloadContext)
+        {
+            Stream[] streams = new Stream[downloadContext.RangePositions.Length];
+            for (int i = 0; i < downloadContext.RangePositions.Length; i++)
+            {
+                // Get the start and end position of the file to be downloaded
+                long startPosition = downloadContext.RangePositions[i][0];
+                long endPosition = downloadContext.RangePositions[i][1];
+                // Get the stream from the download context
+                Result<Stream> result = GetStream(downloadContext, startPosition, endPosition);
+                if (!result.IsSuccess)
+                {
+                    Debug.WriteLine($"Get a error message from the request: {result.ErrorMessage} which is from url: {((HttpDownloadContext)downloadContext).Url}");
+                    return Result<Stream[]>.Failure($"Thread cannot connect to {((HttpDownloadContext)downloadContext).Url}");
+                }
+                streams[i] = result.Value;
+            }
+            return Result<Stream[]>.Success(streams);
+        }
+
+        /// <summary>
+        /// Get the stream for the download thread of the download task.
+        /// </summary>
+        /// <param name="downloadContext">The download context</param>
+        /// <param name="startPosition">The start position of the file to be downloaded</param>
+        /// <param name="endPosition">The end position of the file to be downloaded</param>
+        /// <returns></returns>
+        private Result<Stream> GetStream(IDownloadContext downloadContext, long startPosition, long endPosition)
         {
             // Get the download context from the download thread.
             // Since the class is about Http, we can just cast it to HttpDownloadContext.
@@ -45,8 +77,8 @@ namespace MultithreadDownload.Protocols
             HttpClient client = HttpClientPool.GetClient();
             HttpRequestMessage requestMessage = CreateRequestMessage(
                 httpDownloadContext.Url,
-                httpDownloadContext.RangeStart,
-                httpDownloadContext.RangeOffset
+                startPosition,
+                endPosition
                 );
             Result<HttpResponseMessage> result = SendRequestSafe(
                 client,
@@ -63,13 +95,13 @@ namespace MultithreadDownload.Protocols
             return Result<Stream>.Success(result.Value.Content.ReadAsStream());
         }
 
-        private HttpRequestMessage CreateRequestMessage(string url, long downloadPosition, long downloadOffset)
+        private HttpRequestMessage CreateRequestMessage(string url, long startDownloadPosition, long endDownloadPosition)
         {
             // Set the method which is Get for the request and the offset of the requsted file.
             HttpRequestMessage httpRequestMessage =
                 new HttpRequestMessage(HttpMethod.Get, url);
             httpRequestMessage.Headers.Range =
-                new RangeHeaderValue(downloadPosition, downloadPosition + downloadOffset);
+                new RangeHeaderValue(startDownloadPosition, endDownloadPosition);
             return httpRequestMessage;
         }
 
@@ -182,8 +214,13 @@ namespace MultithreadDownload.Protocols
             // Add the completed byte numbers for the download thread
             // Set the download progress for the download thread
             downloadThread.AddCompletedBytesSizeCount(readBytesCount);
+            // This variable is used to simply calculate the download progress
+            // because it is too long that writing the whole expression.
+            long threadDownloadSize =
+                ((HttpDownloadContext)downloadThread.DownloadContext).RangePositions[downloadThread.ID][1] -
+                ((HttpDownloadContext)downloadThread.DownloadContext).RangePositions[downloadThread.ID][0];
             downloadThread.SetDownloadProgress(
-                (sbyte)(downloadThread.CompletedBytesSizeCount / ((HttpDownloadContext)downloadThread.DownloadContext).RangeOffset * 100));
+                (sbyte)(downloadThread.CompletedBytesSizeCount / threadDownloadSize * 100));
         }
 
         public Result<bool> PostDownloadProcessing(Stream outputStream, DownloadTask task)

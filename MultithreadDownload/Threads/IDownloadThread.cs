@@ -1,5 +1,5 @@
-﻿using MultithreadDownload.Core;
-using MultithreadDownload.Downloads;
+﻿using MultithreadDownload.Downloads;
+using MultithreadDownload.Protocols;
 using MultithreadDownload.Utils;
 using System;
 using System.IO;

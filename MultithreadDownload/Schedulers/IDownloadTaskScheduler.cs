@@ -1,4 +1,5 @@
 ﻿using MultithreadDownload.Events;
+using MultithreadDownload.Protocols;
 using MultithreadDownload.Tasks;
 using MultithreadDownload.Utils;
 using System;
@@ -9,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace MultithreadDownload.Schedulers
 {
-    public interface IDownloadTaskScheduler
+    public interface IDownloadTaskScheduler : IDisposable
     {
         /// <summary>
         /// The event will be invoked when the progress of a task changes.
@@ -25,36 +26,41 @@ namespace MultithreadDownload.Schedulers
         /// </remarks>
         public event EventHandler<DownloadDataEventArgs> TasksProgressCompleted;
 
+        /// <summary>
+        /// Add a task to the queue.
+        /// </summary>
+        /// <param name="task">The task to add.</param>
         void AddTask(DownloadTask task);
 
         /// <summary>
-        /// Start the scheduler to process the tasks in the queue.
+        /// Add a task to the queue.
         /// </summary>
-        void Start();
+        /// <param name="downloadContext">The download context to use.</param>
+        void AddTask(IDownloadContext downloadContext);
 
         /// <summary>
         /// Pause a task that is in the queue.
         /// </summary>
         /// <param name="taskId">The id of the task to pause.</param>
-        Result<bool> Pause(Guid taskId);
+        Result<bool> PauseTask(Guid taskId);
 
         /// <summary>
         /// Resume a task that is in the queue.
         /// </summary>
         /// <param name="taskId">The id of the task to resume.</param>
-        Result<bool> Resume(Guid taskId);
+        Result<bool> ResumeTask(Guid taskId);
 
         /// <summary>
         /// Cancel a task that is in the queue.
         /// </summary>
         /// <param name="taskId">The id of the task to cancel.</param>
-        Result<bool> Cancel(Guid taskId);
+        Result<bool> CancelTask(Guid taskId);
 
         /// <summary>
         /// Cancel all tasks that is in the queue.
         /// </summary>
         /// <param name="taskId">The id of the task to cancel.</param>
-        Result<bool> CancelAll();
+        Result<bool> CancelTasks();
 
         /// <summary>
         /// Get tasks that are in the queue.
