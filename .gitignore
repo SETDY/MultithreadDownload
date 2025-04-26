@@ -362,3 +362,5 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 /MultithreadDownload/MultithreadDownload.zip
+/MultithreadDownload/Test.cs
+/ConsleTest
