@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace MultithreadDownload.Threads
 {
-    public interface IDownloadThread
+    public interface IDownloadThread : IDisposable
     {
         /// <summary>
         /// The ID of the download thread. This is used to identify the thread in the download task.

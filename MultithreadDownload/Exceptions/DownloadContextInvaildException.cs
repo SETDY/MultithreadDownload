@@ -11,7 +11,7 @@ namespace MultithreadDownload.Exceptions
         }
 
         public DownloadContextInvaildException(IDownloadContext downloadContext)
-            : base($"The download context is invalid. The target path of is is {downloadContext}")
+            : base($"The download context is invalid. The target path of it is {downloadContext.TargetPath}")
         {
         }
 

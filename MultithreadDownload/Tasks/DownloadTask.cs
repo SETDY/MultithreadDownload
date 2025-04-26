@@ -7,6 +7,7 @@ using MultithreadDownload.Threading;
 using MultithreadDownload.Threads;
 using MultithreadDownload.Utils;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
@@ -16,7 +17,7 @@ namespace MultithreadDownload.Tasks
     /// <summary>
     /// Represents a download task that contains information about the download operation.
     /// </summary>
-    public class DownloadTask
+    public class DownloadTask : IDisposable
     {
         #region Properties
 
@@ -128,13 +129,20 @@ namespace MultithreadDownload.Tasks
             workProvider.Execute_MainWork(downloadService, this);
             this.DownloadThreadManager.ThreadCompleted += (t) =>
             {
-                if (this.DownloadThreadManager.CompletedThreadsCount !=
-                this.DownloadThreadManager.MaxParallelThreads) { return; }
+                try
+                {
+                    if (this.DownloadThreadManager.CompletedThreadsCount !=
+                            this.DownloadThreadManager.MaxParallelThreads) { return; }
 
-                // Below code will be executed when all threads is completed
-                Result<Stream> result = workProvider.GetTaskFinalStream(this.DownloadContext);
-                if (!result.IsSuccess) { throw new Exception("GetTaskFinalStream failed"); }
-                workProvider.Execute_FinalizeWork(result.Value, downloadService, this);
+                    // Below code will be executed when all threads is completed
+                    Result<Stream> result = workProvider.GetTaskFinalStream(this.DownloadContext);
+                    if (!result.IsSuccess) { throw new Exception("GetTaskFinalStream failed"); }
+                    workProvider.Execute_FinalizeWork(result.Value, downloadService, this);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Unexpected error occurred when a thread are completed.\nThe message is {ex.Message}");
+                }
             };
         }
 
@@ -156,6 +164,14 @@ namespace MultithreadDownload.Tasks
             if (this.State == DownloadTaskState.Cancelled) { throw new InvalidOperationException("The download task is already cancelled."); }
             this.State = DownloadTaskState.Cancelled;
             this.DownloadThreadManager.Cancel();
+        }
+
+        public void Dispose()
+        {
+            // Dispose the download task and release the resources.
+            this.Cancel();
+            this.DownloadThreadManager.Dispose();
+            this.SpeedMonitor.Stop();
         }
 
         /// <summary>

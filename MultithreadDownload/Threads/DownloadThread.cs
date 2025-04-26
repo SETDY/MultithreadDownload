@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace MultithreadDownload.Threading
 {
-    public class DownloadThread : IDownloadThread
+    public class DownloadThread : IDownloadThread, IDisposable
     {
         /// <summary>
         /// The ID of the download thread. This is used to identify the thread in the download task.
@@ -85,7 +85,6 @@ namespace MultithreadDownload.Threading
                 Completed?.Invoke(this);
             });
         }
-
         public void Pause()
         {
             throw new NotImplementedException();
@@ -99,6 +98,14 @@ namespace MultithreadDownload.Threading
         public void Stop()
         {
             throw new NotImplementedException();
+        }
+
+        public void Dispose()
+        {
+            // Cancel the download operation => s_task will be cancelled
+            s_cancellation.Cancel();
+            // Dispose of the cancellation token source
+            s_cancellation.Dispose();
         }
 
         public void AddCompletedBytesSizeCount(long size)

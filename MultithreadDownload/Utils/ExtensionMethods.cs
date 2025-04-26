@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 
 namespace MultithreadDownload.Utils
 {
@@ -25,6 +26,10 @@ namespace MultithreadDownload.Utils
             else if (downloadSpeedAsBytes >= 1024)
             {
                 return $"{Math.Round((double)downloadSpeedAsBytes / 1024, 2)} KiB/s";
+            }
+            else
+            {
+                return $"{downloadSpeedAsBytes} B/s";
             }
             throw new ArgumentOutOfRangeException("It is not a vaild input to convert it to a proper speed rate.");
         }

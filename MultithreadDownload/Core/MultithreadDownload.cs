@@ -41,7 +41,7 @@ namespace MultithreadDownload.Core
         public event EventHandler<DownloadDataEventArgs> TaskQueueProgressChanged;
 
         /// <summary>
-        /// Event raised when all tasks have completed.
+        /// Event raised when a task have completed its progress.
         /// </summary>
         public event EventHandler TasksProgressCompleted;
 
@@ -108,13 +108,40 @@ namespace MultithreadDownload.Core
         }
         #endregion
 
-        #region Task Management
+        #region Allocator Methods
+        /// <summary>
+        /// Starts the download task scheduler.
+        /// </summary>
+        public void StartAllocator()
+        {
+            s_taskScheduler.Start();
+        }
+
+        /// <summary>
+        /// Stops the download task scheduler.
+        /// </summary>
+        public void StopAllocator()
+        {
+            s_taskScheduler.Pause();
+        }
+        #endregion
+
+        #region Task Management Methods
+        public DownloadTask[] GetDownloadTasks()
+        {
+            return s_taskScheduler.GetTasks();
+        }
+
         /// <summary>
         /// Add a task to the download queue.
         /// </summary>
         /// <param name="downloadContext">Download context.</param>
         public void AddTask(IDownloadContext downloadContext)
         {
+            if (downloadContext == null)
+            {
+                throw new ArgumentNullException(nameof(downloadContext));
+            }
             // TODO: Validate the download context whether it matches the download service
             s_taskScheduler.AddTask(downloadContext);
         }
@@ -126,10 +153,10 @@ namespace MultithreadDownload.Core
         public void PauseTask(Guid taskId) => s_taskScheduler.PauseTask(taskId);
 
         /// <summary>
-        /// Start a download tasks.
+        /// Resume a download tasks.
         /// </summary>
         /// <param name="taskId">The ID of the task to resume.</param>
-        public void StartTask(Guid taskId) => s_taskScheduler.ResumeTask(taskId);
+        public void ResumeTask(Guid taskId) => s_taskScheduler.ResumeTask(taskId);
 
         /// <summary>
         /// Cancel a download tasks.

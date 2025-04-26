@@ -7,6 +7,7 @@ using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -112,7 +113,8 @@ namespace MultithreadDownload.Schedulers
         /// </remarks>
         public Result<bool> Start()
         {
-            if (s_allocator.Status != TaskStatus.Running) { Result<bool>.Failure("The allocator is already started."); }
+            //TODO: There is a problem which is the if statement cannot prevent the task from starting again.
+            if (s_allocator.Status == TaskStatus.Running) { Result<bool>.Failure("The allocator is already started."); }
             s_allocator.Start();
             return Result<bool>.Success(true);
         }
@@ -128,6 +130,7 @@ namespace MultithreadDownload.Schedulers
         {
             // Pause the allocator task
             // The tasks in the queue will be paused
+            //TODO: There is a problem which is the if statement cannot prevent the task from pausing again.
             if (s_allocator.Status != TaskStatus.WaitingForActivation) { Result<bool>.Failure("The allocator is already paused."); }
 
             s_allocator.Wait();
@@ -166,10 +169,17 @@ namespace MultithreadDownload.Schedulers
             // Hook the event such that the queue progress can be invoked when the task is completed.
             task.Completed += delegate
             {
-                // The download slots +1
-                // Invoke the event when the task is completed
-                this.s_downloadSlots.Release();
-                this.TasksProgressCompleted.Invoke(task, new DownloadDataEventArgs(task));
+                try
+                {
+                    // The download slots +1
+                    // Invoke the event when the task is completed
+                    this.s_downloadSlots.Release();
+                    this.TasksProgressCompleted.Invoke(task, new DownloadDataEventArgs(task));
+                }
+                catch (Exception)
+                {
+                    Debug.WriteLine("Unexpected error when invoking the event of task completed.");
+                }
             };
             this.s_taskQueue.Add(task);
         }

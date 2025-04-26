@@ -42,11 +42,11 @@ namespace MultithreadDownload.Protocols
         public Result<Stream[]> GetStreams(IDownloadContext downloadContext)
         {
             Stream[] streams = new Stream[downloadContext.RangePositions.Length];
-            for (int i = 0; i < downloadContext.RangePositions.Length; i++)
+            for (int i = 0; i < downloadContext.RangePositions.GetLength(0); i++)
             {
                 // Get the start and end position of the file to be downloaded
-                long startPosition = downloadContext.RangePositions[i][0];
-                long endPosition = downloadContext.RangePositions[i][1];
+                long startPosition = downloadContext.RangePositions[i, 0];
+                long endPosition = downloadContext.RangePositions[i, 1];
                 // Get the stream from the download context
                 Result<Stream> result = GetStream(downloadContext, startPosition, endPosition);
                 if (!result.IsSuccess)
@@ -217,8 +217,8 @@ namespace MultithreadDownload.Protocols
             // This variable is used to simply calculate the download progress
             // because it is too long that writing the whole expression.
             long threadDownloadSize =
-                ((HttpDownloadContext)downloadThread.DownloadContext).RangePositions[downloadThread.ID][1] -
-                ((HttpDownloadContext)downloadThread.DownloadContext).RangePositions[downloadThread.ID][0];
+                ((HttpDownloadContext)downloadThread.DownloadContext).RangePositions[downloadThread.ID, 1] -
+                ((HttpDownloadContext)downloadThread.DownloadContext).RangePositions[downloadThread.ID, 0];
             downloadThread.SetDownloadProgress(
                 (sbyte)(downloadThread.CompletedBytesSizeCount / threadDownloadSize * 100));
         }

@@ -9,7 +9,7 @@ namespace MultithreadDownload.Threading
     /// <summary>
     /// Interface for managing download threads.
     /// </summary>
-    public interface IDownloadThreadManager
+    public interface IDownloadThreadManager : IDisposable
     {
         byte CompletedThreadsCount { get; }
 

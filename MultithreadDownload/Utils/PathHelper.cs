@@ -6,6 +6,21 @@ namespace MultithreadDownload.Utils
     public static class PathHelper
     {
         /// <summary>
+        /// Get the directory name of the specified path safely.
+        /// </summary>
+        /// <param name="path"></param>
+        /// <returns></returns>
+        /// <remarks>
+        /// Since <code>Path.GetDirectoryName(path)</code> will return null when path is rooted,
+        /// this method will pack the method to prevent null reference exception.
+        /// Therefore, the method will return the path itself if it is a rooted path
+        /// </remarks>
+        public static string GetDirectoryNameSafe(string path)
+        {
+            return Path.GetDirectoryName(path) ?? path;
+        }
+
+        /// <summary>
         /// Automatically generates a unique file name if the specified file already exists.
         /// </summary>
         /// <param name="directoryPath">The path of directory which saves the file</param>

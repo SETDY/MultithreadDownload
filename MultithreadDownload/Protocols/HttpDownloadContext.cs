@@ -20,7 +20,7 @@ namespace MultithreadDownload.Protocols
         /// <remarks>
         /// rangePosition[n][0] = startPostion; rangePosition[n][1] = endPosition
         /// </remarks>
-        public long[][] RangePositions { get; private set; }
+        public long[,] RangePositions { get; private set; }
 
         /// <summary>
         /// The size of the file has been downloaded.
@@ -32,7 +32,7 @@ namespace MultithreadDownload.Protocols
         /// </summary>
         public string Url { get; set; }
 
-        public HttpDownloadContext(string targetPath, string url, long[][] rangePositions)
+        public HttpDownloadContext(string targetPath, string url, long[,] rangePositions)
         {
             // Initialize the properties
             this.TargetPath = targetPath;
@@ -74,7 +74,7 @@ namespace MultithreadDownload.Protocols
                 (maxParallelThreads, fileSize.Value, out Result<long> remainingSize);
             if (!rangeStart.IsSuccess) { return null; }
             // Get download size for each download thread
-            long[][] rangePosition = GetRangePositions(maxParallelThreads, fileSize.Value, remainingSize.Value);
+            long[,] rangePosition = GetRangePositions(maxParallelThreads, fileSize.Value, remainingSize.Value);
             return new HttpDownloadContext(targetPath, link, rangePosition);
         }
 
@@ -85,20 +85,20 @@ namespace MultithreadDownload.Protocols
         /// <param name="fileSize">The size of the file to be downloaded.</param>
         /// <param name="remainingSize">The remaining size of the file after dividing it into ranges.</param>
         /// <returns>The range position for each thread.</returns>
-            private static long[][] GetRangePositions(byte maxParallelThreads, long fileSize, long remainingSize)
+            private static long[,] GetRangePositions(byte maxParallelThreads, long fileSize, long remainingSize)
             {
                 // Calculate the range positions for each thread
                 // e.g. rangePosition[n][0] = startPostion; rangePosition[n][1] = endPosition
-                long[][] rangePositions = new long[maxParallelThreads][];
+                long[,] rangePositions = new long[maxParallelThreads,2];
                 int rangeStart = 0;
                 long rangeOffset = fileSize / maxParallelThreads;
                 for (int i = 0; i < maxParallelThreads; i++)
                 {
-                    rangePositions[i][0] = rangeStart + (i * rangeOffset);
-                    rangePositions[i][1] = rangeStart + ((i + 1) * rangeOffset) - 1;
+                    rangePositions[i, 0] = rangeStart + (i * rangeOffset);
+                    rangePositions[i, 1] = rangeStart + ((i + 1) * rangeOffset) - 1;
                 }
                 // Set the last thread's end position to the file size
-                rangePositions[maxParallelThreads - 1][1] += remainingSize;
+                rangePositions[maxParallelThreads - 1, 1] += remainingSize;
 
                 return rangePositions;
             }

@@ -19,7 +19,7 @@ namespace MultithreadDownload.Protocols
         /// <remarks>
         /// rangePosition[n][0] = startPostion; rangePosition[n][1] = endPosition
         /// </remarks>
-        public long[][] RangePositions { get; }
+        public long[,] RangePositions { get; }
 
         public Result<bool> IsPropertiesVaild();
     }

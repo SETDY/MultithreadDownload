@@ -25,18 +25,27 @@ namespace MultithreadDownload.Schedulers
         {
             Result<Stream[]> inputStreams = downloadService.GetStreams(task.DownloadContext);
             if (!inputStreams.IsSuccess) { return Result<bool>.Failure("GetStream failed"); }
-            Result<Stream[]> outputStreams = GetTaskStreams((byte)task.DownloadThreadManager.GetThreads().Count(), task.DownloadContext);
+            Result<Stream[]> outputStreams = GetTaskStreams((byte)task.DownloadThreadManager.MaxParallelThreads, task.DownloadContext);
             if (!outputStreams.IsSuccess) { return Result<bool>.Failure("GetTaskStreams failed"); }
             task.DownloadThreadManager.Start(inputStreams.Value, outputStreams.Value);
             return Result<bool>.Success(true);
         }
 
+        /// <summary>
+        /// Get the streams for each thread to write to.
+        /// </summary>
+        /// <param name="maxParallelThreads">The maximum number of parallel threads.</param>
+        /// <param name="downloadContext">The download context to use.</param>
+        /// <returns></returns>
         private Result<Stream[]> GetTaskStreams(byte maxParallelThreads, IDownloadContext downloadContext)
         {
             // Use GetUniqueFileName() to get a unique file name for the download context
-            // for preventing file name conflicts then create the file streams for each thread
+            // for preventing file name conflicts then create the file streams for each thread.
+            // Caution:
+            // Since Path.GetDirectoryName() will return null when the path is rooted,
+            // PathHelper.GetDirectoryNameSafe() must be used to prevent null reference exception
             string safePath = PathHelper.GetUniqueFileName(
-                Path.GetDirectoryName(downloadContext.TargetPath), Path.GetFileName(downloadContext.TargetPath));
+                PathHelper.GetDirectoryNameSafe(downloadContext.TargetPath), Path.GetFileName(downloadContext.TargetPath));
             Result<string[]> pathResult = FileSegmentHelper.SplitPaths(maxParallelThreads, safePath);
             if (!pathResult.IsSuccess) { return Result<Stream[]>.Failure("SplitPaths failed"); }
             Result<Stream[]> streamResult = CreateStreams(pathResult.Value);
@@ -55,7 +64,7 @@ namespace MultithreadDownload.Schedulers
             // Use GetUniqueFileName() to get a unique file name for the download context
             // for preventing file name conflicts then create the file streams for each thread
             string safePath = PathHelper.GetUniqueFileName(
-                Path.GetDirectoryName(downloadContext.TargetPath), Path.GetFileName(downloadContext.TargetPath));
+                PathHelper.GetDirectoryNameSafe(downloadContext.TargetPath), Path.GetFileName(downloadContext.TargetPath));
             Result<Stream> streamResult = CreateStreams(safePath);
             if (!streamResult.IsSuccess) { return Result<Stream>.Failure("SplitPaths failed"); }
             return streamResult;

@@ -27,6 +27,24 @@ namespace MultithreadDownload.Schedulers
         public event EventHandler<DownloadDataEventArgs> TasksProgressCompleted;
 
         /// <summary>
+        /// Start the queue process of the tasks(allocator).
+        /// </summary>
+        /// <returns>Whether the allocator are paused successfully.</returns>
+        /// <remarks>
+        /// It will only start the allocator task but not the tasks in the queue.
+        /// </remarks>
+        public Result<bool> Start();
+
+        /// <summary>
+        /// Pause the queue process of the tasks.
+        /// </summary>
+        /// <returns>Whether the allocator are paused successfully.</returns>
+        /// <remarks>
+        /// It will only start the allocator task but not the tasks in the queue.
+        /// </remarks>
+        public Result<bool> Pause();
+
+        /// <summary>
         /// Add a task to the queue.
         /// </summary>
         /// <param name="task">The task to add.</param>

@@ -157,6 +157,16 @@ namespace MultithreadDownload.Threading
             }
         }
 
+        public void Dispose()
+        {
+            // Dispose of each thread in the list
+            foreach (IDownloadThread thread in s_threads)
+            {
+                thread.Dispose();
+            }
+            s_threads.Clear();
+        }
+
         /// <summary>
         /// Gets the list of download threads.
         /// </summary>

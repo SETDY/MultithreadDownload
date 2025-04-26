@@ -177,7 +177,7 @@ namespace MultithreadDownload.IO
             string[] resultPaths = new string[maxThreads];
             for (int i = 0; i < maxThreads; i++)
             {
-                resultPaths[i] = Path.Combine(Path.GetDirectoryName(path), $"{Path.GetFileNameWithoutExtension(path)}-{i}.downtemp");
+                resultPaths[i] = Path.Combine(PathHelper.GetDirectoryNameSafe(path), $"{Path.GetFileNameWithoutExtension(path)}-{i}.downtemp");
             }
             return Result<string[]>.Success(resultPaths);
         }
