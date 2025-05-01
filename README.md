@@ -23,7 +23,7 @@
 ## 简介
 
 MultithreadDownload 通过灵活的线程调度和任务管理，实现了高效且可扩展的文件下载。
- 项目采用 MIT 协议开源，已发布至 [NuGet](https://www.nuget.org/packages/MultithreadDownload)，方便集成与使用。
+ 项目采用 MIT 协议开源，已发布至 [NuGet](https://www.nuget.org/packages/MultithreadDownloadLib)，方便集成与使用。
 
 ------
 
