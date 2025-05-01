@@ -1,34 +1,34 @@
 # ✨ MultithreadDownload
 
-[![NuGet](https://img.shields.io/nuget/v/MultithreadDownloadLib.svg)](https://www.nuget.org/packages/MultithreadDownloadLib/)	[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)	![.NET Version](https://img.shields.io/badge/.NET-6%2B-blue)
+[![NuGet](https://img.shields.io/nuget/v/MultithreadDownloadLib.svg)](https://www.nuget.org/packages/MultithreadDownloadLib/)	[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)	![.NET Version](https://img.shields.io/badge/.NET-6%2B-blue)	![Build Status](https://github.com/SETDY/MultithreadDownload/actions/workflows/dotnet-test.yml/badge.svg?branch=feature/v3-refactor)
 
 **MultithreadDownload** 是一款基于多线程的高效文件下载库，支持分段并发下载，旨在提供稳定、可扩展的下载解决方案。
  当前版本支持 **HTTP** 协议，未来将扩展至 **FTP**、**BitTorrent** 等多种协议，并计划支持 **断点续传** 等高级功能。
 
 ------
 
-## 📚 目录
+## 目录
 
-- [简介](#🎯 简介)
-- [特点](#🌟 特点)
-- [安装](#📦 安装)
-- [使用示例](#🛠️ 使用示例)
-- [功能状态](#📈 功能状态)
-- [支持的环境](#🖥️ 支持的环境)
-- [贡献](#🤝 贡献)
-- [许可证](#📜 许可证)
-- [依赖声明](#🧾 依赖声明)
+- [简介](#简介)
+- [特点](#特点)
+- [安装](#安装)
+- [使用示例](#使用示例)
+- [功能状态](#功能状态)
+- [支持的环境](#支持的环境)
+- [贡献](#贡献)
+- [许可证](#许可证)
+- [依赖声明](#依赖声明)
 
 ------
 
-## 🎯 简介
+## 简介
 
 MultithreadDownload 通过灵活的线程调度和任务管理，实现了高效且可扩展的文件下载。
  项目采用 MIT 协议开源，已发布至 [NuGet](https://www.nuget.org/packages/MultithreadDownload)，方便集成与使用。
 
 ------
 
-## 🌟 特点
+## 特点
 
 - **多线程分段下载** 🚀：智能划分文件并发下载，显著提升下载速度。
 - **可扩展协议支持** 🔌：提供统一接口，便于开发者自定义其他协议（FTP、BT等）。
@@ -41,7 +41,7 @@ MultithreadDownload 通过灵活的线程调度和任务管理，实现了高效
 
 ------
 
-## 📦 安装
+## 安装
 
 通过 NuGet 快速安装：
 
@@ -53,7 +53,7 @@ dotnet add package MultithreadDownloadLib
 
 ------
 
-## 🛠️ 使用示例
+## 使用示例
 
 以下示例展示了如何使用 HTTP 协议进行多线程文件下载：
 
@@ -93,7 +93,7 @@ downloadManager.GetDownloadTasks()[0].SpeedMonitor.SpeedUpdated += (e) =>
 
 ------
 
-## 📈 功能状态
+## 功能状态
 
 | 功能             | 状态     |
 | ---------------- | -------- |
@@ -108,14 +108,14 @@ downloadManager.GetDownloadTasks()[0].SpeedMonitor.SpeedUpdated += (e) =>
 
 ------
 
-## 🖥️ 支持的环境
+## 支持的环境
 
 - .NET 6 / .NET 7 / .NET 8 / .NET 9
 - Windows / Linux / macOS
 
 ------
 
-## 🤝 贡献
+## 贡献
 
 欢迎任何形式的贡献，包括但不限于：
 
@@ -127,12 +127,12 @@ downloadManager.GetDownloadTasks()[0].SpeedMonitor.SpeedUpdated += (e) =>
 
 ------
 
-## 📜 许可证
+## 许可证
 
 本项目遵循 MIT License。
  您可以自由地使用、修改、分发本项目代码，仅需保留原作者声明。
 
-## 🧾 依赖声明
+## 依赖声明
 
 本项目在测试阶段使用了以下第三方库：
 
