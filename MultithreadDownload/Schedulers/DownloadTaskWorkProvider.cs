@@ -1,5 +1,4 @@
 ﻿using Microsoft.Win32.SafeHandles;
-using MultithreadDownload.IO;
 using MultithreadDownload.Protocols;
 using MultithreadDownload.Tasks;
 using MultithreadDownload.Threading;

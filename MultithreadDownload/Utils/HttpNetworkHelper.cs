@@ -17,11 +17,13 @@ namespace MultithreadDownload.Utils
         /// A static instance of HttpClient for making HTTP requests.
         /// </summary>
         /// <remarks>
-        /// Althought tt is recommended to use a single instance of HttpClient for the lifetime of the application,
+        /// 1. Althought it is recommended to use a single instance of HttpClient for the lifetime of the application,
         /// the class will be use a specific instance of HttpClient which is only for this class
-        /// becase the HttpClient poot which now used has been use for download file.
+        /// becase the <see cref="MultithreadDownload.Protocols.HttpClientPool"/> which now used has been use for download file.
+        /// 2. Since the timeout of <see cref="s_client"/> has been controlled by cts in the methods, 
+        /// the default timeout of <see cref="s_client"/> is set to infinite.
         /// </remarks>
-        private static readonly HttpClient s_client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(2000) };
+        private static readonly HttpClient s_client = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
 
         /// <summary>
         /// Get the current network connection state.
@@ -35,7 +37,7 @@ namespace MultithreadDownload.Utils
         /// <summary>
         /// Checks if the given URL is valid and can be connected.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>Whether the http link can be connected</returns>
         public static Result<bool> IsVaildHttpLink(string link)
         {
             // If the link is null or empty, return a failure result.
@@ -60,9 +62,9 @@ namespace MultithreadDownload.Utils
             try
             {
                 // Send a HEAD request to the URL to get the status code.
-                // If the request takes longer than 2 seconds, cancel it.
+                // If the request takes longer than 10 seconds, cancel it.
                 HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Head, link);
-                using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(2000)))
+                using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
                 {
                     HttpResponseMessage response = await s_client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
                     return response.StatusCode;
@@ -82,7 +84,10 @@ namespace MultithreadDownload.Utils
         public static async Task<bool> LinkCanConnectionAsync(string link)
         {
             Result<bool> primaryResult = IsVaildHttpLink(link);
-            if (!primaryResult.IsSuccess) { return false; }
+            // Note: There should be use primaryResult.Value instead of primaryResult.IsSuccess
+            //       because the IsSuccess only check if IsVaildHttpLink() is success,
+            //       but not check if the link is valid.
+            if (!primaryResult.Value) { return false; }
             if (!InternetGetConnectedState(out int internetConnectedState, 0)) { return false; }
             if (await GetWebStatusCodeAsync(link) != HttpStatusCode.OK) { return false; }
             return true;
@@ -102,7 +107,7 @@ namespace MultithreadDownload.Utils
             if (string.IsNullOrEmpty(link)) { return Result<long>.Failure($"{link} cannot be null or emprt."); }
             try
             {
-                using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(120)))
+                using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
                 {
                     long fileSize = (await s_client.SendAsync(new HttpRequestMessage(HttpMethod.Head, link), cts.Token))
                         .Content.Headers.ContentLength ?? 0;

@@ -1,5 +1,4 @@
 ﻿using MultithreadDownload.Downloads;
-using MultithreadDownload.IO;
 using MultithreadDownload.Tasks;
 using MultithreadDownload.Threading;
 using MultithreadDownload.Threads;
@@ -233,13 +232,16 @@ namespace MultithreadDownload.Protocols
             // After that, we need to combine the segments of the file to a single file
             if (task.DownloadThreadManager.CompletedThreadsCount != task.DownloadThreadManager.MaxParallelThreads)
             {
-                this.CleanDownloadProgess(outputStream, 
+                this.CleanDownloadProgess(outputStream,
                     task.DownloadThreadManager.GetThreads().Select(x => x.FileSegmentPath).ToArray());
                 return Result<bool>.Failure(
                     $"Task {task.ID} does not be completed and cannot do PostDownloadProcessing().Therefore, The task has be cancelled");
             }
 
-            Result<bool> result = FileSegmentHelper.CombineSegmentsSafe(task);
+            Result<bool> result = FileSegmentHelper.CombineSegmentsSafe(
+                task.DownloadThreadManager.GetThreads().Select(x => x.FileSegmentPath).ToArray(),
+                task.DownloadContext.TargetPath
+            );
             if (!result.IsSuccess)
             {
                 Debug.WriteLine($"Failed to combine segments: {result.ErrorMessage}");

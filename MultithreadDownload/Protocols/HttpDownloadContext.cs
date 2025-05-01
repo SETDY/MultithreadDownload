@@ -1,5 +1,4 @@
-﻿using MultithreadDownload.IO;
-using MultithreadDownload.Utils;
+﻿using MultithreadDownload.Utils;
 using System.Threading.Tasks;
 
 namespace MultithreadDownload.Protocols
@@ -66,41 +65,27 @@ namespace MultithreadDownload.Protocols
             this.CompletedSize = size;
         }
 
-        public static async Task<HttpDownloadContext> GetDownloadContext(byte maxParallelThreads, string targetPath, string link)
+        /// <summary>
+        /// Creates a new instance of the HttpDownloadContext class.
+        /// </summary>
+        /// <param name="maxParallelThreads">The maximum number of parallel threads for downloading.</param>
+        /// <param name="targetPath">The target path where the downloaded file will be saved.</param>
+        /// <param name="link">The URL of the file to be downloaded.</param>
+        /// <returns>The download context.</returns>
+        /// <remarks>
+        /// Since the file size is not known in advance, it can be zero or a exception can be thrown in the process of getting the file size.
+        /// Therefore, <see cref="GetDownloadContext"/> method returns a <see cref="Result{T}"/> object 
+        /// to indicate success or failure and remind the caller to check the result.
+        /// </remarks>
+        public static async Task<Result<HttpDownloadContext>> GetDownloadContext(byte maxParallelThreads, string targetPath, string link)
         {
             Result<long> fileSize = await HttpNetworkHelper.GetLinkFileSizeAsync(link);
             if (!fileSize.IsSuccess) { return null; }
-            Result<long> rangeStart = FileSegmentHelper.SplitSize
-                (maxParallelThreads, fileSize.Value, out Result<long> remainingSize);
-            if (!rangeStart.IsSuccess) { return null; }
             // Get download size for each download thread
-            long[,] rangePosition = GetRangePositions(maxParallelThreads, fileSize.Value, remainingSize.Value);
-            return new HttpDownloadContext(targetPath, link, rangePosition);
+            Result<long[,]> segmentRanges = FileSegmentHelper.GetFileSegments(fileSize.Value, maxParallelThreads);
+            if (!segmentRanges.IsSuccess) { Result<HttpDownloadContext>.Failure($"Failed to get file segments. Message:{segmentRanges.ErrorMessage}"); }
+            return Result<HttpDownloadContext>.Success(
+                new HttpDownloadContext(targetPath, link, segmentRanges.Value));
         }
-
-        /// <summary>
-        /// Get the range position for each thread.
-        /// </summary>
-        /// <param name="maxParallelThreads">The maximum number of parallel threads.</param>
-        /// <param name="fileSize">The size of the file to be downloaded.</param>
-        /// <param name="remainingSize">The remaining size of the file after dividing it into ranges.</param>
-        /// <returns>The range position for each thread.</returns>
-            private static long[,] GetRangePositions(byte maxParallelThreads, long fileSize, long remainingSize)
-            {
-                // Calculate the range positions for each thread
-                // e.g. rangePosition[n][0] = startPostion; rangePosition[n][1] = endPosition
-                long[,] rangePositions = new long[maxParallelThreads,2];
-                int rangeStart = 0;
-                long rangeOffset = fileSize / maxParallelThreads;
-                for (int i = 0; i < maxParallelThreads; i++)
-                {
-                    rangePositions[i, 0] = rangeStart + (i * rangeOffset);
-                    rangePositions[i, 1] = rangeStart + ((i + 1) * rangeOffset) - 1;
-                }
-                // Set the last thread's end position to the file size
-                rangePositions[maxParallelThreads - 1, 1] += remainingSize;
-
-                return rangePositions;
-            }
     }
 }
