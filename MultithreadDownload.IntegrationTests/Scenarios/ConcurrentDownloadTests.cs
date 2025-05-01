@@ -15,12 +15,11 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
     /// <summary>
     /// This class contains tests for the concurrent download functionality.
     /// </summary>
-    [Collection("Non-Parallel Collection")]
     public class ConcurrentDownloadTests
     {
         private const string LARGE_TESTFILE_PATH = "Resources\\testfile.test";
 
-        [Theory]
+        [SkippableTheory]
         [InlineData(1, 2, "http://localhost:7000/")]
         [InlineData(1, 3, "http://localhost:7001/")]
         [InlineData(2, 4, "http://localhost:7002/")]
@@ -33,10 +32,8 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             // Since Github has limitations on the size of the file that can be saved, 
             // the test file is not uploaded to the repository.
             // Therefore, this test will be skipped when running in Github Actions.
-            if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true")
-            {
-                throw new SkipException("Skipped on GitHub Actions due to large file dependency.");
-            }
+            Skip.If(Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true"
+                , "Skipped on GitHub Actions due to large file dependency.");
 
             // Arrage
             var server = new LocalHttpFileServer(prefixUrl, LARGE_TESTFILE_PATH);

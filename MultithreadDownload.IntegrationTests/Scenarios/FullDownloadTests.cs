@@ -53,7 +53,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             downloadManager.StartAllocator();
         }
 
-        [Theory]
+        [SkippableTheory]
         [InlineData("http://localhost:6000/", 2)]
         [InlineData("http://localhost:6001/", 3)]
         [InlineData("http://localhost:6002/", 4)]
@@ -65,10 +65,8 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             // Since Github has limitations on the size of the file that can be saved, 
             // the test file is not uploaded to the repository.
             // Therefore, this test will be skipped when running in Github Actions.
-            if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true")
-            {
-                throw new SkipException("Skipped on GitHub Actions due to large file dependency.");
-            }
+            Skip.If(Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true"
+                , "Skipped on GitHub Actions due to large file dependency.");
 
             // Arrage
             var server = new LocalHttpFileServer(prefixUrl, LARGE_TESTFILE_PATH);

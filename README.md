@@ -2,8 +2,7 @@
 
 [![NuGet](https://img.shields.io/nuget/v/MultithreadDownloadLib.svg)](https://www.nuget.org/packages/MultithreadDownloadLib/)	[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)	![.NET Version](https://img.shields.io/badge/.NET-6%2B-blue)	![Build Status](https://github.com/SETDY/MultithreadDownload/actions/workflows/dotnet-test.yml/badge.svg?branch=feature/v3-refactor)
 
-**MultithreadDownload** 是一款基于多线程的高效文件下载库，支持分段并发下载，旨在提供稳定、可扩展的下载解决方案。
- 当前版本支持 **HTTP** 协议，未来将扩展至 **FTP**、**BitTorrent** 等多种协议，并计划支持 **断点续传** 等高级功能。
+**MultithreadDownload** 是一款基于多线程的高效文件下载库，支持分段并发下载，旨在提供稳定、可扩展的下载解决方案。当前版本仅支持 **HTTP** 协议。
 
 ------
 
