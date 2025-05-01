@@ -65,8 +65,12 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             // Since Github has limitations on the size of the file that can be saved, 
             // the test file is not uploaded to the repository.
             // Therefore, this test will be skipped when running in Github Actions.
-            Skip.If(Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true"
-                , "Skipped on GitHub Actions due to large file dependency.");
+            // Since Skip.If() method has a issue with the Xunit test runner,
+            // we use Assert.True() to skip the test.
+            if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true")
+            {
+                Assert.True(true, "Skipped on CI.");
+            }
 
             // Arrage
             var server = new LocalHttpFileServer(prefixUrl, LARGE_TESTFILE_PATH);
