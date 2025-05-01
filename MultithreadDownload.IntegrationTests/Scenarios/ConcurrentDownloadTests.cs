@@ -37,6 +37,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true")
             {
                 Assert.True(true, "Skipped on CI.");
+                return;
             }
 
             // Arrage
