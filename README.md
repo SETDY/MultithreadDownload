@@ -1,38 +1,60 @@
-# 🚀 MultithreadDownload
+# ✨ MultithreadDownload
 
-多线程下载，简单而强大。  
-现已支持 HTTP 协议
+[![NuGet](https://img.shields.io/nuget/v/MultithreadDownloadLib.svg)](https://www.nuget.org/packages/MultithreadDownloadLib/)	[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)	![.NET Version](https://img.shields.io/badge/.NET-6%2B-blue)
 
-[![NuGet version](https://img.shields.io/nuget/v/MultithreadDownload.svg)](https://www.nuget.org/packages/MultithreadDownload/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+**MultithreadDownload** 是一款基于多线程的高效文件下载库，支持分段并发下载，旨在提供稳定、可扩展的下载解决方案。
+ 当前版本支持 **HTTP** 协议，未来将扩展至 **FTP**、**BitTorrent** 等多种协议，并计划支持 **断点续传** 等高级功能。
 
----
+------
 
-## ✨ 项目亮点
+## 📚 目录
 
-- ⚡ **多线程下载**：自动分段，多线程并发，提高下载速度！
-- 🌐 **协议扩展性设计**：只需简单实现接口，即可添加新协议（FTP / BT / ...）
-- 🧠 **智能调度**：自动管理下载队列和并发量。
-- 🛡️ **可靠安全**：即使在高并发下，也能保持任务安全稳定执行。
-- 🔥 **轻量易用**：极简API设计，上手快，适合集成到任何.NET项目。
+- [简介](#简介)
+- [特点](#特点)
+- [安装](#安装)
+- [使用示例](#使用示例)
+- [功能状态](#功能状态)
+- [支持的环境](#支持的环境)
+- [贡献](#贡献)
+- [许可证](#许可证)
 
----
+------
 
-## 📦 快速开始
+## 🎯 简介
 
-### 1. 安装 MultithreadDownload
+MultithreadDownload 通过灵活的线程调度和任务管理，实现了高效且可扩展的文件下载。
+ 项目采用 MIT 协议开源，已发布至 [NuGet](https://www.nuget.org/packages/MultithreadDownload)，方便集成与使用。
 
-通过 [NuGet](https://www.nuget.org/packages/MultithreadDownload/) 安装：
+------
+
+## 🌟 特点
+
+- **多线程分段下载** 🚀：智能划分文件并发下载，显著提升下载速度。
+- **可扩展协议支持** 🔌：提供统一接口，便于开发者自定义其他协议（FTP、BT等）。
+- **任务管理与调度** 📦：基于任务队列和信号量机制，高效分配并控制并发任务数量。
+- **丰富的事件回调** 🔔：支持进度更新、任务完成等事件通知。
+- **规划中功能** 🛠️：
+  - 多协议支持（FTP / BitTorrent 等）
+  - 断点续传（Resume Download）
+  - 更完善的错误处理与恢复机制
+
+------
+
+## 📦 安装
+
+通过 NuGet 快速安装：
 
 ```bash
-dotnet add package MultithreadDownload
+dotnet add package MultithreadDownloadLib
 ```
 
-或者在 Visual Studio 的 NuGet 包管理器中搜索 `MultithreadDownload` 并安装。
+或在 Visual Studio 的 NuGet 管理器中搜索 `MultithreadDownloadLib` 进行安装。
 
----
+------
 
-### 2. 基本用法示例
+## 🛠️ 使用示例
+
+以下示例展示了如何使用 HTTP 协议进行多线程文件下载：
 
 ```csharp
 using MultithreadDownload.Core;
@@ -40,58 +62,77 @@ using MultithreadDownload.Tasks;
 using MultithreadDownload.Protocols;
 
 byte MAX_PARALLEL_THREADS = 8;
+byte MAX_PARALLEL_TASKS = 3;
 
-// 创建下载服务管理器（使用HTTP协议）
-var downloadManager = new MultiDownload(3, DownloadServiceType.Http);
+// 创建下载服务管理器（当前使用 HTTP 协议）
+var downloadManager = new MultiDownload(MAX_PARALLEL_TASKS, DownloadServiceType.Http);
 
-// 获得下载任务的上下文（内容）
-var context = await HttpDownloadContext.GetDownloadContext(MAX_PARALLEL_THREADS, "https://example.com/file.zip", "file.zip");
+// 获取下载任务上下文（包括分段信息等）
+var context = await HttpDownloadContext.GetDownloadContext(MAX_PARALLEL_THREADS, 
+                                        "D:\\", "https://example.com/file.zip");
 
-// 把下载任务添加到下载服务管理器
+// 添加下载任务到管理器
 downloadManager.AddTask(context);
 
-// 开启任务分配器 => 自动分配并启动下载任务
+// 启动任务分配器，自动管理任务并启动下载
 downloadManager.StartAllocator();
 
-// 可选：监听任务完成事件
+// （可选）监听任务完成事件
 downloadManager.TasksProgressCompleted += (sender, e) =>
 {
     Console.WriteLine("Task completed.");
 };
+
+// （可选）监听下载速度变化
+downloadManager.GetDownloadTasks()[0].SpeedMonitor.SpeedUpdated += (e) =>
+{
+    Console.WriteLine($"Current speed: {e}");
+};
 ```
-## ⚙️ 高级用法
 
-- **暂停/恢复任务**
-- **取消单个任务或全部任务**
-- **扩展新的下载协议**（只需实现 `IDownloadService` 接口！）
+------
 
-👉 查看详细文档：[🔗 Wiki（建设中）](#)
+## 📈 功能状态
 
----
+| 功能             | 状态     |
+| ---------------- | -------- |
+| 多线程 HTTP 下载 | ✅ 已完成 |
+| FTP 支持         | 🔧 开发中 |
+| BitTorrent 支持  | 🔧 开发中 |
+| 断点续传         | 🔧 规划中 |
+| 错误重试和处理   | 🔧 规划中 |
+| 还有更多...      | ...      |
 
-## 🛠️ 支持的环境
+在提供正确的 HTTP 链接、有效的参数及稳定的网络环境下，**当前版本能够稳定运行，不存在已知运行时异常。**
 
-- .NET 6 / .NET 7 / .NET 8
+------
+
+## 🖥️ 支持的环境
+
+- .NET 6 / .NET 7 / .NET 8 / .NET 9
 - Windows / Linux / macOS
 
----
+------
 
-## 📄 License
+## 🤝 贡献
 
-MultithreadDownload 遵循 [MIT License](LICENSE)。
+欢迎任何形式的贡献，包括但不限于：
 
-> 这意味着你可以自由地使用、修改、分发，甚至在商业项目中使用，只需保留版权声明。
+- 提交 Issue 或 Bug 报告 🐛
+- 提出功能建议或优化意见 💡
+- 提交 Pull Request ✍️
 
----
+> 如需进行重大修改，请提前通过 Issue 讨论，确保开发方向一致。
 
-## 🙏 致谢
+------
 
-如果你喜欢这个项目，欢迎：
-- 🌟 Star 本仓库
-- 🐛 提交 issue 或 PR
-- 📢 分享给更多开发者！
+## 📜 许可证
 
----
+本项目遵循 MIT License。
+ 您可以自由地使用、修改、分发本项目代码，仅需保留原作者声明。
 
-# 🚀 立即体验极速下载！  
-🎯 [点此跳转 NuGet 安装](https://www.nuget.org/packages/MultithreadDownload/)
+------
+
+MultithreadDownload —— 致力于构建下一代多线程下载解决方案！🚀
+ 如果你喜欢这个项目，欢迎 ⭐Star 和 🍴Fork！
+
