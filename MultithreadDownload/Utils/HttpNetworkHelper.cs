@@ -107,7 +107,7 @@ namespace MultithreadDownload.Utils
             if (string.IsNullOrEmpty(link)) { return Result<long>.Failure($"{link} cannot be null or emprt."); }
             try
             {
-                using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+                using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(60)))
                 {
                     long fileSize = (await s_client.SendAsync(new HttpRequestMessage(HttpMethod.Head, link), cts.Token))
                         .Content.Headers.ContentLength ?? 0;

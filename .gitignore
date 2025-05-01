@@ -364,3 +364,4 @@ FodyWeavers.xsd
 /MultithreadDownload/MultithreadDownload.zip
 /MultithreadDownload/Test.cs
 /ConsleTest
+/MultithreadDownload.IntegrationTests/Resources/testfile.test

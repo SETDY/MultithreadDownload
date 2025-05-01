@@ -80,10 +80,21 @@ namespace MultithreadDownload.Protocols
         public static async Task<Result<HttpDownloadContext>> GetDownloadContext(byte maxParallelThreads, string targetPath, string link)
         {
             Result<long> fileSize = await HttpNetworkHelper.GetLinkFileSizeAsync(link);
-            if (!fileSize.IsSuccess) { return null; }
+            if (!fileSize.IsSuccess) { return Result<HttpDownloadContext>.Failure($"Cannot get file size from {link}"); }
+
+            // Since GetFileSegments() method requires a file size greater than 0,
+            // this if case is used to handle the case where the file size is 0
+            if (fileSize.Value == 0)
+            {
+                return Result<HttpDownloadContext>.Success(
+                    new HttpDownloadContext(targetPath, link, new long[,] { { 0, 0 } }));
+            }
             // Get download size for each download thread
             Result<long[,]> segmentRanges = FileSegmentHelper.GetFileSegments(fileSize.Value, maxParallelThreads);
-            if (!segmentRanges.IsSuccess) { Result<HttpDownloadContext>.Failure($"Failed to get file segments. Message:{segmentRanges.ErrorMessage}"); }
+            if (!segmentRanges.IsSuccess) 
+            {
+                Result<HttpDownloadContext>.Failure($"Failed to get file segments. Message:{segmentRanges.ErrorMessage}"); 
+            }
             return Result<HttpDownloadContext>.Success(
                 new HttpDownloadContext(targetPath, link, segmentRanges.Value));
         }
