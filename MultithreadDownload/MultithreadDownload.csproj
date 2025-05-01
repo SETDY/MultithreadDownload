@@ -1,7 +1,15 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
+    <Version>3.0.0</Version>
+    <Authors>SETMORDEN</Authors>
+    <Company>SETMORDEN</Company>
+    <PackageId>MultithreadDownloadLib</PackageId>
+    <Description>A C# library for multithreaded HTTP file downloads with extensible protocol support.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/SETDY/MultithreadDownload</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/SETDY/MultithreadDownload</PackageProjectUrl>
   </PropertyGroup>
 
 </Project>
