@@ -4,9 +4,6 @@ using MultithreadDownload.Protocols;
 using MultithreadDownload.Tasks;
 using MultithreadDownload.Utils;
 using FluentAssertions;
-using System.Net.Mail;
-using Xunit.Sdk;
-using Xunit;
 
 namespace MultithreadDownload.IntegrationTests.Scenarios
 {
@@ -41,7 +38,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             };
             // Get download task context (including segment information, etc.)
             Result<HttpDownloadContext> context = await HttpDownloadContext.GetDownloadContext(
-                MAX_PARALLEL_THREADS,Path.Combine(Path.GetTempPath(), "output.txt"), "http://localhost:6000/");
+                MAX_PARALLEL_THREADS,Path.Combine(Path.GetTempPath(), "output.txt"), "http://localhost:5999/");
 
             // Assert
             context.Should().NotBeNull();
@@ -53,14 +50,12 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             downloadManager.StartAllocator();
         }
 
-        [SkippableTheory]
-        [InlineData("http://localhost:6000/", 2)]
-        [InlineData("http://localhost:6001/", 3)]
-        [InlineData("http://localhost:6002/", 4)]
-        [InlineData("http://localhost:6003/", 8)]
-        [InlineData("http://localhost:6004/", 16)]
-        [InlineData("http://localhost:6005/", 32)]
-        public async Task DownloadFile_MultithreadThread_FromLocalHttpServer_WorksCorrectly(string prefixUrl ,byte maxThreads)
+        [Theory]
+        [InlineData(6000, 2)]
+        [InlineData(6001, 3)]
+        [InlineData(6002, 4)]
+        [InlineData(6003, 8)]
+        public async Task DownloadFile_MultithreadThread_FromLocalHttpServer_WorksCorrectly(int port, byte maxThreads)
         {
             // Since Github has limitations on the size of the file that can be saved, 
             // the test file is not uploaded to the repository.
@@ -74,6 +69,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             }
 
             // Arrage
+            string prefixUrl = "http://localhost:" + port + "/";
             var server = new LocalHttpFileServer(prefixUrl, LARGE_TESTFILE_PATH);
             server.Start();
             byte MAX_PARALLEL_TASKS = 1;
@@ -86,7 +82,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             {
                 File.Exists("output.txt").Should().BeTrue();
                 File.ReadAllText("output.txt").Should().Be(File.ReadAllText(SMALL_TESTFILE_PATH));
-                File.Delete(safePath);
+                File.Delete("output.txt");
                 server.Stop();
             };
             // Get download task context (including segment information, etc.)

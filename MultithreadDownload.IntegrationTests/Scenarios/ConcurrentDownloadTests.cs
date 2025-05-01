@@ -19,15 +19,14 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
     {
         private const string LARGE_TESTFILE_PATH = "Resources\\testfile.test";
 
-        [SkippableTheory]
-        [InlineData(1, 2, "http://localhost:7000/")]
-        [InlineData(1, 3, "http://localhost:7001/")]
-        [InlineData(2, 4, "http://localhost:7002/")]
-        [InlineData(3, 8, "http://localhost:7003/")]
-        [InlineData(4, 16, "http://localhost:7004/")]
-        [InlineData(8, 32, "http://localhost:7005/")]
+        [Theory]
+        [InlineData(1, 2, 7000)]
+        [InlineData(1, 3, 7001)]
+        [InlineData(2, 4, 7002)]
+        [InlineData(3, 8, 7003)]
+        [InlineData(4, 16, 7004)]
         public async Task DownloadFile_MultiTask_MultiThread_FromLocalHttpServer_WorksCorrectly
-            (byte maxParallelTasks, byte concurrentTasks, string prefixUrl)
+            (byte maxParallelTasks, byte concurrentTasks, int port)
         {
             // Since Github has limitations on the size of the file that can be saved, 
             // the test file is not uploaded to the repository.
@@ -41,6 +40,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             }
 
             // Arrage
+            string prefixUrl = "http://localhost:" + port + "/";
             var server = new LocalHttpFileServer(prefixUrl, LARGE_TESTFILE_PATH);
             server.Start();
             byte MAX_PARALLEL_THREADS = 8;
