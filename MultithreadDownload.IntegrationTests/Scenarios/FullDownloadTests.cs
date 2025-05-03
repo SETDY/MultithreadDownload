@@ -12,15 +12,12 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
     /// </summary>
     public class FullDownloadTests
     {
-        private const string SMALL_TESTFILE_PATH = "Resources\\testfile.txt";
-
-        private const string LARGE_TESTFILE_PATH = "Resources\\testfile.test";
 
         [Fact]
         public async Task DownloadFile_SingleThread_FromLocalHttpServer_WorksCorrectly()
         {
             // Arrage
-            var server = new LocalHttpFileServer("http://localhost:5999/", SMALL_TESTFILE_PATH);
+            var server = new LocalHttpFileServer("http://localhost:5999/", TestConstants.SMALL_TESTFILE_PATH);
             server.Start();
             byte MAX_PARALLEL_THREADS = 8;
             byte MAX_PARALLEL_TASKS = 1;
@@ -32,7 +29,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             downloadManager.TasksProgressCompleted += (sender, e) =>
             {
                 File.Exists("output.txt").Should().BeTrue();
-                File.ReadAllText("output.txt").Should().Be(File.ReadAllText(SMALL_TESTFILE_PATH));
+                File.ReadAllText("output.txt").Should().Be(File.ReadAllText(TestConstants.SMALL_TESTFILE_PATH));
                 File.Delete("output.txt");
                 server.Stop();
             };
@@ -70,7 +67,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
 
             // Arrage
             string prefixUrl = "http://localhost:" + port + "/";
-            var server = new LocalHttpFileServer(prefixUrl, LARGE_TESTFILE_PATH);
+            var server = new LocalHttpFileServer(prefixUrl, TestConstants.LARGE_TESTFILE_PATH);
             server.Start();
             byte MAX_PARALLEL_TASKS = 1;
             string safePath = PathHelper.GetUniqueFileName(Path.GetTempPath(), "largeFile.test");
@@ -81,7 +78,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             downloadManager.TasksProgressCompleted += (sender, e) =>
             {
                 File.Exists("output.txt").Should().BeTrue();
-                File.ReadAllText("output.txt").Should().Be(File.ReadAllText(SMALL_TESTFILE_PATH));
+                File.ReadAllText("output.txt").Should().Be(File.ReadAllText(TestConstants.SMALL_TESTFILE_PATH));
                 File.Delete("output.txt");
                 server.Stop();
             };

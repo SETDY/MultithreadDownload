@@ -12,7 +12,6 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
     /// </summary>
     public class ConcurrentDownloadTests
     {
-        private const string LARGE_TESTFILE_PATH = "Resources\\testfile.test";
 
         [Theory]
         [InlineData(1, 2, 7000)]
@@ -36,7 +35,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
 
             // Arrage
             string prefixUrl = "http://localhost:" + port + "/";
-            var server = new LocalHttpFileServer(prefixUrl, LARGE_TESTFILE_PATH);
+            var server = new LocalHttpFileServer(prefixUrl, TestConstants.LARGE_TESTFILE_PATH);
             server.Start();
             byte MAX_PARALLEL_THREADS = 8;
             byte completedTasks = 0;
