@@ -1,13 +1,5 @@
-﻿using MultithreadDownload.Tasks;
-using MultithreadDownload.Threading;
-using MultithreadDownload.Threads;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.IO;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace MultithreadDownload.Utils
 {
@@ -40,12 +32,13 @@ namespace MultithreadDownload.Utils
             {
                 // Clean up the file stream and delete the file segments
                 // Prevent an unexpected exception when combining file segments
-                // which is happened before CleanupFileStream() can be run in CombineSegments() 
+                // which is happened before CleanupFileStream() can be run in CombineSegments()
                 CleanupFiles(fileSegmentPaths);
             }
         }
 
         #region Private Methods about implementation of CombineSegmentsSafe()
+
         /// <summary>
         /// Combines the segmented files into a single file after download completion.
         /// </summary>
@@ -59,12 +52,12 @@ namespace MultithreadDownload.Utils
             // Ohterwise, return failure.
             // CleanupFileStream() has been used to clean up the file stream and delete the file segments
             // after the whole process is done which is nomatter success or failure.
-            FileStream finalFileStream = new FileStream(finalFilePath , FileMode.CreateNew);
+            FileStream finalFileStream = new FileStream(finalFilePath, FileMode.CreateNew);
             Result<bool> wholeProcessResult = Result<bool>.Success(true);
             foreach (string segmentPath in fileSegmentPaths)
             {
                 Result<bool> result = CombineFileSegmentSafe(segmentPath, ref finalFileStream);
-                if(!result.IsSuccess)
+                if (!result.IsSuccess)
                 {
                     wholeProcessResult = Result<bool>.Failure($"Cannot combine file segment: {segmentPath}");
                 }
@@ -157,7 +150,7 @@ namespace MultithreadDownload.Utils
             }
             try
             {
-                CleanupFiles(new string[] { filePath } );
+                CleanupFiles(new string[] { filePath });
             }
             catch (Exception)
             {
@@ -185,7 +178,8 @@ namespace MultithreadDownload.Utils
                 return;
             }
         }
-        #endregion
+
+        #endregion Private Methods about implementation of CombineSegmentsSafe()
 
         /// <summary>
         /// Splits the file path into multiple segments based on the number of threads.

@@ -1,7 +1,7 @@
-﻿using MultithreadDownload.Threads;
-using System.IO;
+﻿using MultithreadDownload.Protocols;
+using MultithreadDownload.Threads;
 using System;
-using MultithreadDownload.Protocols;
+using System.IO;
 
 namespace MultithreadDownload.Threading
 {

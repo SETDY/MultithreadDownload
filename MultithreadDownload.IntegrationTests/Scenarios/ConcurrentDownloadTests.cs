@@ -4,11 +4,6 @@ using MultithreadDownload.IntegrationTests.Fixtures;
 using MultithreadDownload.Protocols;
 using MultithreadDownload.Tasks;
 using MultithreadDownload.Utils;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace MultithreadDownload.IntegrationTests.Scenarios
 {
@@ -28,7 +23,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
         public async Task DownloadFile_MultiTask_MultiThread_FromLocalHttpServer_WorksCorrectly
             (byte maxParallelTasks, byte concurrentTasks, int port)
         {
-            // Since Github has limitations on the size of the file that can be saved, 
+            // Since Github has limitations on the size of the file that can be saved,
             // the test file is not uploaded to the repository.
             // Therefore, this test will be skipped when running in Github Actions.
             // Since Skip.If() method has a issue with the Xunit test runner,
@@ -64,7 +59,6 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
 
                 contexts.Add(context.Value);
             }
-
 
             downloadManager.TasksProgressCompleted += (sender, e) =>
             {

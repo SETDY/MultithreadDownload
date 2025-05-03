@@ -4,13 +4,9 @@ using MultithreadDownload.Protocols;
 using MultithreadDownload.Tasks;
 using MultithreadDownload.Utils;
 using System;
-using System.Collections;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -90,7 +86,7 @@ namespace MultithreadDownload.Schedulers
         /// Dispose the task scheduler.
         /// </summary>
         /// <remarks>
-        /// Since the task scheduler manages the donwload tasks, 
+        /// Since the task scheduler manages the donwload tasks,
         /// these tasks which were managered by the task scheduler will be cancelled too when the scheduler has been dispose.
         /// </remarks>
         public void Dispose()
@@ -102,6 +98,7 @@ namespace MultithreadDownload.Schedulers
             s_taskQueue?.Dispose();
             s_downloadSlots?.Dispose();
         }
+
         #region Methods of task allocator
 
         /// <summary>
@@ -136,7 +133,8 @@ namespace MultithreadDownload.Schedulers
             s_allocator.Wait();
             return Result<bool>.Success(true);
         }
-#endregion
+
+        #endregion Methods of task allocator
 
         #region Mothods about download task
 
@@ -192,7 +190,6 @@ namespace MultithreadDownload.Schedulers
         {
             return s_taskQueue.ToArray();
         }
-
 
         /// <summary>
         /// Pause a task that is in the queue.
@@ -270,6 +267,7 @@ namespace MultithreadDownload.Schedulers
                 return Result<bool>.Failure("Cannot cancel all tasks, error message: " + ex);
             }
         }
-        #endregion
+
+        #endregion Mothods about download task
     }
 }

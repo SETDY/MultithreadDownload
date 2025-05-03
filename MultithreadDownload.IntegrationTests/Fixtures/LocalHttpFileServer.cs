@@ -1,4 +1,3 @@
-using System;
 using System.Diagnostics;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -79,7 +78,7 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
                     var buffer = File.ReadAllBytes(s_baseFilePath);
                     response.AddHeader("Accept-Ranges", "bytes");
 
-                    if(HandleRequest_HEAD(request, response, buffer)) { continue; }
+                    if (HandleRequest_HEAD(request, response, buffer)) { continue; }
 
                     if (await HandleRequest_Range(request, response, buffer)) { continue; }
 
@@ -92,9 +91,8 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
             }
         }
 
-
         private async Task<bool> HandleRequest_Range(HttpListenerRequest request, HttpListenerResponse response
-            ,byte[] buffer)
+            , byte[] buffer)
         {
             var range = request.Headers["Range"];
             // Handle range requests

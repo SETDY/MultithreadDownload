@@ -3,10 +3,6 @@ using MultithreadDownload.Protocols;
 using MultithreadDownload.Schedulers;
 using MultithreadDownload.Tasks;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace MultithreadDownload.Core
 {
@@ -106,9 +102,11 @@ namespace MultithreadDownload.Core
             s_taskScheduler.TaskQueueProgressChanged += (s, e) => TaskQueueProgressChanged?.Invoke(this, e);
             s_taskScheduler.TasksProgressCompleted += (s, e) => TasksProgressCompleted?.Invoke(this, EventArgs.Empty);
         }
-        #endregion
+
+        #endregion Private Methods
 
         #region Allocator Methods
+
         /// <summary>
         /// Starts the download task scheduler.
         /// </summary>
@@ -124,9 +122,11 @@ namespace MultithreadDownload.Core
         {
             s_taskScheduler.Pause();
         }
-        #endregion
+
+        #endregion Allocator Methods
 
         #region Task Management Methods
+
         public DownloadTask[] GetDownloadTasks()
         {
             return s_taskScheduler.GetTasks();
@@ -163,7 +163,8 @@ namespace MultithreadDownload.Core
         /// </summary>
         /// <param name="taskId">The ID of the task to cancel.</param>
         public void Cancel(Guid taskId) => s_taskScheduler.CancelTask(taskId);
-        #endregion
+
+        #endregion Task Management Methods
 
         /// <summary>
         /// Dispose of the MultiDownload instance and release resources.
@@ -173,5 +174,4 @@ namespace MultithreadDownload.Core
             s_taskScheduler.Dispose();
         }
     }
-
 }

@@ -1,6 +1,5 @@
 ﻿using MultithreadDownload.Downloads;
 using MultithreadDownload.Tasks;
-using MultithreadDownload.Threading;
 using MultithreadDownload.Threads;
 using MultithreadDownload.Utils;
 using System;
@@ -19,7 +18,6 @@ namespace MultithreadDownload.Protocols
     /// </summary>
     public class HttpDownloadService : IDownloadService
     {
-
         #region Implement of GetStreams method
 
         /// <summary>
@@ -162,7 +160,7 @@ namespace MultithreadDownload.Protocols
             }
         }
 
-        #endregion Implement of GetStream method
+        #endregion Implement of GetStreams method
 
         public Result<int> DownloadFile(Stream inputStream, Stream outputStream, IDownloadThread downloadThread)
         {
@@ -304,6 +302,5 @@ namespace MultithreadDownload.Protocols
                 return Result<bool>.Failure($"Failed to clean download progress: {ex.Message}");
             }
         }
-
     }
 }

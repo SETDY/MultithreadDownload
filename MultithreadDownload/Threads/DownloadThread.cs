@@ -61,7 +61,7 @@ namespace MultithreadDownload.Threading
         /// </summary>
         private readonly CancellationTokenSource s_cancellation;
 
-        private readonly Action<Stream,Stream,IDownloadThread> s_work;
+        private readonly Action<Stream, Stream, IDownloadThread> s_work;
 
         public DownloadThread(int id, IDownloadContext downloadContext, Action<Stream, Stream, IDownloadThread> work)
         {
@@ -85,6 +85,7 @@ namespace MultithreadDownload.Threading
                 Completed?.Invoke(this);
             });
         }
+
         public void Pause()
         {
             throw new NotImplementedException();

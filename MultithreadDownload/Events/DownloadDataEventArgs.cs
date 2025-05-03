@@ -1,5 +1,4 @@
-﻿using MultithreadDownload.Core;
-using MultithreadDownload.Tasks;
+﻿using MultithreadDownload.Tasks;
 using System;
 
 namespace MultithreadDownload.Events
@@ -9,7 +8,6 @@ namespace MultithreadDownload.Events
     /// </summary>
     public class DownloadDataEventArgs : EventArgs
     {
-
         public DownloadTask DownloadTask { get; private set; }
 
         public DownloadDataEventArgs()

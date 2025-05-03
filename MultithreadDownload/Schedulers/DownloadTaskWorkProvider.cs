@@ -1,14 +1,8 @@
-﻿using Microsoft.Win32.SafeHandles;
-using MultithreadDownload.Protocols;
+﻿using MultithreadDownload.Protocols;
 using MultithreadDownload.Tasks;
-using MultithreadDownload.Threading;
 using MultithreadDownload.Utils;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace MultithreadDownload.Schedulers
 {
@@ -113,7 +107,7 @@ namespace MultithreadDownload.Schedulers
         /// <param name="downloadService">The download service to use.</param>
         /// <param name="task">The download task to finalize.</param>
         /// <returns>Whether the finalization was successful or not.</returns>
-        public Result<bool> Execute_FinalizeWork(Stream outStream,IDownloadService downloadService, DownloadTask task)
+        public Result<bool> Execute_FinalizeWork(Stream outStream, IDownloadService downloadService, DownloadTask task)
         {
             // Finalize the work of the download task.
             // This includes closing the streams and merging the files.

@@ -19,7 +19,7 @@ namespace MultithreadDownload.Threads
         /// </summary>
         public long CompletedBytesSizeCount { get; }
 
-        public IDownloadContext DownloadContext { get;}
+        public IDownloadContext DownloadContext { get; }
 
         /// <summary>
         /// The current state of the download thread.
@@ -29,7 +29,7 @@ namespace MultithreadDownload.Threads
         /// <summary>
         /// The status of the download thread.
         /// </summary>
-        public bool IsAlive { get;}
+        public bool IsAlive { get; }
 
         /// <summary>
         /// The path to the file segment that this thread is responsible for downloading.

@@ -1,5 +1,4 @@
 ﻿using MultithreadDownload.Tasks;
-using MultithreadDownload.Threading;
 using MultithreadDownload.Threads;
 using MultithreadDownload.Utils;
 using System.IO;
@@ -11,7 +10,6 @@ namespace MultithreadDownload.Protocols
     /// </summary>
     public interface IDownloadService
     {
-
         /// <summary>
         /// Get the streams for each of the download threads of the download task.
         /// </summary>
@@ -26,7 +24,7 @@ namespace MultithreadDownload.Protocols
         /// <param name="inputStream">The input stream from which data is read.</param>
         /// <param name="outputStream">The output stream to which data is written.</param>
         /// <param name="threadInfo">Information about the current download thread.</param>
-        /// <returns>A <see cref="Result{bool}"/> indicating whether the operation was successful, and the number of bytes written.</returns> 
+        /// <returns>A <see cref="Result{bool}"/> indicating whether the operation was successful, and the number of bytes written.</returns>
         Result<int> DownloadFile(Stream inputStream, Stream outputStream, IDownloadThread downloadThread);
 
         /// <summary>

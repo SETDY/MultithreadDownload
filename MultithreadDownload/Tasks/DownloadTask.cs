@@ -9,8 +9,6 @@ using MultithreadDownload.Utils;
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
 
 namespace MultithreadDownload.Tasks
 {
@@ -82,7 +80,7 @@ namespace MultithreadDownload.Tasks
 
         #endregion Properties
 
-        private DownloadTask(Guid taskID, byte maxThreads , IDownloadThreadManagerFactory factory, IDownloadContext downloadContext)
+        private DownloadTask(Guid taskID, byte maxThreads, IDownloadThreadManagerFactory factory, IDownloadContext downloadContext)
         {
             // Initialize the download task with the given download delegate, download context ,and factory.
             // Initialize the speed monitor with the method to get the downloaded size.

@@ -1,4 +1,5 @@
 ﻿using FluentAssertions;
+using System.Runtime.InteropServices;
 
 namespace MultithreadDownload.UnitTests.Utils
 {
@@ -52,31 +53,12 @@ namespace MultithreadDownload.UnitTests.Utils
             });
         }
 
-        [Fact]
-        public void GetFileSegments_ShouldThrowException_WhenFileSizeIsZero()
+        [Theory]
+        [InlineData(0)]
+        [InlineData(-54)]
+        public void GetFileSegments_ShouldThrowException_WhenFileSizeIsZeroOrNegative(long fileSize)
         {
             // Arrange
-            long fileSize = 0;
-            int segmentCount = 4;
-
-            // Act
-            Result<long[,]> result = FileSegmentHelper.GetFileSegments(fileSize, segmentCount);
-
-            // Assert => Whether the processing is failed.
-            result.IsSuccess.Should().BeFalse();
-
-            // Assert => Whether the result is correct.
-            result.Value.Should().BeNull();
-
-            // Assert => Whether the error message is correct.
-            result.ErrorMessage.Should().Be("File size and segment count must be greater than zero.");
-        }
-
-        [Fact]
-        public void GetFileSegments_ShouldThrowException_WhenFileSizeIsNegative()
-        {
-            // Arrange
-            long fileSize = -54;
             int segmentCount = 4;
 
             // Act
@@ -227,19 +209,26 @@ namespace MultithreadDownload.UnitTests.Utils
 
         #region SplitPaths()
 
+        /// <summary>
+        /// Test for SplitPaths() method to ensure it returns failure when thread count is zero or negative.
+        /// </summary>
+        /// <param name="maxThreads">The maximum number of threads.</param>
         [Theory]
         [InlineData(0)]
         [InlineData(-1)]
         public void SplitPaths_ShouldReturnFailure_WhenThreadCountIsZeroOrNegative(int maxThreads)
         {
             // Act
-            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, "C:\\Downloads\\file.zip");
+            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, "UserData\\Downloads\\file.zip");
 
             // Assert => Whether the processing is failed.
             result.IsSuccess.Should().BeFalse();
             result.ErrorMessage.Should().Contain("cannot be 0");
         }
 
+        /// <summary>
+        /// Test for SplitPaths() method to ensure it returns failure when the path is a directory.
+        /// </summary>
         [Fact]
         public void SplitPaths_ShouldReturnFail_WhenPathIsDirectory()
         {
@@ -256,33 +245,46 @@ namespace MultithreadDownload.UnitTests.Utils
                 .And.Contain("file name"); // Assuming your error message mentions that a file name is required
         }
 
-        [Fact]
-        public void SplitPaths_ShouldReturnCorrectPaths_WhenInputIsValid()
+        /// <summary>
+        /// Test for SplitPaths() method to ensure it returns the correct paths based on the number of threads.
+        /// </summary>
+        /// <param name="maxThreads">The number of threads to split the file into.</param>
+        [Theory]
+        [InlineData(1)]
+        [InlineData(2)]
+        [InlineData(3)]
+        [InlineData(4)]
+        [InlineData(8)]
+        [InlineData(16)]
+        public void SplitPaths_ShouldReturnCorrectPaths_WhenInputIsValid(int maxThreads)
         {
             // Arrange
-            int maxThreads = 3;
-            string path = "C:\\Downloads\\file.zip";
+            string testFilePath = Path.Combine("UserData", "Downloads", "file.zip");
 
             // Act
-            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, path);
+            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, testFilePath);
 
             // Assert => Whether the processing is successful.
             result.IsSuccess.Should().BeTrue();
-            result.Value.Should().HaveCount(3);
-            result.Value[0].Should().Be("C:\\Downloads\\file-0.downtemp");
-            result.Value[1].Should().Be("C:\\Downloads\\file-1.downtemp");
-            result.Value[2].Should().Be("C:\\Downloads\\file-2.downtemp");
+            result.Value.Should().HaveCount(maxThreads);
+            for (int i = 0; i < result.Value.Length; i++)
+            {
+                result.Value[i].Should().Be(Path.Combine("C:", "Download", $"file-{i}.downtemp"));
+            }
         }
 
+        /// <summary>
+        /// Test for SplitPaths() method to ensure it handles paths without an extension correctly.
+        /// </summary>
         [Fact]
         public void SplitPaths_ShouldHandlePathWithoutExtension()
         {
             // Arrange
             int maxThreads = 2;
-            string path = "/testDir1/data/download/myfile";
+            string testFilePath = Path.Combine("testDir1", "data", "download", "myfile");
 
             // Act
-            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, path);
+            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, testFilePath);
 
             // Assert => Whether the processing is successful.
             result.IsSuccess.Should().BeTrue();
@@ -292,15 +294,28 @@ namespace MultithreadDownload.UnitTests.Utils
             result.Value[1].Should().EndWith("myfile-1.downtemp");
         }
 
+        /// <summary>
+        /// Test for SplitPaths() method to ensure it handles root directory correctly.
+        /// </summary>
+        /// <remarks>
+        /// Since this test is specific to Windows, it checks if the OS is Windows before executing.
+        /// </remarks>
         [Fact]
         public void SplitPaths_ShouldHandleRootDirectory()
         {
+            // Check if the OS is not Windows, as the test is specific to Windows paths
+            // Wchich is not supported in Unix-like systems
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                Assert.True(true);
+            }
+
             // Arrange
             int maxThreads = 1;
-            string path = "C:\\file.iso";
+            string testFilePath = "C:\\file.iso";
 
             // Act
-            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, path);
+            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, testFilePath);
 
             // Assert
             result.IsSuccess.Should().BeTrue();
@@ -323,8 +338,9 @@ namespace MultithreadDownload.UnitTests.Utils
             result.IsSuccess.Should().BeTrue();
             result.Value.Should().NotBeNullOrEmpty();
             result.Value.Should().HaveCount(2);
-            result.Value[0].Should().Be("\\home\\user\\downloads\\file.tar-0.downtemp");
-            result.Value[1].Should().Be("\\home\\user\\downloads\\file.tar-1.downtemp");
+            // Use Path.Combine to ensure corss platform compatibility
+            result.Value[0].Should().Be(Path.Combine("home", "user", "downloads", "file.tar-0.downtemp"));
+            result.Value[1].Should().Be(Path.Combine("home", "user", "downloads", "file.tar-1.downtemp"));
         }
 
         [Fact]
@@ -332,7 +348,7 @@ namespace MultithreadDownload.UnitTests.Utils
         {
             // Arrange
             int maxThreads = 1000;
-            string path = "C:\\data\\bigfile.bin";
+            string path = Path.Combine("UserData", "Downloads", "bigfile.bin");
 
             // Act
             Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, path);
@@ -341,7 +357,10 @@ namespace MultithreadDownload.UnitTests.Utils
             result.IsSuccess.Should().BeTrue();
             result.Value.Should().NotBeNullOrEmpty();
             result.Value.Should().HaveCount(1000);
-            result.Value[999].Should().EndWith("bigfile-999.downtemp");
+            for (int i = 0; i < result.Value.Length; i++)
+            {
+                result.Value[i].Should().EndWith($"bigfile-{i}.downtemp");
+            }
         }
 
         #endregion SplitPaths()
