@@ -269,7 +269,7 @@ namespace MultithreadDownload.UnitTests.Utils
             result.Value.Should().HaveCount(maxThreads);
             for (int i = 0; i < result.Value.Length; i++)
             {
-                result.Value[i].Should().Be(Path.Combine("C:", "Download", $"file-{i}.downtemp"));
+                result.Value[i].Should().Be(Path.Combine("UserData", "Downloads", $"file-{i}.downtemp"));
             }
         }
 
@@ -329,7 +329,7 @@ namespace MultithreadDownload.UnitTests.Utils
         {
             // Arrange
             int maxThreads = 2;
-            string path = "/home/user/downloads/file.tar.gz";
+            string path = "home/user/downloads/file.tar.gz";
 
             // Act
             Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, path);
