@@ -144,7 +144,7 @@ namespace MultithreadDownload.Tasks
             };
         }
 
-        //TODO: 完成断点续传功能
+        // TODO: Complete the pause and resume function
         internal void Pause()
         {
             throw new NotImplementedException();

@@ -165,6 +165,7 @@ namespace MultithreadDownload.Threading
             // Otherwise, cancel the thread and wait for it to finish
             if (s_work == null) { return Result<bool>.Failure("Thread is not exist so it cannot be cancelled"); }
             if (IsAlive == false) { return Result<bool>.Failure("Thread is not alive so it cannot be cancelled"); }
+            this.Dispose();
             s_cancellation.Cancel();
             return Result<bool>.Success(true);
         }

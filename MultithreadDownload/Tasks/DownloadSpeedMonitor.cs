@@ -14,6 +14,8 @@ namespace MultithreadDownload.Tasks
         /// </summary>
         private Timer s_timer;
 
+        private bool s_isTimerStopped;
+
         /// <summary>
         /// The last downloaded size.
         /// </summary>
@@ -44,12 +46,13 @@ namespace MultithreadDownload.Tasks
             // Convert to proper unit and invoke the event
             s_timer = new Timer(_ =>
             {
+                if (s_isTimerStopped) return;
                 long currentSize = s_getDownloadedSize.Invoke();
                 string downloadSpeed = ((long)((currentSize - s_lastDownloadedSize) / 1)).ToSpeed();
                 s_lastDownloadedSize = currentSize;
 
                 SpeedUpdated?.Invoke(downloadSpeed);
-            }, null, 0, 1000);
+            }, null, 1000, 1000);
         }
 
         /// <summary>
@@ -57,6 +60,7 @@ namespace MultithreadDownload.Tasks
         /// </summary>
         public void Stop()
         {
+            s_isTimerStopped = true;
             s_timer?.Dispose();
         }
     }

@@ -120,7 +120,7 @@ namespace MultithreadDownload.Core
         /// </summary>
         public void StopAllocator()
         {
-            s_taskScheduler.Pause();
+            s_taskScheduler.Stop();
         }
 
         #endregion Allocator Methods

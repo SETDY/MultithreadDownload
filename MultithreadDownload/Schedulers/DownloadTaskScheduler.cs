@@ -32,6 +32,8 @@ namespace MultithreadDownload.Schedulers
         /// </summary>
         private readonly Task s_allocator;
 
+        private readonly CancellationTokenSource s_allocatorTokenSource = new CancellationTokenSource();
+
         private readonly IDownloadService s_downloadService;
 
         /// <summary>
@@ -69,14 +71,14 @@ namespace MultithreadDownload.Schedulers
             // Initialize the allocator task
             // If there are no tasks in the queue, the allocator task will wait for a task to be added.
             // If there are enough slots available, the allocator task will start the task.
-            // The process will continue until the software is stopped.
+            // The process will continue until the software is stopped or the client invokes the Stop method.
             this.s_allocator = new Task(() =>
             {
-                foreach (DownloadTask task in s_taskQueue.GetConsumingEnumerable())
+                foreach (DownloadTask task in s_taskQueue.GetConsumingEnumerable(s_allocatorTokenSource.Token))
                 {
                     // The download slots -1 if there is available solt and force start the task
                     // Otherwise, block the task to wait
-                    this.s_downloadSlots.Wait();
+                    this.s_downloadSlots.Wait(s_allocatorTokenSource.Token);
                     task.Start(s_workProvider, s_downloadService);
                 }
             }, TaskCreationOptions.LongRunning);
@@ -92,9 +94,16 @@ namespace MultithreadDownload.Schedulers
         public void Dispose()
         {
             // Cancel all tasks in the queue
-            // Dispose the allocator, the task queue and the download slots
+            // Stop and dispose the allocator, the task queue and the download slots
             this.GetTasks().ToList().ForEach(task => task.Cancel());
-            s_allocator.Dispose();
+            Stop();
+            // Since the allocator cannot be cancel by the token when it has not been started,
+            // skip the dispose if the allocator is not started.
+            // For the allocator task which does not start, it will be recycled by the GC.
+            if (s_allocator.Status != TaskStatus.Created)
+            {
+                s_allocator.Dispose();
+            }
             s_taskQueue?.Dispose();
             s_downloadSlots?.Dispose();
         }
@@ -117,20 +126,17 @@ namespace MultithreadDownload.Schedulers
         }
 
         /// <summary>
-        /// Pause the queue process of the tasks.
+        /// Stop(Cancel) the queue process of the tasks.
         /// </summary>
         /// <returns>Whether the allocator are paused successfully.</returns>
         /// <remarks>
-        /// It will only start the allocator task but not the tasks in the queue.
+        /// It will cancel the allocator task but not all tasks in the queue.
         /// </remarks>
-        public Result<bool> Pause()
+        public Result<bool> Stop()
         {
-            // Pause the allocator task
-            // The tasks in the queue will be paused
-            //TODO: There is a problem which is the if statement cannot prevent the task from pausing again.
-            if (s_allocator.Status != TaskStatus.WaitingForActivation) { Result<bool>.Failure("The allocator is already paused."); }
-
-            s_allocator.Wait();
+            // Cancel the allocator task
+            if (s_allocator.Status != TaskStatus.Canceled) { Result<bool>.Failure("The allocator is already stop."); }
+            s_allocatorTokenSource.Cancel();
             return Result<bool>.Success(true);
         }
 
@@ -151,11 +157,15 @@ namespace MultithreadDownload.Schedulers
             {
                 // The download slots +1
                 // Invoke the event when the task is completed
+                // Add an if statement to prevent the event is invoked when it is null.
                 this.s_downloadSlots.Release();
-                this.TasksProgressCompleted.Invoke(task, new DownloadDataEventArgs(task));
+                if (this.TasksProgressCompleted != null)
+                    this.TasksProgressCompleted.Invoke(task, new DownloadDataEventArgs(task));
             };
             this.s_taskQueue.Add(task);
-            this.TaskQueueProgressChanged.Invoke(task, new DownloadDataEventArgs(task));
+            // Add an if statement to prevent the event is invoked when it is null.
+            if (this.TaskQueueProgressChanged != null)
+                this.TaskQueueProgressChanged.Invoke(task, new DownloadDataEventArgs(task));
         }
 
         /// <summary>
@@ -171,8 +181,10 @@ namespace MultithreadDownload.Schedulers
                 {
                     // The download slots +1
                     // Invoke the event when the task is completed
+                    // Add an if statement to prevent the event is invoked when it is null.
                     this.s_downloadSlots.Release();
-                    this.TasksProgressCompleted.Invoke(task, new DownloadDataEventArgs(task));
+                    if (this.TasksProgressCompleted != null)
+                        this.TasksProgressCompleted.Invoke(task, new DownloadDataEventArgs(task));
                 }
                 catch (Exception)
                 {
@@ -201,7 +213,7 @@ namespace MultithreadDownload.Schedulers
             // Otherwise, return failure result.
             foreach (DownloadTask task in this.s_taskQueue)
             {
-                if (task.ID == taskID && task.State == DownloadTaskState.Downloading)
+                if (task.ID == taskID && task.State != DownloadTaskState.Cancelled && task.State != DownloadTaskState.Completed)
                 {
                     task?.Pause();
                     return Result<bool>.Success(true);
@@ -256,11 +268,14 @@ namespace MultithreadDownload.Schedulers
         {
             try
             {
+                // isCancelled is used to check whether the tasks are cancelled successfully.
+                bool isCancelled = false;
                 foreach (DownloadTask task in this.GetTasks())
                 {
                     task.Cancel();
+                    isCancelled = true;
                 }
-                return Result<bool>.Success(true);
+                return Result<bool>.Success(isCancelled);
             }
             catch (Exception ex)
             {

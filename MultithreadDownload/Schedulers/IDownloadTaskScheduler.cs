@@ -32,13 +32,13 @@ namespace MultithreadDownload.Schedulers
         public Result<bool> Start();
 
         /// <summary>
-        /// Pause the queue process of the tasks.
+        /// Stop(Cancel) the queue process of the tasks.
         /// </summary>
         /// <returns>Whether the allocator are paused successfully.</returns>
         /// <remarks>
-        /// It will only start the allocator task but not the tasks in the queue.
+        /// It will cancel the allocator task but not all tasks in the queue.
         /// </remarks>
-        public Result<bool> Pause();
+        public Result<bool> Stop();
 
         /// <summary>
         /// Add a task to the queue.
