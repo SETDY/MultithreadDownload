@@ -26,23 +26,11 @@ namespace MultithreadDownload.Utils
             {
                 return $"{Math.Round((double)downloadSpeedAsBytes / 1024, 2)} KiB/s";
             }
-            else
+            else if (downloadSpeedAsBytes >= 0)
             {
                 return $"{downloadSpeedAsBytes} B/s";
             }
             throw new ArgumentOutOfRangeException("It is not a vaild input to convert it to a proper speed rate.");
-        }
-
-        public static bool IsIndexOutOfBounds(this int index, int count)
-        {
-            if (index > count - 1)//index是否大于数组项目的长度减一
-            {
-                return true;
-            }
-            else
-            {
-                return false;
-            }
         }
     }
 }

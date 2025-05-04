@@ -62,7 +62,7 @@ namespace MultithreadDownload.Utils
             if (string.IsNullOrWhiteSpace(path)) { return false; }
             // Check the path is whether valid by system methods
             // Since regex cannot cover all the cases, we need to use system methods to check the path
-            if (IsVaildPathBySystem(path))
+            if (IsValidPathBySystem(path))
             {
                 return true;
             }
@@ -77,11 +77,12 @@ namespace MultithreadDownload.Utils
         /// </summary>
         /// <param name="path">the path you want to check</param>
         /// <returns>Is the path valid of not</returns>
-        private static bool IsVaildPathBySystem(string path)
+        private static bool IsValidPathBySystem(string path)
         {
-            // Check If the path is not null or empty and does not contain any invalid characters
+            // Check If the path including the file name is not null or empty and does not contain any invalid characters
             if (string.IsNullOrWhiteSpace(path)) { return false; }
-            if (path.IndexOfAny(Path.GetInvalidPathChars()) >= 1) { return false; }
+            if (path.IndexOfAny(Path.GetInvalidPathChars()) >= 1 
+                || path.IndexOfAny(Path.GetInvalidFileNameChars()) >= 1) { return false; }
             try
             {
                 // Try to get full path so that it can be validated by the system

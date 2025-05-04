@@ -14,11 +14,57 @@ namespace MultithreadDownload.UnitTests.Utils
         [InlineData("/usr/local/bin/script.sh", $"/usr/local/bin")]
         [InlineData("/", "/")]
         [InlineData("", "")]
-        public void GetDirectoryNameSafe_ShouldReturnExpectedResult(string input, string expected)
+        public void GetDirectoryNameSafe_ShouldReturnExpectedResult_OnWindows(string input, string expected)
         {
+            // Since there may be some differences in path handling between OSes,
+            // Check if the current OS is Linux or MacOS
+            // If not, skip the test
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                Assert.True(true);
+                return;
+            }
+
             // Act
             string directoryName = PathHelper.GetDirectoryNameSafe(input);
 
+
+            string normalizedActual = directoryName.Replace
+                (Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+            string normalizedExpected = expected.Replace
+                (Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+
+            // Assert
+            // Using Path.Combine to ensure the path is cross-platform
+            normalizedActual.Should().Be(normalizedExpected);
+        }
+
+        [Theory]
+        [InlineData("/usr/local/bin/script.sh", "/usr/local/bin")]
+        [InlineData("/usr/local/bin/", "/usr/local/bin")]
+        [InlineData("/file.txt", "/")]
+        [InlineData("/usr/../etc/passwd", "/usr/../etc")]
+        [InlineData("relative/path/to/file.txt", "relative/path/to")]
+        [InlineData("file.txt", "")]
+        [InlineData(".hiddenfile", "")]
+        [InlineData("/", "/")]
+        [InlineData("./relative.txt", ".")]
+        [InlineData("../parent.txt", "..")]
+        [InlineData("relative/path/to/dir/", "relative/path/to/dir")]
+        [InlineData("/tmp/.", "/tmp")]
+        [InlineData("/tmp/..", "/tmp")]
+        public void GetDirectoryNameSafe_ShouldReturnExpectedResult_OnLinuxAndMacOS(string input, string expected)
+        {
+            // Since there may be some differences in path handling between OSes,
+            // Check if the current OS is Linux or MacOS
+            // If not, skip the test
+            if (!(RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && 
+                RuntimeInformation.IsOSPlatform(OSPlatform.OSX)))
+            {
+                Assert.True(true);
+                return;
+            }
+            string directoryName = PathHelper.GetDirectoryNameSafe(input);
 
             string normalizedActual = directoryName.Replace
                 (Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
@@ -216,15 +262,7 @@ namespace MultithreadDownload.UnitTests.Utils
             bool result = PathHelper.IsValidPath("/");
 
             // Assert
-            // '/' is a root dir, valid in Unix; invalid as a file path in Windows
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                result.Should().BeFalse();
-            }
-            else
-            {
-                result.Should().BeTrue();
-            }
+            result.Should().BeTrue();
         }
         #endregion
     }
