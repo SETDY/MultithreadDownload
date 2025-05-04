@@ -1,6 +1,7 @@
 ﻿using FluentAssertions;
 using System.Net;
 using System.Text;
+using MultithreadDownload.UnitTests.Fixtures;
 
 namespace MultithreadDownload.UnitTests.Utils
 {

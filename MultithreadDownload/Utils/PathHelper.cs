@@ -1,5 +1,4 @@
 ﻿using System.IO;
-using System.Text.RegularExpressions;
 
 namespace MultithreadDownload.Utils
 {
@@ -60,9 +59,10 @@ namespace MultithreadDownload.Utils
         public static bool IsValidPath(string path)
         {
             // If the path is a empty string  => not a valid path
-            if ("".Equals(path)) { return false; }
-            // Check the path is whether valid by using regex and system methods
-            if (IsVaildPathByRegex(path) && IsVaildPathBySystem(path))
+            if (string.IsNullOrWhiteSpace(path)) { return false; }
+            // Check the path is whether valid by system methods
+            // Since regex cannot cover all the cases, we need to use system methods to check the path
+            if (IsVaildPathBySystem(path))
             {
                 return true;
             }
@@ -73,18 +73,6 @@ namespace MultithreadDownload.Utils
         }
 
         /// <summary>
-        /// Checks if the given path is valid by using regex.
-        /// </summary>
-        /// <param name="path">the path you want to check</param>
-        /// <returns>Is the path valid of not</returns>
-        private static bool IsVaildPathByRegex(string path)
-        {
-            // Use regex to check if the path is valid
-            Regex pathPattern = new Regex(@"^([a-zA-Z]:\\)?[^\/\:\*\?\""\<\>\|\,]*$");
-            return pathPattern.Match(path).Success;
-        }
-
-        /// <summary>
         /// Checks if the given path is valid by using system methods.
         /// </summary>
         /// <param name="path">the path you want to check</param>
@@ -92,7 +80,7 @@ namespace MultithreadDownload.Utils
         private static bool IsVaildPathBySystem(string path)
         {
             // Check If the path is not null or empty and does not contain any invalid characters
-            if (!string.IsNullOrWhiteSpace(path)) { return false; }
+            if (string.IsNullOrWhiteSpace(path)) { return false; }
             if (path.IndexOfAny(Path.GetInvalidPathChars()) >= 1) { return false; }
             try
             {

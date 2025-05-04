@@ -1,6 +1,6 @@
 ﻿using System.Net;
 
-namespace MultithreadDownload.UnitTests
+namespace MultithreadDownload.UnitTests.Fixtures
 {
     /// <summary>
     /// A simple HTTP server for testing purposes.
@@ -16,7 +16,7 @@ namespace MultithreadDownload.UnitTests
 
         public TestHttpServer(string url, Func<HttpListenerRequest, HttpListenerResponse, Task> onRequest)
         {
-            this.Url = url;
+            Url = url;
             s_onRequest = onRequest;
             s_listener = new HttpListener();
             s_listener.Prefixes.Add(url);
