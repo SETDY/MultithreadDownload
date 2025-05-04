@@ -14,71 +14,51 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
     {
 
         [Theory]
-        [InlineData(1, 2, 7000)]
-        [InlineData(1, 3, 7001)]
-        [InlineData(2, 4, 7002)]
-        [InlineData(3, 8, 7003)]
-        [InlineData(4, 16, 7004)]
+        [InlineData(1, 2)]
+        [InlineData(1, 3)]
+        [InlineData(2, 4)]
+        [InlineData(3, 8)]
+        [InlineData(4, 16)]
         public async Task DownloadFile_MultiTask_MultiThread_FromLocalHttpServer_WorksCorrectly
-            (byte maxParallelTasks, byte concurrentTasks, int port)
+            (byte concurrentTasks, byte maxDownloadThread)
         {
             // Since Github has limitations on the size of the file that can be saved,
             // the test file is not uploaded to the repository.
             // Therefore, this test will be skipped when running in Github Actions.
             // Since Skip.If() method has a issue with the Xunit test runner,
-            // we use Assert.True() to skip the test.
-            if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true")
-            {
-                Assert.True(true, "Skipped on CI.");
-                return;
-            }
+            // we use TestHelper.SkipTestOnCI() and Assert.True() to skip the test.
+            if (TestHelper.SkipTestOnCI()) { return; }
 
             // Arrage
-            string prefixUrl = "http://localhost:" + port + "/";
-            var server = new LocalHttpFileServer(prefixUrl, TestConstants.LARGE_TESTFILE_PATH);
-            server.Start();
-            byte MAX_PARALLEL_THREADS = 8;
             byte completedTasks = 0;
-
-            // Act
-            // Create a download service manager (currently using HTTP protocol)
-            // Set up event handlers for progress and completion
-            MultiDownload downloadManager = new MultiDownload(maxParallelTasks, DownloadServiceType.Http);
+            (var server, var downloadManager, var url) = TestHelper.PrepareDownload(
+                DownloadServiceType.Http, 1, TestConstants.LARGE_TESTFILE_PATH);
             // Get download task context (including segment information, etc.)
             List<HttpDownloadContext> contexts = new List<HttpDownloadContext>();
             for (int i = 0; i < concurrentTasks; i++)
             {
-                Result<HttpDownloadContext> context = await HttpDownloadContext.GetDownloadContext(
-                    MAX_PARALLEL_THREADS, Path.Combine(Path.GetTempPath(), $"output_{i}.txt"), prefixUrl);
-
-                // Assert
-                context.Should().NotBeNull();
-                context.IsSuccess.Should().BeTrue();
-                context.Value.Should().NotBeNull();
-
-                contexts.Add(context.Value);
+                contexts.Add( await TestHelper.GetHttpDownloadContext
+                    (maxDownloadThread, url, Path.Combine(Path.GetTempPath(), $"output_{i}.txt")));
             }
-
             downloadManager.TasksProgressCompleted += (sender, e) =>
             {
                 completedTasks++;
-                if (completedTasks == concurrentTasks)
+                // Check if all tasks are completed
+                if (completedTasks != concurrentTasks) { return; }
+                contexts.ForEach(c =>
                 {
-                    foreach (HttpDownloadContext context in contexts)
-                    {
-                        File.Exists(context.TargetPath).Should().BeTrue();
-                        File.Delete(context.TargetPath);
-                    }
-                }
+                    // Assert => Check if the file exists and its content is correct
+                    TestHelper.VerifyFileContent(c.TargetPath, TestConstants.LARGE_TESTFILE_PATH);
+                });
             };
+            server.Start();
 
-            // Act
+            // Act => Add tasks to the download manager and start the download allocator
             for (int i = 0; i < concurrentTasks; i++)
             {
                 downloadManager.AddTask(contexts[i]);
             }
-
-            // Start the download service manager
+            // Start the download allocator
             downloadManager.StartAllocator();
         }
     }
