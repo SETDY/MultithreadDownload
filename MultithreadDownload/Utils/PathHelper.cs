@@ -79,10 +79,11 @@ namespace MultithreadDownload.Utils
         /// <returns>Is the path valid of not</returns>
         private static bool IsValidPathBySystem(string path)
         {
-            // Check If the path including the file name is not null or empty and does not contain any invalid characters
+            // Check If the path including the file name is not null or empty and
+            // does not contain any invalid characters
             if (string.IsNullOrWhiteSpace(path)) { return false; }
-            if (path.IndexOfAny(Path.GetInvalidPathChars()) >= 1 
-                || path.IndexOfAny(Path.GetInvalidFileNameChars()) >= 1) { return false; }
+            if (path.IndexOfAny(Path.GetInvalidPathChars()) >= 0 
+                || Path.GetFileName(path).IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) { return false; }
             try
             {
                 // Try to get full path so that it can be validated by the system
