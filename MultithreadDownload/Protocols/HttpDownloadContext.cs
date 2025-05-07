@@ -74,7 +74,7 @@ namespace MultithreadDownload.Protocols
         /// <returns>The download context.</returns>
         /// <remarks>
         /// Since the file size is not known in advance, it can be zero or a exception can be thrown in the process of getting the file size.
-        /// Therefore, <see cref="GetDownloadContext"/> method returns a <see cref="Result{T}"/> object 
+        /// Therefore, <see cref="GetDownloadContext"/> method returns a <see cref="Result{T}"/> object
         /// to indicate success or failure and remind the caller to check the result.
         /// </remarks>
         public static async Task<Result<HttpDownloadContext>> GetDownloadContext(byte maxParallelThreads, string targetPath, string link)
@@ -90,10 +90,10 @@ namespace MultithreadDownload.Protocols
                     new HttpDownloadContext(targetPath, link, new long[,] { { 0, 0 } }));
             }
             // Get download size for each download thread
-            Result<long[,]> segmentRanges = FileSegmentHelper.GetFileSegments(fileSize.Value, maxParallelThreads);
-            if (!segmentRanges.IsSuccess) 
+            Result<long[,]> segmentRanges = FileSegmentHelper.CalculateFileSegmentRanges(fileSize.Value, maxParallelThreads);
+            if (!segmentRanges.IsSuccess)
             {
-                Result<HttpDownloadContext>.Failure($"Failed to get file segments. Message:{segmentRanges.ErrorMessage}"); 
+                Result<HttpDownloadContext>.Failure($"Failed to get file segments. Message:{segmentRanges.ErrorMessage}");
             }
             return Result<HttpDownloadContext>.Success(
                 new HttpDownloadContext(targetPath, link, segmentRanges.Value));

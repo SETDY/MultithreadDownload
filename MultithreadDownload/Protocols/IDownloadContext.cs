@@ -11,7 +11,7 @@ namespace MultithreadDownload.Protocols
         /// <summary>
         /// The target path where the downloaded file will be saved.
         /// </summary>
-        public string TargetPath { get;}
+        public string TargetPath { get; }
 
         /// <summary>
         /// The download range for each download thread.

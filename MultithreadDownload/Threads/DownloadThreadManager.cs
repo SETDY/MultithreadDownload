@@ -5,8 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace MultithreadDownload.Threading
 {
@@ -24,7 +22,7 @@ namespace MultithreadDownload.Threading
         {
             get
             {
-                return this.s_maxThreads;
+                return this._maxThreads;
             }
         }
 
@@ -36,22 +34,22 @@ namespace MultithreadDownload.Threading
         /// <summary>
         /// A reference to the list of download threads.
         /// </summary>
-        private readonly List<IDownloadThread> s_threads;
+        private readonly List<IDownloadThread> _threads;
 
         /// <summary>
         /// The download context that contains information about the download operation.
         /// </summary>
-        private readonly IDownloadContext s_downloadContext;
+        private readonly IDownloadContext _downloadContext;
 
         /// <summary>
         /// The maximum number of threads that can be used for downloading.
         /// </summary>
-        private readonly byte s_maxThreads;
+        private readonly byte _maxThreads;
 
         /// <summary>
         /// The factory for creating download threads.
         /// </summary>
-        private readonly IDownloadThreadFactory s_factory;
+        private readonly IDownloadThreadFactory _factory;
 
         /// <summary>
         /// Constructor for the DownloadThreadManager class.
@@ -62,10 +60,10 @@ namespace MultithreadDownload.Threading
         public DownloadThreadManager(IDownloadThreadFactory factory, byte maxThreads, IDownloadContext downloadContext)
         {
             // Initialize the properties
-            s_threads = new List<IDownloadThread>();
-            s_downloadContext = downloadContext;
-            s_maxThreads = maxThreads;
-            s_factory = factory;
+            _threads = new List<IDownloadThread>();
+            _downloadContext = downloadContext;
+            _maxThreads = maxThreads;
+            _factory = factory;
             this.CompletedThreadsCount = 0;
         }
 
@@ -79,13 +77,13 @@ namespace MultithreadDownload.Threading
         /// </remarks>
         public Result<bool> CreateThread(Action<Stream, Stream, IDownloadThread> mainWork)
         {
-            if (this.s_threads.Count > this.s_maxThreads) { Result<bool>.Failure("The number of download threads is at the maximum postition."); }
+            if (this._threads.Count > this._maxThreads) { Result<bool>.Failure("The number of download threads is at the maximum postition."); }
             // Create a new thread with the factory
             // Set the progresser for the thread
             // Add the thread to the list of threads
-            IDownloadThread downloadThread = s_factory.Create(0, s_downloadContext, mainWork);
+            IDownloadThread downloadThread = _factory.Create(0, _downloadContext, mainWork);
             this.SetThreadProgresser(downloadThread);
-            s_threads.Append(downloadThread);
+            _threads.Append(downloadThread);
             return Result<bool>.Success(true);
         }
 
@@ -117,10 +115,10 @@ namespace MultithreadDownload.Threading
         {
             // If the length of the output streams is not equal to the number of threads, throw an exception
             // Otherwise, start each thread with the input stream and the corresponding output stream
-            if (outputStreams.Length != this.s_threads.Count) { throw new ArgumentException("The number of output streams must be equal to the number of threads."); }
+            if (outputStreams.Length != this._threads.Count) { throw new ArgumentException("The number of output streams must be equal to the number of threads."); }
             for (int i = 0; i < outputStreams.Length; i++)
             {
-                this.s_threads[i].Start(inputStream[i], outputStreams[i]);
+                this._threads[i].Start(inputStream[i], outputStreams[i]);
             }
         }
 
@@ -129,7 +127,7 @@ namespace MultithreadDownload.Threading
         /// </summary>
         public void Pause()
         {
-            foreach (IDownloadThread thread in s_threads)
+            foreach (IDownloadThread thread in _threads)
             {
                 thread.Pause();
             }
@@ -140,7 +138,7 @@ namespace MultithreadDownload.Threading
         /// </summary>
         public void Resume()
         {
-            foreach (IDownloadThread thread in s_threads)
+            foreach (IDownloadThread thread in _threads)
             {
                 thread.Resume();
             }
@@ -151,7 +149,7 @@ namespace MultithreadDownload.Threading
         /// </summary>
         public void Cancel()
         {
-            foreach (IDownloadThread thread in s_threads)
+            foreach (IDownloadThread thread in _threads)
             {
                 thread.Cancel();
             }
@@ -160,17 +158,17 @@ namespace MultithreadDownload.Threading
         public void Dispose()
         {
             // Dispose of each thread in the list
-            foreach (IDownloadThread thread in s_threads)
+            foreach (IDownloadThread thread in _threads)
             {
                 thread.Dispose();
             }
-            s_threads.Clear();
+            _threads.Clear();
         }
 
         /// <summary>
         /// Gets the list of download threads.
         /// </summary>
         /// <returns></returns>
-        public IEnumerable<IDownloadThread> GetThreads() => s_threads;
+        public IEnumerable<IDownloadThread> GetThreads() => _threads;
     }
 }

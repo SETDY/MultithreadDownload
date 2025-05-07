@@ -9,8 +9,6 @@ using MultithreadDownload.Utils;
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
 
 namespace MultithreadDownload.Tasks
 {
@@ -34,7 +32,7 @@ namespace MultithreadDownload.Tasks
         /// <summary>
         /// The state of the download task.
         /// </summary>
-        public DownloadTaskState State
+        public DownloadState State
         {
             get
             {
@@ -42,10 +40,14 @@ namespace MultithreadDownload.Tasks
             }
             private set
             {
-                // Set the state of the download task and invoke the state change event.
+                // Check if the new state is not the same as the current state.
+                // Otherwise, return.
+                // If not, set the state of the download task and invoke the state change event.
+                if (this._state == value) { return; }
+
                 this._state = value;
                 this.StateChange?.Invoke(this, new DownloadDataEventArgs(this));
-                if (this._state == DownloadTaskState.Completed)
+                if (this._state == DownloadState.Completed)
                 {
                     this.Completed?.Invoke();
                 }
@@ -55,7 +57,7 @@ namespace MultithreadDownload.Tasks
         /// <summary>
         /// The field of the property State.
         /// </summary>
-        private DownloadTaskState _state;
+        private DownloadState _state;
 
         /// <summary>
         /// The thread manager of the task which contain all the threads.
@@ -82,12 +84,12 @@ namespace MultithreadDownload.Tasks
 
         #endregion Properties
 
-        private DownloadTask(Guid taskID, byte maxThreads , IDownloadThreadManagerFactory factory, IDownloadContext downloadContext)
+        private DownloadTask(Guid taskID, byte maxThreads, IDownloadThreadManagerFactory factory, IDownloadContext downloadContext)
         {
             // Initialize the download task with the given download delegate, download context ,and factory.
             // Initialize the speed monitor with the method to get the downloaded size.
             this.ID = taskID;
-            this._state = DownloadTaskState.Waiting;
+            this._state = DownloadState.Waiting;
             this.DownloadContext = downloadContext;
             this.DownloadThreadManager = factory.Create(new DownloadThreadFactory(),
                 this.DownloadContext, maxThreads);
@@ -138,6 +140,10 @@ namespace MultithreadDownload.Tasks
                     Result<Stream> result = workProvider.GetTaskFinalStream(this.DownloadContext);
                     if (!result.IsSuccess) { throw new Exception("GetTaskFinalStream failed"); }
                     workProvider.Execute_FinalizeWork(result.Value, downloadService, this);
+                    // Invoke the event to notify that the download task is completed.
+                    // PS:
+                    // Never use _state = DownloadState.Completed; here, because it will not invoke the event.
+                    this.State = DownloadState.Completed;
                 }
                 catch (Exception ex)
                 {
@@ -146,7 +152,7 @@ namespace MultithreadDownload.Tasks
             };
         }
 
-        //TODO: 完成断点续传功能
+        // TODO: Complete the pause and resume function
         internal void Pause()
         {
             throw new NotImplementedException();
@@ -161,8 +167,8 @@ namespace MultithreadDownload.Tasks
         {
             // If the download task is already cancelled, return an error message.
             // Otherwise, cancel the download task and it will invoke the state change event.
-            if (this.State == DownloadTaskState.Cancelled) { throw new InvalidOperationException("The download task is already cancelled."); }
-            this.State = DownloadTaskState.Cancelled;
+            if (this.State == DownloadState.Cancelled) { throw new InvalidOperationException("The download task is already cancelled."); }
+            this.State = DownloadState.Cancelled;
             this.DownloadThreadManager.Cancel();
         }
 

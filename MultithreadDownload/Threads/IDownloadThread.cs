@@ -19,17 +19,17 @@ namespace MultithreadDownload.Threads
         /// </summary>
         public long CompletedBytesSizeCount { get; }
 
-        public IDownloadContext DownloadContext { get;}
+        public IDownloadContext DownloadContext { get; }
 
         /// <summary>
         /// The current state of the download thread.
         /// </summary>
-        DownloadTaskState State { get; }
+        DownloadState State { get; }
 
         /// <summary>
         /// The status of the download thread.
         /// </summary>
-        public bool IsAlive { get;}
+        public bool IsAlive { get; }
 
         /// <summary>
         /// The path to the file segment that this thread is responsible for downloading.
@@ -68,7 +68,7 @@ namespace MultithreadDownload.Threads
 
         void SetProgresser(IProgress<sbyte> progresser);
 
-        internal void SetState(DownloadTaskState state);
+        internal void SetState(DownloadState state);
 
         void SetDownloadProgress(sbyte progress);
 

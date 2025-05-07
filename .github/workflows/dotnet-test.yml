@@ -1,24 +1,35 @@
-name: .NET Build and Test
+name: .NET Build & Test
 
 on:
   push:
-    branches: [ "main", "feature/v3-refactor" ]
+    branches: [ "main", "feature/v3.1.0-docs-and-tests" ]
   pull_request:
-    branches: [ "main", "feature/v3-refactor" ]
+    branches: [ "main", "feature/v3.1.0-docs-and-tests" ]
 
 jobs:
   build:
-
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+    - uses: actions/checkout@v3
 
-    - name: Setup .NET
+    - name: Setup .NET 6
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 6.0.x
+
+    - name: Setup .NET 8
       uses: actions/setup-dotnet@v3
       with:
         dotnet-version: 8.0.x
+
+    - name: Check Installed SDKs & Runtimes
+      run: |
+        dotnet --list-sdks
+        dotnet --list-runtimes
 
     - name: Restore dependencies
       run: dotnet restore
@@ -26,5 +37,8 @@ jobs:
     - name: Build
       run: dotnet build --no-restore
 
-    - name: Run tests
-      run: dotnet test --no-build --verbosity normal
+    - name: Run Unit Tests
+      run: dotnet test MultithreadDownload.UnitTests/MultithreadDownload.UnitTests.csproj --no-build --verbosity normal
+
+    - name: Run Integration Tests
+      run: dotnet test MultithreadDownload.IntegrationTests/MultithreadDownload.IntegrationTests.csproj --no-build --verbosity normal

@@ -7,6 +7,6 @@ namespace MultithreadDownload.Threading
     /// </summary>
     public interface IDownloadThreadManagerFactory
     {
-        public IDownloadThreadManager Create(IDownloadThreadFactory downloadThreadFactory, IDownloadContext downloadContext,byte maxThreads);
+        public IDownloadThreadManager Create(IDownloadThreadFactory downloadThreadFactory, IDownloadContext downloadContext, byte maxThreads);
     }
 }

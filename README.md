@@ -72,7 +72,7 @@ var context = await HttpDownloadContext.GetDownloadContext(MAX_PARALLEL_THREADS,
                                         "D:\\", "https://example.com/file.zip");
 
 // 添加下载任务到管理器
-downloadManager.AddTask(context);
+downloadManager.AddTask(context.Value);
 
 // 启动任务分配器，自动管理任务并启动下载
 downloadManager.StartAllocator();
