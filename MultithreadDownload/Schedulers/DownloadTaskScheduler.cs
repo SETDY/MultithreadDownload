@@ -213,7 +213,7 @@ namespace MultithreadDownload.Schedulers
             // Otherwise, return failure result.
             foreach (DownloadTask task in this._taskQueue)
             {
-                if (task.ID == taskID && task.State != DownloadTaskState.Cancelled && task.State != DownloadTaskState.Completed)
+                if (task.ID == taskID && task.State != DownloadState.Cancelled && task.State != DownloadState.Completed)
                 {
                     task?.Pause();
                     return Result<bool>.Success(true);
@@ -232,7 +232,7 @@ namespace MultithreadDownload.Schedulers
             // Otherwise, return failure result.
             foreach (DownloadTask task in this._taskQueue)
             {
-                if (task.ID == taskID && task.State == DownloadTaskState.Paused)
+                if (task.ID == taskID && task.State == DownloadState.Paused)
                 {
                     task?.Pause();
                     return Result<bool>.Success(true);

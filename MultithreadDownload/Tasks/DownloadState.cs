@@ -1,6 +1,6 @@
 ﻿namespace MultithreadDownload.Downloads
 {
-    public enum DownloadTaskState
+    public enum DownloadState
     {
         Waiting = 0,
         Downloading = 1,

@@ -19,7 +19,7 @@ namespace MultithreadDownload.Threading
         /// <summary>
         /// The state of the download thread. This indicates whether the thread is running, paused, or stopped.
         /// </summary>
-        public DownloadTaskState State { get; internal set; }
+        public DownloadState State { get; internal set; }
 
         /// <summary>
         /// The download context that contains information about the download operation.
@@ -149,7 +149,7 @@ namespace MultithreadDownload.Threading
         /// Sets the state of the download thread.
         /// </summary>
         /// <param name="taskState">The state of task to set.</param>
-        public void SetState(DownloadTaskState taskState)
+        public void SetState(DownloadState taskState)
         {
             // Set the state of the download thread
             State = taskState;

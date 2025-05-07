@@ -171,8 +171,8 @@ namespace MultithreadDownload.Protocols
             // If still failed, return a failure result with the error message.
             int readBytesCount = 0;
             byte[] fileBytes = new byte[4096];
-            downloadThread.SetState(DownloadTaskState.Downloading);
-            for (int tryCount = 0; tryCount < MAX_RETRY && downloadThread.State == DownloadTaskState.Downloading; tryCount++)
+            downloadThread.SetState(DownloadState.Downloading);
+            for (int tryCount = 0; tryCount < MAX_RETRY && downloadThread.State == DownloadState.Downloading; tryCount++)
             {
                 try
                 {

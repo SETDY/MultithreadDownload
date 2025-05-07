@@ -51,7 +51,7 @@ namespace MultithreadDownload.UnitTests.Schedulers
             // Assert
             result.IsSuccess.Should().BeTrue();
             result.Value.Should().BeTrue();
-            scheduler.GetTasks()[0].State.Should().Be(DownloadTaskState.Cancelled);
+            scheduler.GetTasks()[0].State.Should().Be(DownloadState.Cancelled);
         }
 
         [Fact]
@@ -70,7 +70,7 @@ namespace MultithreadDownload.UnitTests.Schedulers
             // Assert
             result.IsSuccess.Should().BeTrue();
             result.Value.Should().BeTrue();
-            scheduler.GetTasks().ToList().ForEach(t => t.State.Should().Be(DownloadTaskState.Cancelled));
+            scheduler.GetTasks().ToList().ForEach(t => t.State.Should().Be(DownloadState.Cancelled));
         }
 
         [Fact]
@@ -112,8 +112,8 @@ namespace MultithreadDownload.UnitTests.Schedulers
             // Assert
             result.IsSuccess.Should().BeTrue();
             // The allocator task status should be running
-            FieldInfo allocator = scheduler.GetType().GetField("s_allocator", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-                ?? throw new InvalidOperationException("Field 's_allocator' not found.");
+            FieldInfo allocator = scheduler.GetType().GetField("_allocator", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                ?? throw new InvalidOperationException("Field '_allocator' not found.");
             allocator.GetValue(scheduler).As<Task>().Status.Should().Be(TaskStatus.Running);
         }
     }

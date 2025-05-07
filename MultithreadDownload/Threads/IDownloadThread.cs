@@ -24,7 +24,7 @@ namespace MultithreadDownload.Threads
         /// <summary>
         /// The current state of the download thread.
         /// </summary>
-        DownloadTaskState State { get; }
+        DownloadState State { get; }
 
         /// <summary>
         /// The status of the download thread.
@@ -68,7 +68,7 @@ namespace MultithreadDownload.Threads
 
         void SetProgresser(IProgress<sbyte> progresser);
 
-        internal void SetState(DownloadTaskState state);
+        internal void SetState(DownloadState state);
 
         void SetDownloadProgress(sbyte progress);
 
