@@ -14,7 +14,7 @@ namespace MultithreadDownload.UnitTests.Tasks
             var monitor = new DownloadSpeedMonitor();
             var tcs = new TaskCompletionSource<string>();
 
-            monitor.SpeedUpdated += speed => tcs.TrySetResult(speed);
+            monitor.OnSpeedUpdated += speed => tcs.TrySetResult(speed);
             monitor.Start(() => downloadedBytes);
 
             // Simulate 512 bytes download and wait about 1 second
@@ -36,7 +36,7 @@ namespace MultithreadDownload.UnitTests.Tasks
             var monitor = new DownloadSpeedMonitor();
             var tcs = new TaskCompletionSource<string>();
 
-            monitor.SpeedUpdated += speed => tcs.TrySetResult(speed);
+            monitor.OnSpeedUpdated += speed => tcs.TrySetResult(speed);
             monitor.Start(() => downloadedBytes);
 
             // Simulate 5 MiB download and wait about 1 second
@@ -60,7 +60,7 @@ namespace MultithreadDownload.UnitTests.Tasks
             var tcsThird = new TaskCompletionSource<string>();
 
             int count = 0;
-            monitor.SpeedUpdated += speed =>
+            monitor.OnSpeedUpdated += speed =>
             {
                 count++;
                 if (count == 2)
@@ -104,7 +104,7 @@ namespace MultithreadDownload.UnitTests.Tasks
 
             monitor.Start(() => downloadedBytes);
 
-            monitor.SpeedUpdated += speed =>
+            monitor.OnSpeedUpdated += speed =>
             {
                 eventRaised = true;
             };
@@ -129,7 +129,7 @@ namespace MultithreadDownload.UnitTests.Tasks
 
             monitor.Start(() => downloadedBytes);
 
-            monitor.SpeedUpdated += speed =>
+            monitor.OnSpeedUpdated += speed =>
             {
                 tcs.TrySetResult(speed);
             };

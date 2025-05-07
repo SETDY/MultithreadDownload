@@ -20,10 +20,10 @@ namespace MultithreadDownload.Utils
         /// 1. Althought it is recommended to use a single instance of HttpClient for the lifetime of the application,
         /// the class will be use a specific instance of HttpClient which is only for this class
         /// becase the <see cref="MultithreadDownload.Protocols.HttpClientPool"/> which now used has been use for download file.
-        /// 2. Since the timeout of <see cref="s_client"/> has been controlled by cts in the methods,
-        /// the default timeout of <see cref="s_client"/> is set to infinite.
+        /// 2. Since the timeout of <see cref="_client"/> has been controlled by cts in the methods,
+        /// the default timeout of <see cref="_client"/> is set to infinite.
         /// </remarks>
-        private static readonly HttpClient s_client = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+        private static readonly HttpClient _client = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
 
         #region Winapi
 
@@ -72,7 +72,7 @@ namespace MultithreadDownload.Utils
             {
                 try
                 {
-                    HttpResponseMessage response = s_client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token).Result;
+                    HttpResponseMessage response = _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token).Result;
                     return response.IsSuccessStatusCode;
                 }
                 catch (Exception)
@@ -114,7 +114,7 @@ namespace MultithreadDownload.Utils
                 HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Head, link);
                 using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
                 {
-                    HttpResponseMessage response = await s_client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
+                    HttpResponseMessage response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
                     return response.StatusCode;
                 }
             }
@@ -157,7 +157,7 @@ namespace MultithreadDownload.Utils
             {
                 using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(60)))
                 {
-                    long fileSize = (await s_client.SendAsync(new HttpRequestMessage(HttpMethod.Head, link), cts.Token))
+                    long fileSize = (await _client.SendAsync(new HttpRequestMessage(HttpMethod.Head, link), cts.Token))
                         .Content.Headers.ContentLength ?? 0;
 
                     if (fileSize < 0) { return Result<long>.Failure("Failed to get the file size."); }

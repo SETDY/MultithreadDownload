@@ -6,10 +6,10 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
 {
     public class LocalHttpFileServer
     {
-        private readonly HttpListener s_listener = new();
-        private readonly string s_baseFilePath;
-        private readonly string s_url;
-        private readonly bool s_noRange;
+        private readonly HttpListener _listener = new();
+        private readonly string _baseFilePath;
+        private readonly string _url;
+        private readonly bool _noRange;
 
         /// <summary>
         /// The initialization of the local HTTP file server.
@@ -22,9 +22,9 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
         /// </remarks>
         public LocalHttpFileServer(string prefixUrl, string filePath)
         {
-            s_url = prefixUrl;
-            s_baseFilePath = filePath;
-            s_listener.Prefixes.Add(prefixUrl);
+            _url = prefixUrl;
+            _baseFilePath = filePath;
+            _listener.Prefixes.Add(prefixUrl);
         }
 
         /// <summary>
@@ -39,10 +39,10 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
         /// </remarks>
         public LocalHttpFileServer(string prefixUrl, string filePath, bool noRange)
         {
-            s_url = prefixUrl;
-            s_baseFilePath = filePath;
-            s_listener.Prefixes.Add(prefixUrl);
-            s_noRange = noRange;
+            _url = prefixUrl;
+            _baseFilePath = filePath;
+            _listener.Prefixes.Add(prefixUrl);
+            _noRange = noRange;
         }
 
         /// <summary>
@@ -50,14 +50,14 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
         /// </summary>
         public void Start()
         {
-            s_listener.Start();
+            _listener.Start();
             Task.Run(() => HandleRequests());
         }
 
         /// <summary>
         /// Stop the local HTTP file server.
         /// </summary>
-        public void Stop() => s_listener.Stop();
+        public void Stop() => _listener.Stop();
 
         /// <summary>
         /// Handle the requests from the HTTP server.
@@ -65,17 +65,17 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
         /// <returns>The asynchronous operation.</returns>
         private async Task HandleRequests()
         {
-            while (s_listener.IsListening)
+            while (_listener.IsListening)
             {
                 try
                 {
-                    HttpListenerContext context = await s_listener.GetContextAsync();
+                    HttpListenerContext context = await _listener.GetContextAsync();
                     HttpListenerRequest request = context.Request;
                     HttpListenerResponse response = context.Response;
 
                     if (response == null) { continue; }
 
-                    var buffer = File.ReadAllBytes(s_baseFilePath);
+                    var buffer = File.ReadAllBytes(_baseFilePath);
                     response.AddHeader("Accept-Ranges", "bytes");
 
                     if (HandleRequest_HEAD(request, response, buffer)) { continue; }

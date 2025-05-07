@@ -14,22 +14,22 @@ namespace MultithreadDownload.Core
         /// <summary>
         /// The scheduler that manages the download tasks.
         /// </summary>
-        private readonly IDownloadTaskScheduler s_taskScheduler;
+        private readonly IDownloadTaskScheduler _taskScheduler;
 
         /// <summary>
         /// The download service used to perform the downloads.
         /// </summary>
-        private readonly IDownloadService s_downloadService;
+        private readonly IDownloadService _downloadService;
 
         /// <summary>
         /// The maximum number of parallel tasks that can be executed at the same time.
         /// </summary>
-        private readonly byte s_maxParallelTasks;
+        private readonly byte _maxParallelTasks;
 
         /// <summary>
         /// The work provider used to manage the download tasks.
         /// </summary>
-        private readonly IDownloadTaskWorkProvider s_workProvider;
+        private readonly IDownloadTaskWorkProvider _workProvider;
 
         /// <summary>
         /// Event raised when the progress of the task queue changes.
@@ -56,10 +56,10 @@ namespace MultithreadDownload.Core
             ValidateParameters(downloadService);
 
             // Initialize the properties
-            s_downloadService = downloadService;
-            s_maxParallelTasks = maxParallelTasks;
-            s_workProvider = workProvider;
-            s_taskScheduler = new DownloadTaskScheduler(s_maxParallelTasks, s_downloadService, s_workProvider);
+            _downloadService = downloadService;
+            _maxParallelTasks = maxParallelTasks;
+            _workProvider = workProvider;
+            _taskScheduler = new DownloadTaskScheduler(_maxParallelTasks, _downloadService, _workProvider);
 
             HookEvents();
         }
@@ -75,10 +75,10 @@ namespace MultithreadDownload.Core
         public MultiDownload(byte maxParallelTasks, DownloadServiceType serviceType)
         {
             // Initialize the properties
-            s_downloadService = DownloadServiceFactory.CreateService(serviceType);
-            s_maxParallelTasks = maxParallelTasks;
-            s_workProvider = new DownloadTaskWorkProvider();
-            s_taskScheduler = new DownloadTaskScheduler(s_maxParallelTasks, s_downloadService, s_workProvider);
+            _downloadService = DownloadServiceFactory.CreateService(serviceType);
+            _maxParallelTasks = maxParallelTasks;
+            _workProvider = new DownloadTaskWorkProvider();
+            _taskScheduler = new DownloadTaskScheduler(_maxParallelTasks, _downloadService, _workProvider);
 
             HookEvents();
         }
@@ -99,8 +99,8 @@ namespace MultithreadDownload.Core
 
         private void HookEvents()
         {
-            s_taskScheduler.TaskQueueProgressChanged += (s, e) => TaskQueueProgressChanged?.Invoke(this, e);
-            s_taskScheduler.TasksProgressCompleted += (s, e) => TasksProgressCompleted?.Invoke(this, EventArgs.Empty);
+            _taskScheduler.TaskQueueProgressChanged += (s, e) => TaskQueueProgressChanged?.Invoke(this, e);
+            _taskScheduler.TasksProgressCompleted += (s, e) => TasksProgressCompleted?.Invoke(this, EventArgs.Empty);
         }
 
         #endregion Private Methods
@@ -112,7 +112,7 @@ namespace MultithreadDownload.Core
         /// </summary>
         public void StartAllocator()
         {
-            s_taskScheduler.Start();
+            _taskScheduler.Start();
         }
 
         /// <summary>
@@ -120,7 +120,7 @@ namespace MultithreadDownload.Core
         /// </summary>
         public void StopAllocator()
         {
-            s_taskScheduler.Stop();
+            _taskScheduler.Stop();
         }
 
         #endregion Allocator Methods
@@ -129,7 +129,7 @@ namespace MultithreadDownload.Core
 
         public DownloadTask[] GetDownloadTasks()
         {
-            return s_taskScheduler.GetTasks();
+            return _taskScheduler.GetTasks();
         }
 
         /// <summary>
@@ -143,26 +143,26 @@ namespace MultithreadDownload.Core
                 throw new ArgumentNullException(nameof(downloadContext));
             }
             // TODO: Validate the download context whether it matches the download service
-            s_taskScheduler.AddTask(downloadContext);
+            _taskScheduler.AddTask(downloadContext);
         }
 
         /// <summary>
         /// Pause a download tasks.
         /// </summary>
         /// <param name="taskId">The ID of the task to pause.</param>
-        public void PauseTask(Guid taskId) => s_taskScheduler.PauseTask(taskId);
+        public void PauseTask(Guid taskId) => _taskScheduler.PauseTask(taskId);
 
         /// <summary>
         /// Resume a download tasks.
         /// </summary>
         /// <param name="taskId">The ID of the task to resume.</param>
-        public void ResumeTask(Guid taskId) => s_taskScheduler.ResumeTask(taskId);
+        public void ResumeTask(Guid taskId) => _taskScheduler.ResumeTask(taskId);
 
         /// <summary>
         /// Cancel a download tasks.
         /// </summary>
         /// <param name="taskId">The ID of the task to cancel.</param>
-        public void Cancel(Guid taskId) => s_taskScheduler.CancelTask(taskId);
+        public void Cancel(Guid taskId) => _taskScheduler.CancelTask(taskId);
 
         #endregion Task Management Methods
 
@@ -171,7 +171,7 @@ namespace MultithreadDownload.Core
         /// </summary>
         public void Dispose()
         {
-            s_taskScheduler.Dispose();
+            _taskScheduler.Dispose();
         }
     }
 }

@@ -22,6 +22,6 @@ namespace MultithreadDownload.Tasks
         /// Gets the current download speed which is automatically converted to any suitable unit.
         /// e.g. KiB/s, MiB/s, GiB/s, etc.
         /// </summary>
-        event Action<string> SpeedUpdated;
+        event Action<string> OnSpeedUpdated;
     }
 }

@@ -17,7 +17,7 @@ namespace MultithreadDownload.Schedulers
         /// <summary>
         /// The queue of tasks to be executed.
         /// </summary>
-        private readonly BlockingCollection<DownloadTask> s_taskQueue = new BlockingCollection<DownloadTask>();
+        private readonly BlockingCollection<DownloadTask> _taskQueue = new BlockingCollection<DownloadTask>();
 
         /// <summary>
         /// The semaphore that limits the number of concurrent downloads.
@@ -25,21 +25,21 @@ namespace MultithreadDownload.Schedulers
         /// <remarks>
         /// To prevent deadlocks, the semaphore is initialized with the maximum number of concurrent downloads.
         /// </remarks>
-        private readonly SemaphoreSlim s_downloadSlots;
+        private readonly SemaphoreSlim _downloadSlots;
 
         /// <summary>
         /// The task that allocates the download slots.
         /// </summary>
-        private readonly Task s_allocator;
+        private readonly Task _allocator;
 
-        private readonly CancellationTokenSource s_allocatorTokenSource = new CancellationTokenSource();
+        private readonly CancellationTokenSource _allocatorTokenSource = new CancellationTokenSource();
 
-        private readonly IDownloadService s_downloadService;
+        private readonly IDownloadService _downloadService;
 
         /// <summary>
         /// The provider that provides the work for the download tasks.
         /// </summary>
-        private readonly IDownloadTaskWorkProvider s_workProvider;
+        private readonly IDownloadTaskWorkProvider _workProvider;
 
         /// <summary>
         /// The number of maximum concurrent downloads.
@@ -64,22 +64,22 @@ namespace MultithreadDownload.Schedulers
         {
             // Initialize the properties
             this.MaxParallelTasks = maxDownloadingTasks;
-            s_downloadSlots = new SemaphoreSlim(this.MaxParallelTasks);
-            s_workProvider = workProvider;
-            s_downloadService = downloadService;
+            _downloadSlots = new SemaphoreSlim(this.MaxParallelTasks);
+            _workProvider = workProvider;
+            _downloadService = downloadService;
 
             // Initialize the allocator task
             // If there are no tasks in the queue, the allocator task will wait for a task to be added.
             // If there are enough slots available, the allocator task will start the task.
             // The process will continue until the software is stopped or the client invokes the Stop method.
-            this.s_allocator = new Task(() =>
+            this._allocator = new Task(() =>
             {
-                foreach (DownloadTask task in s_taskQueue.GetConsumingEnumerable(s_allocatorTokenSource.Token))
+                foreach (DownloadTask task in _taskQueue.GetConsumingEnumerable(_allocatorTokenSource.Token))
                 {
                     // The download slots -1 if there is available solt and force start the task
                     // Otherwise, block the task to wait
-                    this.s_downloadSlots.Wait(s_allocatorTokenSource.Token);
-                    task.Start(s_workProvider, s_downloadService);
+                    this._downloadSlots.Wait(_allocatorTokenSource.Token);
+                    task.Start(_workProvider, _downloadService);
                 }
             }, TaskCreationOptions.LongRunning);
         }
@@ -100,12 +100,12 @@ namespace MultithreadDownload.Schedulers
             // Since the allocator cannot be cancel by the token when it has not been started,
             // skip the dispose if the allocator is not started.
             // For the allocator task which does not start, it will be recycled by the GC.
-            if (s_allocator.Status != TaskStatus.Created)
+            if (_allocator.Status != TaskStatus.Created)
             {
-                s_allocator.Dispose();
+                _allocator.Dispose();
             }
-            s_taskQueue?.Dispose();
-            s_downloadSlots?.Dispose();
+            _taskQueue?.Dispose();
+            _downloadSlots?.Dispose();
         }
 
         #region Methods of task allocator
@@ -120,8 +120,8 @@ namespace MultithreadDownload.Schedulers
         public Result<bool> Start()
         {
             //TODO: There is a problem which is the if statement cannot prevent the task from starting again.
-            if (s_allocator.Status == TaskStatus.Running) { Result<bool>.Failure("The allocator is already started."); }
-            s_allocator.Start();
+            if (_allocator.Status == TaskStatus.Running) { Result<bool>.Failure("The allocator is already started."); }
+            _allocator.Start();
             return Result<bool>.Success(true);
         }
 
@@ -135,8 +135,8 @@ namespace MultithreadDownload.Schedulers
         public Result<bool> Stop()
         {
             // Cancel the allocator task
-            if (s_allocator.Status != TaskStatus.Canceled) { Result<bool>.Failure("The allocator is already stop."); }
-            s_allocatorTokenSource.Cancel();
+            if (_allocator.Status != TaskStatus.Canceled) { Result<bool>.Failure("The allocator is already stop."); }
+            _allocatorTokenSource.Cancel();
             return Result<bool>.Success(true);
         }
 
@@ -158,11 +158,11 @@ namespace MultithreadDownload.Schedulers
                 // The download slots +1
                 // Invoke the event when the task is completed
                 // Add an if statement to prevent the event is invoked when it is null.
-                this.s_downloadSlots.Release();
+                this._downloadSlots.Release();
                 if (this.TasksProgressCompleted != null)
                     this.TasksProgressCompleted.Invoke(task, new DownloadDataEventArgs(task));
             };
-            this.s_taskQueue.Add(task);
+            this._taskQueue.Add(task);
             // Add an if statement to prevent the event is invoked when it is null.
             if (this.TaskQueueProgressChanged != null)
                 this.TaskQueueProgressChanged.Invoke(task, new DownloadDataEventArgs(task));
@@ -182,7 +182,7 @@ namespace MultithreadDownload.Schedulers
                     // The download slots +1
                     // Invoke the event when the task is completed
                     // Add an if statement to prevent the event is invoked when it is null.
-                    this.s_downloadSlots.Release();
+                    this._downloadSlots.Release();
                     if (this.TasksProgressCompleted != null)
                         this.TasksProgressCompleted.Invoke(task, new DownloadDataEventArgs(task));
                 }
@@ -191,7 +191,7 @@ namespace MultithreadDownload.Schedulers
                     Debug.WriteLine("Unexpected error when invoking the event of task completed.");
                 }
             };
-            this.s_taskQueue.Add(task);
+            this._taskQueue.Add(task);
         }
 
         /// <summary>
@@ -200,7 +200,7 @@ namespace MultithreadDownload.Schedulers
         /// <returns>All tasks in the queue.</returns>
         public DownloadTask[] GetTasks()
         {
-            return s_taskQueue.ToArray();
+            return _taskQueue.ToArray();
         }
 
         /// <summary>
@@ -211,7 +211,7 @@ namespace MultithreadDownload.Schedulers
         {
             // If the task is downloading, pause the task that satisfies taskID
             // Otherwise, return failure result.
-            foreach (DownloadTask task in this.s_taskQueue)
+            foreach (DownloadTask task in this._taskQueue)
             {
                 if (task.ID == taskID && task.State != DownloadTaskState.Cancelled && task.State != DownloadTaskState.Completed)
                 {
@@ -230,7 +230,7 @@ namespace MultithreadDownload.Schedulers
         {
             // If the task is downloading, resume the task that satisfies taskID
             // Otherwise, return failure result.
-            foreach (DownloadTask task in this.s_taskQueue)
+            foreach (DownloadTask task in this._taskQueue)
             {
                 if (task.ID == taskID && task.State == DownloadTaskState.Paused)
                 {
@@ -249,7 +249,7 @@ namespace MultithreadDownload.Schedulers
         {
             // If the task is downloading, cancel the task that satisfies taskID
             // Otherwise, return failure result.
-            foreach (DownloadTask task in this.s_taskQueue)
+            foreach (DownloadTask task in this._taskQueue)
             {
                 if (task.ID == taskID)
                 {

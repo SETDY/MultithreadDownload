@@ -210,7 +210,7 @@ namespace MultithreadDownload.Utils
         /// <param name="segmentCount">The number of segments to split the file into.</param>
         /// <returns></returns>
         /// <exception cref="ArgumentException"></exception>
-        public static Result<long[,]> GetFileSegments(long fileSize, int segmentCount)
+        public static Result<long[,]> CalculateFileSegmentRanges(long fileSize, int segmentCount)
         {
             // Validate the input parameters => the file size and segment count must be greater than zero
             if (fileSize <= 0 || segmentCount <= 0) { return Result<long[,]>.Failure("File size and segment count must be greater than zero."); }

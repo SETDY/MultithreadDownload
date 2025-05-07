@@ -136,6 +136,7 @@ namespace MultithreadDownload.Tasks
                     Result<Stream> result = workProvider.GetTaskFinalStream(this.DownloadContext);
                     if (!result.IsSuccess) { throw new Exception("GetTaskFinalStream failed"); }
                     workProvider.Execute_FinalizeWork(result.Value, downloadService, this);
+                    _state = DownloadTaskState.Completed;
                 }
                 catch (Exception ex)
                 {

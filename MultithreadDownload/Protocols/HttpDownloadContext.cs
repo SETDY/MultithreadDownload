@@ -90,7 +90,7 @@ namespace MultithreadDownload.Protocols
                     new HttpDownloadContext(targetPath, link, new long[,] { { 0, 0 } }));
             }
             // Get download size for each download thread
-            Result<long[,]> segmentRanges = FileSegmentHelper.GetFileSegments(fileSize.Value, maxParallelThreads);
+            Result<long[,]> segmentRanges = FileSegmentHelper.CalculateFileSegmentRanges(fileSize.Value, maxParallelThreads);
             if (!segmentRanges.IsSuccess)
             {
                 Result<HttpDownloadContext>.Failure($"Failed to get file segments. Message:{segmentRanges.ErrorMessage}");

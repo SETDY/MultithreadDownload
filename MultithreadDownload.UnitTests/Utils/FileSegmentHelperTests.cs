@@ -15,7 +15,7 @@ namespace MultithreadDownload.UnitTests.Utils
             int segmentCount = 4;
 
             // Act
-            Result<long[,]> result = FileSegmentHelper.GetFileSegments(fileSize, segmentCount);
+            Result<long[,]> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
 
             // Assert => Whether the processing is successful.
             result.IsSuccess.Should().BeTrue();
@@ -38,7 +38,7 @@ namespace MultithreadDownload.UnitTests.Utils
             int segmentCount = 4;
 
             // Act
-            Result<long[,]> result = FileSegmentHelper.GetFileSegments(fileSize, segmentCount);
+            Result<long[,]> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
 
             // Assert => Whether the processing is successful.
             result.IsSuccess.Should().BeTrue();
@@ -62,7 +62,7 @@ namespace MultithreadDownload.UnitTests.Utils
             int segmentCount = 4;
 
             // Act
-            Result<long[,]> result = FileSegmentHelper.GetFileSegments(fileSize, segmentCount);
+            Result<long[,]> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
 
             // Assert => Whether the processing is failed.
             result.IsSuccess.Should().BeFalse();
@@ -82,7 +82,7 @@ namespace MultithreadDownload.UnitTests.Utils
             int segmentCount = 0;
 
             // Act
-            Result<long[,]> result = FileSegmentHelper.GetFileSegments(fileSize, segmentCount);
+            Result<long[,]> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
 
             // Assert => Whether the processing is failed.
             result.IsSuccess.Should().BeFalse();
@@ -102,7 +102,7 @@ namespace MultithreadDownload.UnitTests.Utils
             int segmentCount = -54;
 
             // Act
-            Result<long[,]> result = FileSegmentHelper.GetFileSegments(fileSize, segmentCount);
+            Result<long[,]> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
 
             // Assert => Whether the processing is failed.
             result.IsSuccess.Should().BeFalse();
