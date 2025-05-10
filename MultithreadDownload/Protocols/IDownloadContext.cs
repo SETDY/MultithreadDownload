@@ -1,4 +1,5 @@
-﻿using MultithreadDownload.Utils;
+﻿using MultithreadDownload.CoreTypes.Failures;
+using MultithreadDownload.Utils;
 
 namespace MultithreadDownload.Protocols
 {
@@ -21,6 +22,6 @@ namespace MultithreadDownload.Protocols
         /// </remarks>
         public long[,] RangePositions { get; }
 
-        public Result<bool> IsPropertiesVaild();
+        public bool IsPropertiesVaild();
     }
 }

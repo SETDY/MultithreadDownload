@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MultithreadDownload.CoreTypes.Failures;
+using System;
 using System.Net;
 using System.Net.Http;
 using System.Runtime.InteropServices;
@@ -86,14 +87,15 @@ namespace MultithreadDownload.Utils
         /// Checks if the given URL is valid and can be connected.
         /// </summary>
         /// <returns>Whether the http link can be connected</returns>
-        public static Result<bool> IsVaildHttpLink(string link)
+        public static bool IsVaildHttpLink(string link)
         {
             // If the link is null or empty, return a failure result.
             // Otherwise, use Regex to check if the link is valid.
             if (string.IsNullOrEmpty(link))
-                return Result<bool>.Failure("The link is null or empty.");
+                // Because the link cannot be null or empty
+                return false;
             Regex regex = new Regex("https?://");
-            return Result<bool>.Success(regex.IsMatch(link));
+            return regex.IsMatch(link);
         }
 
         /// <summary>
@@ -131,12 +133,11 @@ namespace MultithreadDownload.Utils
         /// <returns>Whether the link can be connected</returns>
         public static async Task<bool> LinkCanConnectionAsync(string link)
         {
-            Result<bool> primaryResult = IsVaildHttpLink(link);
-            // Note: There should be use primaryResult.Value instead of primaryResult.IsSuccess
+            bool primaryTest = IsVaildHttpLink(link);
+            // Note: There should be use primaryResult.SuccessValue instead of primaryResult.IsSuccess
             //       because the IsSuccess only check if IsVaildHttpLink() is success,
             //       but not check if the link is valid.
-            if (!primaryResult.Value) { return false; }
-            if (!IsConnectedInternet()) { return false; }
+            if (!primaryTest && !IsConnectedInternet()) { return false; }
             if (await GetWebStatusCodeAsync(link) != HttpStatusCode.OK) { return false; }
             return true;
         }
@@ -146,13 +147,14 @@ namespace MultithreadDownload.Utils
         /// </summary>
         /// <param name="link">The link you want to get the file size</param>
         /// <returns>The file size of the link as bytes</returns>
-        public static async Task<Result<long>> GetLinkFileSizeAsync(string link)
+        public static async Task<Result<long, DownloadFailure>> GetLinkFileSizeAsync(string link)
         {
             // If the link is null or empty, return 0.
             // Otherwise, send a HEAD request to the URL to get the file size and return its file size.
             // If the request takes longer than 2 seconds, cancel it.
             // If the request fails, return Failure.
-            if (string.IsNullOrEmpty(link)) { return Result<long>.Failure($"{link} cannot be null or emprt."); }
+            if (!IsVaildHttpLink(link))
+                return Result<long, DownloadFailure>.Failure(new DownloadFailure(DownloadFailureReason.InvalidUrl, "The link is not a valid for connecting."));
             try
             {
                 using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(60)))
@@ -160,13 +162,20 @@ namespace MultithreadDownload.Utils
                     long fileSize = (await _client.SendAsync(new HttpRequestMessage(HttpMethod.Head, link), cts.Token))
                         .Content.Headers.ContentLength ?? 0;
 
-                    if (fileSize < 0) { return Result<long>.Failure("Failed to get the file size."); }
-                    return Result<long>.Success(fileSize);
+                    // If the file size is negative, it means that the server does not support the HEAD request.
+                    if (fileSize < 0)
+                        return Result<long, DownloadFailure>.Failure(new DownloadFailure(DownloadFailureReason.CannotGetFileSize, "Cannot get the file size of the link"));
+                    // Otherwise, return the file size.
+                    return Result<long, DownloadFailure>.Success(fileSize);
                 }
             }
-            catch (Exception)
+            catch (OperationCanceledException ex)
             {
-                return Result<long>.Failure("Failed to get the file size.");
+                return Result<long, DownloadFailure>.Failure(new DownloadFailure(DownloadFailureReason.ConnectionTimeout, "The connection to the server timed out.", ex));
+            }
+            catch (Exception ex)
+            {
+                return Result<long, DownloadFailure>.Failure(new DownloadFailure(DownloadFailureReason.UnexpectedFailure, "An unexpected failure occurred when getting the file size of the link", ex));
             }
         }
     }

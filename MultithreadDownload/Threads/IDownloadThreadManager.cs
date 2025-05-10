@@ -1,4 +1,5 @@
-﻿using MultithreadDownload.Threads;
+﻿using MultithreadDownload.CoreTypes.Failures;
+using MultithreadDownload.Threads;
 using MultithreadDownload.Utils;
 using System;
 using System.Collections.Generic;
@@ -25,7 +26,7 @@ namespace MultithreadDownload.Threading
 
         void Cancel();
 
-        Result<bool> CreateThread(Action<Stream, Stream, IDownloadThread> mainWork);
+        Result<bool, DownloadThreadFailure> CreateThread(Action<Stream, Stream, IDownloadThread> mainWork);
 
         IEnumerable<IDownloadThread> GetThreads();
     }

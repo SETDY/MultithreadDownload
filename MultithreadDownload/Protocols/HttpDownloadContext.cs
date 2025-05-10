@@ -1,4 +1,6 @@
-﻿using MultithreadDownload.Utils;
+﻿using MultithreadDownload.CoreTypes.Failures;
+using MultithreadDownload.Utils;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace MultithreadDownload.Protocols
@@ -8,6 +10,7 @@ namespace MultithreadDownload.Protocols
     /// </summary>
     public class HttpDownloadContext : IDownloadContext
     {
+        #region Properties
         /// <summary>
         /// The target path where the downloaded file will be saved.
         /// </summary>
@@ -30,8 +33,15 @@ namespace MultithreadDownload.Protocols
         /// The URL of the file to be downloaded.
         /// </summary>
         public string Url { get; set; }
+        #endregion
 
-        public HttpDownloadContext(string targetPath, string url, long[,] rangePositions)
+        /// <summary>
+        /// Initializes a new instance of the <see cref="HttpDownloadContext"/> class.
+        /// </summary>
+        /// <param name="targetPath">The target path where the downloaded file will be saved.</param>
+        /// <param name="url">The URL of the file to be downloaded.</param>
+        /// <param name="rangePositions">The range positions for each download thread.</param>
+        private HttpDownloadContext(string targetPath, string url, long[,] rangePositions)
         {
             // Initialize the properties
             this.TargetPath = targetPath;
@@ -40,29 +50,22 @@ namespace MultithreadDownload.Protocols
             this.CompletedSize = 0;
         }
 
-        public Result<bool> IsPropertiesVaild()
+        /// <summary>
+        /// Checks if the properties of the HttpDownloadContext are valid.
+        /// </summary>
+        /// <returns>Whether the properties are valid or not.</returns>
+        public bool IsPropertiesVaild()
         {
             // Check if the target path is valid
-            if (string.IsNullOrEmpty(TargetPath))
+            if (string.IsNullOrEmpty(TargetPath) || string.IsNullOrEmpty(Url) || 
+                !HttpNetworkHelper.LinkCanConnectionAsync(this.Url).Result || RangePositions == null)
             {
-                return Result<bool>.Failure("Target path is not valid.");
+                // Because the target path cannot be null or empty, 
+                // the URL cannot be null or empty and it has to been connected,
+                // the range start and offset cannot be null.
+                return false;
             }
-            // Check if the URL is valid
-            if (string.IsNullOrEmpty(Url) || !(HttpNetworkHelper.LinkCanConnectionAsync(this.Url).Result))
-            {
-                return Result<bool>.Failure("URL is not valid.");
-            }
-            // Check if the range start and offset are valid
-            if (this.RangePositions == null)
-            {
-                return Result<bool>.Failure("Range position cannot be null");
-            }
-            return Result<bool>.Success(true);
-        }
-
-        public void SetCompletedSize(long size)
-        {
-            this.CompletedSize = size;
+            return true;
         }
 
         /// <summary>
@@ -77,26 +80,31 @@ namespace MultithreadDownload.Protocols
         /// Therefore, <see cref="GetDownloadContext"/> method returns a <see cref="Result{T}"/> object
         /// to indicate success or failure and remind the caller to check the result.
         /// </remarks>
-        public static async Task<Result<HttpDownloadContext>> GetDownloadContext(byte maxParallelThreads, string targetPath, string link)
+        public static async Task<Result<HttpDownloadContext, DownloadFailure>> GetDownloadContext(byte maxParallelThreads, string targetPath, string link)
         {
-            Result<long> fileSize = await HttpNetworkHelper.GetLinkFileSizeAsync(link);
-            if (!fileSize.IsSuccess) { return Result<HttpDownloadContext>.Failure($"Cannot get file size from {link}"); }
+            // Get the final file path by using the PathHelper class to prevent the repetition of file names
+            string finalFilePath = PathHelper.GetUniqueFileName(PathHelper.GetDirectoryNameSafe(targetPath), Path.GetFileName(targetPath));
 
-            // Since GetFileSegments() method requires a file size greater than 0,
-            // this if case is used to handle the case where the file size is 0
-            if (fileSize.Value == 0)
+            Result<long[,], DownloadFailure> fileSegmentRanges = (await HttpNetworkHelper.GetLinkFileSizeAsync(link)).AndThen(fileSize =>
             {
-                return Result<HttpDownloadContext>.Success(
-                    new HttpDownloadContext(targetPath, link, new long[,] { { 0, 0 } }));
-            }
-            // Get download size for each download thread
-            Result<long[,]> segmentRanges = FileSegmentHelper.CalculateFileSegmentRanges(fileSize.Value, maxParallelThreads);
-            if (!segmentRanges.IsSuccess)
+                return FileSegmentHelper.CalculateFileSegmentRanges(fileSize, maxParallelThreads);
+            });
+
+            if (fileSegmentRanges.IsSuccess)
+                // Get download size for each download thread
+                return Result<HttpDownloadContext, DownloadFailure>.Success(
+                    new HttpDownloadContext(targetPath, link, fileSegmentRanges.SuccessValue.Value));
+
+            // Return a failure.
+            switch (fileSegmentRanges.FailureReason.Value.Kind)
             {
-                Result<HttpDownloadContext>.Failure($"Failed to get file segments. Message:{segmentRanges.ErrorMessage}");
+                case DownloadFailureReason.InvalidUrl:
+                    return Result<HttpDownloadContext, DownloadFailure>.Failure(new DownloadFailure(DownloadFailureReason.InvalidUrl, "The link is not a valid for connecting."));
+                case DownloadFailureReason.CannotGetFileSize:
+                    return Result<HttpDownloadContext, DownloadFailure>.Failure(new DownloadFailure(DownloadFailureReason.CannotGetFileSize, "Cannot get the file size."));
+                default:
+                    return Result<HttpDownloadContext, DownloadFailure>.Failure(new DownloadFailure(DownloadFailureReason.UnexpectedFailure, "An unexpected error occurred."));
             }
-            return Result<HttpDownloadContext>.Success(
-                new HttpDownloadContext(targetPath, link, segmentRanges.Value));
         }
     }
 }

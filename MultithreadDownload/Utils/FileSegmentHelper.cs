@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MultithreadDownload.CoreTypes.Failures;
+using System;
 using System.IO;
 
 namespace MultithreadDownload.Utils
@@ -210,11 +211,17 @@ namespace MultithreadDownload.Utils
         /// <param name="segmentCount">The number of segments to split the file into.</param>
         /// <returns></returns>
         /// <exception cref="ArgumentException"></exception>
-        public static Result<long[,]> CalculateFileSegmentRanges(long fileSize, int segmentCount)
+        public static Result<long[,], DownloadFailure> CalculateFileSegmentRanges(long fileSize, int segmentCount)
         {
-            // Validate the input parameters => the file size and segment count must be greater than zero
-            if (fileSize <= 0 || segmentCount <= 0) { return Result<long[,]>.Failure("File size and segment count must be greater than zero."); }
+            // Validate the input parameters => the file size must be positive and the segment count must be greater than 0.
+            if (fileSize < 0 || segmentCount <= 0)
+                Result<long[,], DownloadFailure>.Failure(new DownloadFailure(DownloadFailureReason.UnexpectedFailure, "The file size cannot be negative and the segment count must be greater than 0."));
 
+            // If the file size is 0, return a 2D array with a single segment of size 0
+            if (fileSize == 0)
+                return Result<long[,], DownloadFailure>.Success(new long[,] { { 0,0} });
+
+            //Otherwise, caculate the segment size and the remaining bytes and return the result
             long[,] segments = new long[segmentCount, 2];
             long segmentSize = fileSize / segmentCount;
             long remainingBytes = fileSize % segmentCount;
@@ -235,7 +242,7 @@ namespace MultithreadDownload.Utils
                 segments[i, 1] = currentEnd;
                 currentStart = currentEnd + 1;
             }
-            return Result<long[,]>.Success(segments);
+            return Result<long[,], DownloadFailure>.Success(segments);
         }
     }
 }

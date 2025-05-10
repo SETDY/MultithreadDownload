@@ -1,11 +1,17 @@
-﻿using MultithreadDownload.Protocols;
+﻿using MultithreadDownload.CoreTypes.Failures;
+using MultithreadDownload.Protocols;
 using MultithreadDownload.Tasks;
 using MultithreadDownload.Utils;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Security;
 
 namespace MultithreadDownload.Schedulers
 {
+    /// <summary>
+    /// This class is used to build a relation between DownloadTask, DownloadThread and IDownloadService.
+    /// </summary>
     public class DownloadTaskWorkProvider : IDownloadTaskWorkProvider
     {
         /// <summary>
@@ -14,14 +20,27 @@ namespace MultithreadDownload.Schedulers
         /// <param name="downloadService"></param>
         /// <param name="task"></param>
         /// <returns></returns>
-        public Result<bool> Execute_MainWork(IDownloadService downloadService, DownloadTask task)
+        public Result<bool, DownloadProcessFailure> Execute_MainWork(IDownloadService downloadService, DownloadTask task)
         {
-            Result<Stream[]> inputStreams = downloadService.GetStreams(task.DownloadContext);
-            if (!inputStreams.IsSuccess) { return Result<bool>.Failure("GetStream failed"); }
-            Result<Stream[]> outputStreams = GetTaskStreams((byte)task.DownloadThreadManager.MaxParallelThreads, task.DownloadContext);
-            if (!outputStreams.IsSuccess) { return Result<bool>.Failure("GetTaskStreams failed"); }
-            task.DownloadThreadManager.Start(inputStreams.Value, outputStreams.Value);
-            return Result<bool>.Success(true);
+            // This method performs a sequence of potentially fallible operations using the Result<T, E> pattern:
+            // 1. It attempts to acquire the input streams needed to read from the remote source. This may fail due to network errors or invalid context.
+            // 2. If successful, it then attempts to create output streams for writing to the local target file, partitioned by download threads. This may also fail, e.g., due to file system access errors.
+            // 3. If both operations succeed, the method uses the DownloadThreadManager to start the download process using the paired input and output streams.
+            // 
+            // The use of chained AndThen and Map calls ensures that each step is only executed if the previous step was successful,
+            // avoiding nested conditionals and improving readability. Errors are automatically propagated without throwing exceptions,
+            // enabling a robust and testable error-handling workflow.
+            // 
+            // The method returns a Result<bool, DownloadProcessFailure> indicating either full success or the first encountered failure reason.
+            return downloadService.GetStreams(task.DownloadContext)
+                .AndThen(inputStreams =>
+                    GetTaskStreams((byte)task.DownloadThreadManager.MaxParallelThreads, task.DownloadContext.TargetPath)
+                    .Map(outputStreams =>
+                    {
+                        task.DownloadThreadManager.Start(inputStreams, outputStreams);
+                        return true;
+                    })
+                );
         }
 
         /// <summary>
@@ -30,19 +49,17 @@ namespace MultithreadDownload.Schedulers
         /// <param name="maxParallelThreads">The maximum number of parallel threads.</param>
         /// <param name="downloadContext">The download context to use.</param>
         /// <returns></returns>
-        private Result<Stream[]> GetTaskStreams(byte maxParallelThreads, IDownloadContext downloadContext)
+        private Result<Stream[], DownloadProcessFailure> GetTaskStreams(byte maxParallelThreads, IDownloadContext context)
         {
-            // Use GetUniqueFileName() to get a unique file name for the download context
-            // for preventing file name conflicts then create the file streams for each thread.
+            // Check whether the final file path is existed a file
+            // for preventing file conflicts then create the file streams for each thread.
             // Caution:
-            // Since Path.GetDirectoryName() will return null when the path is rooted,
+            // Since Path.GetDirectoryName() will return null when the path is rooted on Windows,
             // PathHelper.GetDirectoryNameSafe() must be used to prevent null reference exception
-            string safePath = PathHelper.GetUniqueFileName(
-                PathHelper.GetDirectoryNameSafe(downloadContext.TargetPath), Path.GetFileName(downloadContext.TargetPath));
-            Result<string[]> pathResult = FileSegmentHelper.SplitPaths(maxParallelThreads, safePath);
-            if (!pathResult.IsSuccess) { return Result<Stream[]>.Failure("SplitPaths failed"); }
-            Result<Stream[]> streamResult = CreateStreams(pathResult.Value);
-            if (!streamResult.IsSuccess) { return Result<Stream[]>.Failure("SplitPaths failed"); }
+            if (File.Exists(finalFilePath))
+                return Result<Stream[], DownloadProcessFailure>.Failure(new DownloadProcessFailure(DownloadProcessFailureReason.FileAlreadyExisted, $"{finalFilePath} is already existed.", null));
+            Result<string[], DownloadProcessFailure> pathResult = FileSegmentHelper.SplitPaths(maxParallelThreads, finalFilePath);
+            Result<Stream[], DownloadProcessFailure> streamResult = pathResult.AndThen<Stream[]>(CreateStreams);
             return streamResult;
         }
 
@@ -52,15 +69,13 @@ namespace MultithreadDownload.Schedulers
         /// <param name="maxParallelThreads"></param>
         /// <param name="downloadContext"></param>
         /// <returns></returns>
-        public Result<Stream> GetTaskFinalStream(IDownloadContext downloadContext)
+        public Result<Stream, DownloadProcessFailure> GetTaskFinalStream(IDownloadContext context)
         {
-            // Use GetUniqueFileName() to get a unique file name for the download context
-            // for preventing file name conflicts then create the file streams for each thread
-            string safePath = PathHelper.GetUniqueFileName(
-                PathHelper.GetDirectoryNameSafe(downloadContext.TargetPath), Path.GetFileName(downloadContext.TargetPath));
-            Result<Stream> streamResult = CreateStreams(safePath);
-            if (!streamResult.IsSuccess) { return Result<Stream>.Failure("SplitPaths failed"); }
-            return streamResult;
+            // Check whether the final file path is existed a file
+            // for preventing file conflicts then create the file streams for each thread.
+            if (File.Exists(finalFilePath))
+                return Result<Stream, DownloadProcessFailure>.Failure(new DownloadProcessFailure(DownloadProcessFailureReason.FileAlreadyExisted, $"{finalFilePath} is already existed.", null));
+            return CreateStream(finalFilePath);
         }
 
         /// <summary>
@@ -68,35 +83,55 @@ namespace MultithreadDownload.Schedulers
         /// </summary>
         /// <param name="threadPaths">The paths of the threads.</param>
         /// <returns>The result of the operation.</returns>
-        private Result<Stream[]> CreateStreams(string[] threadPaths)
+        private Result<Stream[], DownloadProcessFailure> CreateStreams(string[] threadPaths)
         {
-            // Create a stream for each thread path and return the streams in an array.
-            Stream[] streams = new Stream[threadPaths.Length];
-            try
+            // Using TryAll() to create all streams for each thread path which
+            // will return a result of the operation, including a list of streams.
+            // If the operation is failed, close all streams and return the failure.
+
+            List<Stream> streams = new List<Stream>(threadPaths.Length);
+
+            var result = Result<Stream, DownloadProcessFailure>.TryAll(threadPaths, path =>
             {
-                for (int i = 0; i < streams.Length; i++)
-                {
-                    streams[i] = new FileStream(threadPaths[i], FileMode.Create);
-                }
-            }
-            catch (Exception ex)
-            {
-                return Result<Stream[]>.Failure($"Create streams failed because {ex.Message}");
-            }
-            return Result<Stream[]>.Success(streams);
+                Result<Stream, DownloadProcessFailure> streamResult = CreateStream(path);
+
+                if (streamResult.IsSuccess)
+                    streams.Add(streamResult.SuccessValue.Value!);
+
+                return streamResult;
+            });
+            // If the result is failed, close all streams
+            result.MatchFailure(x => streams.ForEach(stream => stream?.Close()));
+            return result;
         }
 
-        private Result<Stream> CreateStreams(string finalPath)
+        /// <summary>
+        /// Create streams for each thread to write to.
+        /// </summary>
+        /// <param name="threadPath">The path of the threads.</param>
+        /// <returns>The result of the operation.</returns>
+        private Result<Stream, DownloadProcessFailure> CreateStream(string finalPath)
         {
             // Create a stream for the final path and return the stream.
             try
             {
-                Stream stream = new FileStream(finalPath, FileMode.Create);
-                return Result<Stream>.Success(stream);
+                Stream stream = new FileStream(finalPath, FileMode.CreateNew);
+                return Result<Stream, DownloadProcessFailure>.Success(stream);
+            }
+            catch (SecurityException ex)
+            {
+                return Result<Stream, DownloadProcessFailure>.Failure(new DownloadProcessFailure(DownloadProcessFailureReason.UnauthorisedAccessFailure,
+                    $"When creating a stream for each of the path of threads, a unexpected sercurity exception is occured.", ex));
+            }
+            catch (IOException ex)
+            {
+                return Result<Stream, DownloadProcessFailure>.Failure(new DownloadProcessFailure(DownloadProcessFailureReason.IOFailure,
+                    $"When creating a stream for each of the path of threads, a unexpected IO exception is occured.", ex));
             }
             catch (Exception ex)
             {
-                return Result<Stream>.Failure($"Create streams failed because {ex.Message}");
+                return Result<Stream, DownloadProcessFailure>.Failure(new DownloadProcessFailure(DownloadProcessFailureReason.UnknownStreamFailure,
+                    $"When creating a stream for each of the path of threads, a unexpected and unknown exception is occured.", ex));
             }
         }
 
@@ -107,13 +142,11 @@ namespace MultithreadDownload.Schedulers
         /// <param name="downloadService">The download service to use.</param>
         /// <param name="task">The download task to finalize.</param>
         /// <returns>Whether the finalization was successful or not.</returns>
-        public Result<bool> Execute_FinalizeWork(Stream outStream, IDownloadService downloadService, DownloadTask task)
+        public Result<bool, DownloadProcessFailure> Execute_FinalizeWork(Stream outStream, IDownloadService downloadService, DownloadTask task)
         {
             // Finalize the work of the download task.
             // This includes closing the streams and merging the files.
-            Result<bool> result = downloadService.PostDownloadProcessing(outStream, task);
-            if (!result.IsSuccess) { return Result<bool>.Failure("MergeFiles failed"); }
-            return Result<bool>.Success(true);
+            return downloadService.PostDownloadProcessing(outStream, task);;
         }
     }
 }
