@@ -34,12 +34,12 @@ namespace MultithreadDownload.Threads
         /// <summary>
         /// The path to the file segment that this thread is responsible for downloading.
         /// </summary>
-        public string FileSegmentPath { get; set; }
+        public string FileSegmentPath { get; }
 
         /// <summary>
         /// The task that will execute the download operation.
         /// </summary>
-        public Task WorkerTask { get; set; }
+        public Task WorkerTask { get; }
 
         /// <summary>
         /// The download progress of the file that has been downloaded by this thread.

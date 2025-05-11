@@ -3,7 +3,7 @@
 namespace MultithreadDownload.Threading
 {
     /// <summary>
-    /// Factory interface for creating instances of DownloadThreadManager.
+    /// Factory interface for creating instances of ThreadManager.
     /// </summary>
     public interface IDownloadThreadManagerFactory
     {

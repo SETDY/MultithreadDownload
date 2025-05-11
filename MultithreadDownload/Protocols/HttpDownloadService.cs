@@ -38,7 +38,7 @@ namespace MultithreadDownload.Protocols
         /// <returns>The streams for each of the download threads of the download task</returns>
         public Result<Stream[]> GetStreams(IDownloadContext downloadContext)
         {
-            Stream[] streams = new Stream[downloadContext.RangePositions.Length];
+            Stream[] streams = new Stream[downloadContext.RangePositions.GetLength(0)];
             for (int i = 0; i < downloadContext.RangePositions.GetLength(0); i++)
             {
                 // Get the start and end position of the file to be downloaded
@@ -162,44 +162,104 @@ namespace MultithreadDownload.Protocols
 
         #endregion Implement of GetStreams method
 
-        public Result<int> DownloadFile(Stream inputStream, Stream outputStream, IDownloadThread downloadThread)
+        public Result<bool> DownloadFile(Stream inputStream, Stream outputStream, IDownloadThread downloadThread)
         {
             // Download the file from the input stream(Internet) to the output stream(Local drive).
             // If the download is successful, get the bytes of file and write it into file
             // and return the number of bytes written.
             // Otherwise, retry for a maximum of TRYTIMES times
             // If still failed, return a failure result with the error message.
-            int readBytesCount = 0;
-            byte[] fileBytes = new byte[4096];
+
+            //TODO: Costomize the buffer size and retry times
+            const int BUFFER_SIZE = 4096;
+            const int MAX_TOTAL_RETRIES = 5;
+            const int WAIT_MS = 2000;
+
+            byte[] buffer = new byte[BUFFER_SIZE];
+            int retryCount = 0;
+
             downloadThread.SetState(DownloadState.Downloading);
-            for (int tryCount = 0; tryCount < MAX_RETRY && downloadThread.State == DownloadState.Downloading; tryCount++)
+
+            while (downloadThread.State == DownloadState.Downloading)
             {
-                try
+                if (TryReadAndWrite(inputStream, outputStream, buffer, out int bytesRead))
                 {
-                    readBytesCount = inputStream.Read(fileBytes, 0, fileBytes.Length);
-                    outputStream.Write(fileBytes, 0, readBytesCount);
-                    this.SetCompletedByteNumbers(downloadThread, readBytesCount);
-                    return Result<int>.Success(readBytesCount);
+                    // If the bytesRead is 0 => reached the end of the stream => download successfully completed
+                    if (bytesRead == 0)
+                        return FinishSuccess(outputStream);
+                    // Otherwise, that means the download is still in progress
+                    // Add the completed bytes size count for this thread
+                    // Reset the retry count to preper getting next bytes
+                    this.SetCompletedByteNumbers(downloadThread, bytesRead);
+                    retryCount = 0; // reset retry count
                 }
-                catch (Exception)
+                else
                 {
-                    Debug.WriteLine(
-                        $"Thread failed to read data, " +
-                        $"waiting {WAIT_TIME / 1000} seconds before retrying " +
-                        $"for {((HttpDownloadContext)downloadThread.DownloadContext).Url}");
-                    Thread.Sleep(WAIT_TIME);
-                    tryCount++;
-                    continue;
+                    // If cannot read and write the data from the input stream to the output stream,
+                    // retry for a maximum of MAX_TOTAL_RETRIES times with a wait time of WAIT_MS milliseconds
+                    retryCount++;
+                    if (retryCount >= MAX_TOTAL_RETRIES)
+                        break;
+
+                    Thread.Sleep(WAIT_MS);
                 }
             }
             // If the download is still failed after MAX_RETRY times or user cancel the download task
             // Clean up the download progress by closing and disposing the output stream and
             // return a failure result with the error message.
-            CleanDownloadProgess(outputStream, null);
-            return Result<int>.Failure(
-                $"While thread failed to read data after {MAX_RETRY} attempts, " +
-                $"the download task is cancelled for {((HttpDownloadContext)downloadThread.DownloadContext).Url}");
+            return FinishFailure(outputStream, downloadThread.DownloadContext, MAX_TOTAL_RETRIES);
         }
+
+        /// <summary>
+        /// Try to read and write the data from the input stream to the output stream
+        /// </summary>
+        /// <param name="input">The input stream</param>
+        /// <param name="output">The output stream</param>
+        /// <param name="buffer">The buffer to read the data</param>
+        /// <param name="bytesRead">The number of bytes read</param>
+        /// <returns>Whether the operation is success or not</returns>
+        private bool TryReadAndWrite(Stream input, Stream output, byte[] buffer, out int bytesRead)
+        {
+            bytesRead = 0;
+            try
+            {
+                bytesRead = input.Read(buffer, 0, buffer.Length);
+                if (bytesRead > 0)
+                    output.Write(buffer, 0, bytesRead);
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Finish the download process successfully
+        /// </summary>
+        /// <param name="output">The output stream</param>
+        /// <returns></returns>
+        private Result<bool> FinishSuccess(Stream output)
+        {
+            CleanDownloadProgess(output, null);
+            return Result<bool>.Success(true);
+        }
+
+        /// <summary>
+        /// Finish the download process failed
+        /// </summary>
+        /// <param name="output">The output stream</param>
+        /// <param name="context">The download context</param>
+        /// <param name="retries">The number of retryment</param>
+        /// <returns>The result of the operation</returns>
+        private Result<bool> FinishFailure(Stream output, IDownloadContext context, int retries)
+        {
+            CleanDownloadProgess(output, null);
+            return Result<bool>.Failure(
+                $"Thread failed after {retries} retries: {((HttpDownloadContext)context).Url}");
+        }
+
 
         /// <summary>
         /// Set the completed byte numbers for the download thread
@@ -218,6 +278,7 @@ namespace MultithreadDownload.Protocols
                 ((HttpDownloadContext)downloadThread.DownloadContext).RangePositions[downloadThread.ID, 0];
             downloadThread.SetDownloadProgress(
                 (sbyte)(downloadThread.CompletedBytesSizeCount / threadDownloadSize * 100));
+            Debug.WriteLine((downloadThread.CompletedBytesSizeCount / (threadDownloadSize + 0.0) * 100));
         }
 
         public Result<bool> PostDownloadProcessing(Stream outputStream, DownloadTask task)
@@ -228,17 +289,18 @@ namespace MultithreadDownload.Protocols
             // In this case, we need to clean up the download progress by closing and disposing the output stream
             // but do not delete the file
             // After that, we need to combine the segments of the file to a single file
-            if (task.DownloadThreadManager.CompletedThreadsCount != task.DownloadThreadManager.MaxParallelThreads)
+            if (task.ThreadManager.CompletedThreadsCount != task.ThreadManager.MaxParallelThreads)
             {
                 this.CleanDownloadProgess(outputStream,
-                    task.DownloadThreadManager.GetThreads().Select(x => x.FileSegmentPath).ToArray());
+                    task.ThreadManager.GetThreads().Select(x => x.FileSegmentPath).ToArray());
                 return Result<bool>.Failure(
                     $"Task {task.ID} does not be completed and cannot do PostDownloadProcessing().Therefore, The task has be cancelled");
             }
-
+            // This line is used to use ref keyword to pass the outputStream to the CombineSegmentsSafe method
+            FileStream finalFileStream = outputStream as FileStream;
             Result<bool> result = FileSegmentHelper.CombineSegmentsSafe(
-                task.DownloadThreadManager.GetThreads().Select(x => x.FileSegmentPath).ToArray(),
-                task.DownloadContext.TargetPath
+                task.ThreadManager.GetThreads().Select(x => x.FileSegmentPath).ToArray(),
+                ref finalFileStream
             );
             if (!result.IsSuccess)
             {
@@ -277,7 +339,7 @@ namespace MultithreadDownload.Protocols
             }
         }
 
-        private Result<bool> CleanDownloadProgess(Stream targetStream, string[] filePath)
+        private Result<bool> CleanDownloadProgess(Stream targetStream, string[] filePaths)
         {
             // Clean up the download progress by closing and disposing the output stream
             // If the filePath is not null, delete the file
@@ -290,10 +352,9 @@ namespace MultithreadDownload.Protocols
                 targetStream.Flush();
                 targetStream.Close();
                 targetStream.Dispose();
-                foreach (string path in filePath)
-                {
-                    File.Delete(path);
-                }
+                // Delete the file if the filePath is not null
+                if (filePaths != null)
+                    filePaths.ToList().ForEach(path => File.Delete(path));
                 return Result<bool>.Success(true);
             }
             catch (Exception ex)

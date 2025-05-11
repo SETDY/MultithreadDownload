@@ -21,6 +21,8 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             // Create a test server that returns a known file size
             // Get context for the download task
             string downloadPath = Path.Combine(Path.GetTempPath(), "output.txt");
+            if (File.Exists(downloadPath))
+                File.Delete(downloadPath);
             (LocalHttpFileServer server, MultiDownload downloadManager, HttpDownloadContext? context) 
                 = await TestHelper.PrepareDownload(
                 DownloadServiceType.Http,
@@ -29,17 +31,36 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                 downloadPath,
                 TestConstants.SMALL_TESTFILE_PATH
             );
+            // Create a TaskCompletionSource to wait for the download completion
+            // It must be used to prevent the test from finishing before the download is completed
+            TaskCompletionSource completionSource = new TaskCompletionSource();
+
             downloadManager.TasksProgressCompleted += (sender, e) =>
             {
-                // Assert => Check if the file exists and its content is correct
-                TestHelper.VerifyFileContent(downloadPath, TestConstants.SMALL_TESTFILE_PATH);
-                server.Stop();
+                try
+                {
+                    // Assert => Check if the file exists and its content is correct
+                    TestHelper.VerifyFileContent(downloadPath, TestConstants.SMALL_TESTFILE_PATH);
+                    completionSource.SetResult();
+                }
+                catch (Exception ex)
+                {
+                    completionSource.SetException(ex);
+                }
+                finally
+                {
+                    server.Stop();
+                    File.Delete(downloadPath);
+                }
             };
             server.Start();
 
             // Act
             downloadManager.AddTask(context);
+            Thread.Sleep(1500);
             downloadManager.StartAllocator();
+            // Wait for the download to complete
+            await completionSource.Task;
         }
 
         [Theory]

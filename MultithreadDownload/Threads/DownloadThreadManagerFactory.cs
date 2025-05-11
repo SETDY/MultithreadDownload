@@ -3,12 +3,12 @@
 namespace MultithreadDownload.Threading
 {
     /// <summary>
-    /// Factory class for creating instances of DownloadThreadManager.
+    /// Factory class for creating instances of ThreadManager.
     /// </summary>
     public class DownloadThreadManagerFactory : IDownloadThreadManagerFactory
     {
         /// <summary>
-        /// Creates a new instance of the DownloadThreadManager.
+        /// Creates a new instance of the ThreadManager.
         /// </summary>
         /// <param name="downloadThreadFactory">The factory for creating download threads.</param>
         /// <param name="downloadContext">The download context of the download task.</param>

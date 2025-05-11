@@ -9,6 +9,7 @@ using MultithreadDownload.Utils;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace MultithreadDownload.Tasks
 {
@@ -62,7 +63,7 @@ namespace MultithreadDownload.Tasks
         /// <summary>
         /// The thread manager of the task which contain all the threads.
         /// </summary>
-        public IDownloadThreadManager DownloadThreadManager { get; private set; }
+        public IDownloadThreadManager ThreadManager { get; private set; }
 
         /// <summary>
         /// When the state of download is completed, this event will be invoked
@@ -91,7 +92,7 @@ namespace MultithreadDownload.Tasks
             this.ID = taskID;
             this._state = DownloadState.Waiting;
             this.DownloadContext = downloadContext;
-            this.DownloadThreadManager = factory.Create(new DownloadThreadFactory(),
+            this.ThreadManager = factory.Create(new DownloadThreadFactory(),
                 this.DownloadContext, maxThreads);
             this.StartSpeedMonitor();
         }
@@ -125,21 +126,25 @@ namespace MultithreadDownload.Tasks
         /// <exception cref="NullReferenceException">The task is null.</exception>
         public void Start(IDownloadTaskWorkProvider workProvider, IDownloadService downloadService)
         {
+            // Create new doanload threads with the given maximum number of threads.
             // Execute the main work of the task => Start all download threads to download the file
             // Hook the event such that a execution of finalize work can be invoke (e.g. Combine the file segments) when
             // the task is completed.
+            ThreadManager.CreateThreads(downloadService.DownloadFile);
             workProvider.Execute_MainWork(downloadService, this);
-            this.DownloadThreadManager.ThreadCompleted += (t) =>
+            this.ThreadManager.ThreadCompleted += (t) =>
             {
                 try
                 {
-                    if (this.DownloadThreadManager.CompletedThreadsCount !=
-                            this.DownloadThreadManager.MaxParallelThreads) { return; }
+                    if (this.ThreadManager.CompletedThreadsCount !=
+                            this.ThreadManager.MaxParallelThreads) { return; }
 
                     // Below code will be executed when all threads is completed
-                    Result<Stream> result = workProvider.GetTaskFinalStream(this.DownloadContext);
-                    if (!result.IsSuccess) { throw new Exception("GetTaskFinalStream failed"); }
-                    workProvider.Execute_FinalizeWork(result.Value, downloadService, this);
+                    Result<Stream> finalStream = workProvider.GetTaskFinalStream(this.DownloadContext);
+                    if (!finalStream.IsSuccess) { throw new Exception("GetTaskFinalStream failed"); }
+                    Result<bool> result = workProvider.Execute_FinalizeWork(finalStream.Value, downloadService, this);
+                    if (!result.IsSuccess)
+                        this.State = DownloadState.Failed;
                     // Invoke the event to notify that the download task is completed.
                     // PS:
                     // Never use _state = DownloadState.Completed; here, because it will not invoke the event.
@@ -169,14 +174,14 @@ namespace MultithreadDownload.Tasks
             // Otherwise, cancel the download task and it will invoke the state change event.
             if (this.State == DownloadState.Cancelled) { throw new InvalidOperationException("The download task is already cancelled."); }
             this.State = DownloadState.Cancelled;
-            this.DownloadThreadManager.Cancel();
+            this.ThreadManager.Cancel();
         }
 
         public void Dispose()
         {
             // Dispose the download task and release the resources.
             this.Cancel();
-            this.DownloadThreadManager.Dispose();
+            this.ThreadManager.Dispose();
             this.SpeedMonitor.Stop();
         }
 
@@ -186,9 +191,9 @@ namespace MultithreadDownload.Tasks
         /// <returns></returns>
         public Result<long> GetCompletedDownloadSize()
         {
-            if (this.DownloadThreadManager == null) { return Result<long>.Failure("The thread manager is null."); }
+            if (this.ThreadManager == null) { return Result<long>.Failure("The thread manager is null."); }
             long size = 0;
-            foreach (IDownloadThread thread in this.DownloadThreadManager.GetThreads())
+            foreach (IDownloadThread thread in this.ThreadManager.GetThreads())
             {
                 size += thread.CompletedBytesSizeCount;
             }
@@ -201,9 +206,9 @@ namespace MultithreadDownload.Tasks
         /// <returns>The number of thread that have been completed download.</returns>
         public Result<byte> GetCompletedThreadCount()
         {
-            if (this.DownloadThreadManager != null)
+            if (this.ThreadManager != null)
             {
-                return Result<byte>.Success((byte)this.DownloadThreadManager.CompletedThreadsCount);
+                return Result<byte>.Success((byte)this.ThreadManager.CompletedThreadsCount);
             }
             else
             {

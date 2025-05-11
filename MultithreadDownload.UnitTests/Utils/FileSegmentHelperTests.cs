@@ -136,12 +136,12 @@ namespace MultithreadDownload.UnitTests.Utils
             File.WriteAllText(segment1Path, content1);
             File.WriteAllText(segment2Path, content2);
 
+            FileStream finalFileStream = new FileStream(finalFilePath, FileMode.CreateNew);
             string[] segments = new[] { segment1Path, segment2Path };
-
             try
             {
                 // Act
-                var result = FileSegmentHelper.CombineSegmentsSafe(segments, finalFilePath);
+                var result = FileSegmentHelper.CombineSegmentsSafe(segments, ref finalFileStream);
 
                 // Assert => Whether the processing is successful.
                 result.IsSuccess.Should().BeTrue("because the segments should combine successfully");
@@ -171,38 +171,20 @@ namespace MultithreadDownload.UnitTests.Utils
         {
             // Arrange
             string finalFilePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".txt");
+            FileStream finalFileStream = new FileStream(finalFilePath, FileMode.CreateNew);
 
             // Act
-            Result<bool> result = FileSegmentHelper.CombineSegmentsSafe(Array.Empty<string>(), finalFilePath);
+            Result<bool> result = FileSegmentHelper.CombineSegmentsSafe(Array.Empty<string>(), ref finalFileStream);
 
             // Assert => Whether the processing is failed.
             result.IsSuccess.Should().BeFalse("because no segments were provided");
             result.ErrorMessage.Should().NotBeNullOrWhiteSpace();
 
             // Cleanup testing files
+            if (finalFileStream != null)
+                finalFileStream.Dispose();
             if (File.Exists(finalFilePath))
                 File.Delete(finalFilePath);
-        }
-
-        [Fact]
-        public void CombineSegmentsSafe_ShouldReturnFailure_WhenFinalFileAlreadyExists()
-        {
-            // Arrange => setup temporary files
-            string segmentPath = Path.GetTempFileName();
-            File.WriteAllText(segmentPath, "Segment data");
-
-            string finalFilePath = Path.GetTempFileName();
-
-            // Act
-            Result<bool> result = FileSegmentHelper.CombineSegmentsSafe(new[] { segmentPath }, finalFilePath);
-
-            // Assert
-            result.IsSuccess.Should().BeFalse();
-            result.ErrorMessage.Should().Contain("Cannot combine file segments");
-
-            // Clean up
-            if (File.Exists(segmentPath)) File.Delete(segmentPath);
-            if (File.Exists(finalFilePath)) File.Delete(finalFilePath);
         }
 
         #endregion CombineSegmentsSafe()

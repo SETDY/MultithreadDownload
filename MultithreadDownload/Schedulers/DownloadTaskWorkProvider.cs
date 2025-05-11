@@ -16,11 +16,13 @@ namespace MultithreadDownload.Schedulers
         /// <returns></returns>
         public Result<bool> Execute_MainWork(IDownloadService downloadService, DownloadTask task)
         {
-            Result<Stream[]> inputStreams = downloadService.GetStreams(task.DownloadContext);
+           Result<Stream[]> inputStreams = downloadService.GetStreams(task.DownloadContext);
             if (!inputStreams.IsSuccess) { return Result<bool>.Failure("GetStream failed"); }
-            Result<Stream[]> outputStreams = GetTaskStreams((byte)task.DownloadThreadManager.MaxParallelThreads, task.DownloadContext);
+            Result<Stream[]> outputStreams = GetTaskStreams((byte)task.ThreadManager.MaxParallelThreads, task.DownloadContext);
             if (!outputStreams.IsSuccess) { return Result<bool>.Failure("GetTaskStreams failed"); }
-            task.DownloadThreadManager.Start(inputStreams.Value, outputStreams.Value);
+
+
+            task.ThreadManager.Start(inputStreams.Value, outputStreams.Value);
             return Result<bool>.Success(true);
         }
 
@@ -39,9 +41,9 @@ namespace MultithreadDownload.Schedulers
             // PathHelper.GetDirectoryNameSafe() must be used to prevent null reference exception
             string safePath = PathHelper.GetUniqueFileName(
                 PathHelper.GetDirectoryNameSafe(downloadContext.TargetPath), Path.GetFileName(downloadContext.TargetPath));
-            Result<string[]> pathResult = FileSegmentHelper.SplitPaths(maxParallelThreads, safePath);
-            if (!pathResult.IsSuccess) { return Result<Stream[]>.Failure("SplitPaths failed"); }
-            Result<Stream[]> streamResult = CreateStreams(pathResult.Value);
+            Result<string[]> fileSegmentPaths = FileSegmentHelper.SplitPaths(maxParallelThreads, safePath);
+            if (!fileSegmentPaths.IsSuccess) { return Result<Stream[]>.Failure("SplitPaths failed"); }
+            Result<Stream[]> streamResult = CreateStreams(fileSegmentPaths.Value);
             if (!streamResult.IsSuccess) { return Result<Stream[]>.Failure("SplitPaths failed"); }
             return streamResult;
         }

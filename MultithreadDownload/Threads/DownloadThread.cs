@@ -29,7 +29,7 @@ namespace MultithreadDownload.Threading
         /// <summary>
         /// The path to the file segment that this thread is responsible for downloading.
         /// </summary>
-        public string FileSegmentPath { get; set; }
+        public string FileSegmentPath { get; internal set; }
 
         /// <summary>
         /// The task that will execute the download operation.
@@ -61,13 +61,14 @@ namespace MultithreadDownload.Threading
         /// </summary>
         private readonly CancellationTokenSource _cancellation;
 
-        private readonly Action<Stream, Stream, IDownloadThread> _work;
+        private readonly Func<Stream, Stream, IDownloadThread, Result<bool>> _work;
 
-        public DownloadThread(int id, IDownloadContext downloadContext, Action<Stream, Stream, IDownloadThread> work)
+        public DownloadThread(int id, IDownloadContext downloadContext, string fileSegmentPath, Func<Stream, Stream, IDownloadThread, Result<bool>> work)
         {
             // Initialize the properties
             ID = id;
             DownloadContext = downloadContext;
+            FileSegmentPath = fileSegmentPath;
             _work = work;
             _cancellation = new CancellationTokenSource();
         }

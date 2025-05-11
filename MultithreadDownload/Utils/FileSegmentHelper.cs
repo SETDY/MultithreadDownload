@@ -13,14 +13,14 @@ namespace MultithreadDownload.Utils
         /// </summary>
         /// <param name="downloadTask">The download task containing the segmented files.</param>
         /// <returns>Whether the operation was successful.</returns>
-        public static Result<bool> CombineSegmentsSafe(string[] fileSegmentPaths, string finalFilePath)
+        public static Result<bool> CombineSegmentsSafe(string[] fileSegmentPaths, ref FileStream finalFileStream)
         {
             // Validate the input parameters => the file segment paths and final file path must be valid
             // If not, Combine the file segments and return the result.
-            if (fileSegmentPaths.Length == 0 || "".Equals(finalFilePath)) { return Result<bool>.Failure("The file segment paths or final file path cannot be null."); }
+            if (fileSegmentPaths.Length == 0 || finalFileStream == null) { return Result<bool>.Failure("The file segment paths or final file path cannot be null."); }
             try
             {
-                Result<bool> result = CombineSegments(fileSegmentPaths, finalFilePath);
+                Result<bool> result = CombineSegments(fileSegmentPaths, ref finalFileStream);
                 if (!result.IsSuccess) { return Result<bool>.Failure($"Cannot combine file segments: {result.ErrorMessage}"); }
                 return Result<bool>.Success(true);
             }
@@ -42,17 +42,17 @@ namespace MultithreadDownload.Utils
         /// <summary>
         /// Combines the segmented files into a single file after download completion.
         /// </summary>
-        /// <param name="downloadTask">The download task containing the segmented files.</param>
+        /// <param name="fileSegmentPaths">The paths of the segmented files.</param>
+        /// <param name="finalFileStream">The final file stream to write to.</param>
         /// <returns>Whether the operation was successful.</returns>
-        private static Result<bool> CombineSegments(string[] fileSegmentPaths, string finalFilePath)
+        private static Result<bool> CombineSegments(string[] fileSegmentPaths, ref FileStream finalFileStream)
         {
-            // Create the final file stream and enumerate through the threads to combine their segments.
+            // Using the final file stream and enumerate through the threads to combine their segments.
             // After that, flush and close the final file stream.
             // If the whole process success, return success.
             // Ohterwise, return failure.
             // CleanupFileStream() has been used to clean up the file stream and delete the file segments
             // after the whole process is done which is nomatter success or failure.
-            FileStream finalFileStream = new FileStream(finalFilePath, FileMode.CreateNew);
             Result<bool> wholeProcessResult = Result<bool>.Success(true);
             foreach (string segmentPath in fileSegmentPaths)
             {

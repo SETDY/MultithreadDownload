@@ -52,7 +52,7 @@ namespace MultithreadDownload.Threading
         private readonly IDownloadThreadFactory _factory;
 
         /// <summary>
-        /// Constructor for the DownloadThreadManager class.
+        /// Constructor for the ThreadManager class.
         /// </summary>
         /// <param name="factory">The factory for creating download threads.</param>
         /// <param name="downloadContext">The context that contains information about the download operation.</param>
@@ -68,6 +68,56 @@ namespace MultithreadDownload.Threading
         }
 
         /// <summary>
+        /// Creates a new download thread with the maximum number of threads and the given file segment paths.
+        /// </summary>
+        /// <returns>Whether the thread was created successfully or not.</returns>
+        /// <remarks>
+        /// The work delegate is the main download work that will be executed by the download thread.
+        /// The main download work is IDownloadSerivce.DownloadFile()
+        /// </remarks>
+        public Result<bool> CreateThreads(Func<Stream, Stream, IDownloadThread, Result<bool>> mainWork)
+        {
+            // Check if the target file already exists
+            // If it does, return a failure result
+            // Otherwise, split the file paths and create new download threads with the maximum number of threads
+            if (File.Exists(_downloadContext.TargetPath))
+                return Result<bool>.Failure("The final file already exists.");
+
+            Result<string[]> segmentPaths = FileSegmentHelper.SplitPaths(MaxParallelThreads, _downloadContext.TargetPath);
+            if (!segmentPaths.IsSuccess)
+                return Result<bool>.Failure("SplitPaths failed");
+            return CreateThreads(MaxParallelThreads, segmentPaths.Value, mainWork);
+        }
+
+        /// <summary>
+        /// Creates new download threads.
+        /// </summary>
+        /// <returns>Whether the threads was created successfully or not.</returns>
+        /// <remarks>
+        /// The work delegate is the main download work that will be executed by the download thread.
+        /// The main download work is IDownloadSerivce.DownloadFile()
+        /// </remarks>
+        private Result<bool> CreateThreads(byte threadsCount, string[] fileSegmentPaths, Func<Stream, Stream, IDownloadThread, Result<bool>> mainWork)
+        {
+            // Creates new download threads with the given number of threads.
+            if (threadsCount <= 0 || threadsCount != fileSegmentPaths.Length)
+                return Result<bool>.Failure("The number of threads must be greater than 0 and equal to the number of file segments.");
+            Result<bool> result = Result<bool>.Success(true);
+            try
+            {
+                for (int i = 0; i < threadsCount; i++)
+                {
+                    result = CreateThread(fileSegmentPaths[i], mainWork);
+                }
+            }
+            catch (Exception)
+            {
+                result = Result<bool>.Failure("Failed to create thread.");
+            }
+            return result;
+        }
+
+        /// <summary>
         /// Creates a new download thread.
         /// </summary>
         /// <returns>Whether the thread was created successfully or not.</returns>
@@ -75,15 +125,15 @@ namespace MultithreadDownload.Threading
         /// The work delegate is the main download work that will be executed by the download thread.
         /// The main download work is IDownloadSerivce.DownloadFile()
         /// </remarks>
-        public Result<bool> CreateThread(Action<Stream, Stream, IDownloadThread> mainWork)
+        public Result<bool> CreateThread(string fileSegmentPath, Func<Stream, Stream, IDownloadThread, Result<bool>> mainWork)
         {
             if (this._threads.Count > this._maxThreads) { Result<bool>.Failure("The number of download threads is at the maximum postition."); }
             // Create a new thread with the factory
             // Set the progresser for the thread
             // Add the thread to the list of threads
-            IDownloadThread downloadThread = _factory.Create(0, _downloadContext, mainWork);
+            IDownloadThread downloadThread = _factory.Create(0, _downloadContext, fileSegmentPath, mainWork);
             this.SetThreadProgresser(downloadThread);
-            _threads.Append(downloadThread);
+            _threads.Add(downloadThread);
             return Result<bool>.Success(true);
         }
 
@@ -99,8 +149,8 @@ namespace MultithreadDownload.Threading
             {
                 if (progress == 100)
                 {
-                    this.ThreadCompleted?.Invoke(thread);
-                    this.CompletedThreadsCount++;
+                    CompletedThreadsCount++;
+                    ThreadCompleted?.Invoke(thread);
                 }
             });
             thread.SetProgresser(progresser);
@@ -168,7 +218,7 @@ namespace MultithreadDownload.Threading
         /// <summary>
         /// Gets the list of download threads.
         /// </summary>
-        /// <returns></returns>
-        public IEnumerable<IDownloadThread> GetThreads() => _threads;
+        /// <returns>The list of download threads.</returns>
+        public List<IDownloadThread> GetThreads() => _threads;
     }
 }
