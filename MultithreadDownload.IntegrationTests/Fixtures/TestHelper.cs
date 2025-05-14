@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -119,6 +120,21 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
             File.Exists(path).Should().BeTrue();
             new FileInfo(path).Length.Should().Be(0);
             File.Delete(path);
+        }
+
+        public static void VerifyFileSHA512(string filePath, string expectedSHA512)
+        {
+            string actualSHA512 = "";
+            using (SHA512 hasher = SHA512.Create())
+            {
+                using (FileStream file = File.OpenRead(filePath))
+                {
+                    // Calculate the hash of the file and convert it to a string
+                    actualSHA512 = Encoding.Default.GetString(hasher.ComputeHash(file));
+                }
+            }
+            actualSHA512.Should().NotBeNullOrEmpty();
+            actualSHA512.Should().Be(expectedSHA512);
         }
 
     }

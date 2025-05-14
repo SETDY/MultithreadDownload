@@ -29,7 +29,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             // we use TestHelper.SkipTestOnCI() and Assert.True() to skip the test.
             if (TestHelper.SkipTestOnCI()) { return; }
 
-            // Arrage
+            // Arrange
             byte completedTasks = 0;
             (var server, var downloadManager, var url) = TestHelper.PrepareDownload(
                 DownloadServiceType.Http, 1, TestConstants.LARGE_TESTFILE_PATH);

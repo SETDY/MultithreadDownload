@@ -14,10 +14,55 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
     public class FullDownloadTests
     {
 
+        public async Task DownloadFile_SingleThread_FromInternet_WrokCorrectly()
+        {
+            // Arrange
+            // Get context for the download taskwith a single thread
+            string url = "https://builds.dotnet.microsoft.com/dotnet/Sdk/9.0.300/dotnet-sdk-9.0.300-win-x64.exe";
+            var downloadContext = await HttpDownloadContext.GetDownloadContext(1, Path.GetTempPath(), url);
+
+            // Assert
+            // The context should not be null and should be successful
+            downloadContext.Value.Should().NotBeNull();
+            downloadContext.IsSuccess.Should().BeTrue();
+            downloadContext.ErrorMessage.Should().BeNull();
+
+            // Create a download manager with a single parallel task
+            MultiDownload downloadManager = new MultiDownload(1, DownloadServiceType.Http);
+            // Create a TaskCompletionSource to wait for the download completion
+            // It must be used to prevent the test from finishing before the download is completed
+            TaskCompletionSource completionSource = new TaskCompletionSource();
+            // Set the event handler for the download manager to handle the progress completion
+            downloadManager.TasksProgressCompleted += (sender, e) =>
+            {
+                // Assert
+                // Check if the file exists and its content is correct
+                File.Exists(downloadContext.Value.TargetPath).Should().BeTrue();
+                TestHelper.VerifyFileSHA512(downloadContext.Value.TargetPath, "5d58e5b1b40ffbd87d99eabaa30ff55baafb0318e35f38e0e220ac3630974a652428284e3ceb8841bf1a2c90aff0f6e7dfd631ca36f1b65ee1efd638fc68b0c8");
+            };
+
+
+            // Act
+            // Add the download task that is created by the download context to the download manager
+            downloadManager.AddTask(downloadContext.Value);
+
+            // Assert
+            // The download manager should have one task
+            downloadManager.GetDownloadTasks().Count().Should().Be(1);
+
+            // Act
+            // Start the allocator of the download manager
+            // There is a delay to prevent the process here is too fast that AddTask() cannot be completed (TODO:Maybe change it as await?)
+            Thread.Sleep(1500); 
+            downloadManager.StartAllocator();
+            // Wait for the download to complete
+            await completionSource.Task;
+        }
+
         [Fact]
         public async Task DownloadFile_SingleThread_FromLocalHttpServer_WorksCorrectly()
         {
-            // Arrage
+            // Arrange
             // Create a test server that returns a known file size
             // Get context for the download task
             string downloadPath = Path.Combine(Path.GetTempPath(), "output.txt");
@@ -79,7 +124,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             // we use SkipTestOnCI() and Assert.True() to skip the test.
             if (TestHelper.SkipTestOnCI()) { return; }
 
-            // Arrage:
+            // Arrange:
             // Create a test server that returns a known file size
             // Get context for the download task
             string downloadPath = PathHelper.GetUniqueFileName(Path.GetTempPath(), "largeFile.test");
