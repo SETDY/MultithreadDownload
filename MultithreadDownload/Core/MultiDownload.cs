@@ -1,4 +1,5 @@
 ﻿using MultithreadDownload.Events;
+using MultithreadDownload.Logging;
 using MultithreadDownload.Protocols;
 using MultithreadDownload.Schedulers;
 using MultithreadDownload.Tasks;
@@ -61,6 +62,9 @@ namespace MultithreadDownload.Core
             _workProvider = workProvider;
             _taskScheduler = new DownloadTaskScheduler(_maxParallelTasks, _downloadService, _workProvider);
 
+            // Log the initialization
+            DownloadLogger.LogInfo($"MultiDownload initialized with {downloadService.GetType().Name} and maxParallelTasks = {_maxParallelTasks}");
+
             HookEvents();
         }
 
@@ -79,6 +83,9 @@ namespace MultithreadDownload.Core
             _maxParallelTasks = maxParallelTasks;
             _workProvider = new DownloadTaskWorkProvider();
             _taskScheduler = new DownloadTaskScheduler(_maxParallelTasks, _downloadService, _workProvider);
+
+            // Log the initialization
+            DownloadLogger.LogInfo($"MultiDownload initialized with {serviceType} and maxParallelTasks = {_maxParallelTasks}");
 
             HookEvents();
         }
@@ -136,14 +143,19 @@ namespace MultithreadDownload.Core
         /// Add a task to the download queue.
         /// </summary>
         /// <param name="downloadContext">Download context.</param>
-        public void AddTask(IDownloadContext downloadContext)
+        public DownloadTask AddTask(IDownloadContext downloadContext)
         {
             if (downloadContext == null)
             {
                 throw new ArgumentNullException(nameof(downloadContext));
             }
             // TODO: Validate the download context whether it matches the download service
-            _taskScheduler.AddTask(downloadContext);
+            DownloadTask addedTask = _taskScheduler.AddTask(downloadContext);
+
+            // Log the addition of the task
+            DownloadLogger.LogInfo($"The Task is added with id: {addedTask.ID} and path: {downloadContext.TargetPath}");
+
+            return addedTask;
         }
 
         /// <summary>

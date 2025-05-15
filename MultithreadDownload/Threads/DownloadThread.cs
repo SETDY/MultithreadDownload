@@ -1,4 +1,5 @@
 ﻿using MultithreadDownload.Downloads;
+using MultithreadDownload.Logging;
 using MultithreadDownload.Protocols;
 using MultithreadDownload.Threads;
 using MultithreadDownload.Utils;
@@ -118,6 +119,8 @@ namespace MultithreadDownload.Threading
             }
             // Set the completed bytes size count for this thread
             CompletedBytesSizeCount += size;
+            // Log the completed bytes size count
+            // DownloadLogger.LogInfo($"Thread ID: {ID}, Completed Bytes Size Count: {CompletedBytesSizeCount} and add {size} in this round");
         }
 
         public void SetProgresser(IProgress<sbyte> progresser)

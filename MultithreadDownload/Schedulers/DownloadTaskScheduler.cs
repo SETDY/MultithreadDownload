@@ -1,5 +1,6 @@
 ﻿using MultithreadDownload.Downloads;
 using MultithreadDownload.Events;
+using MultithreadDownload.Logging;
 using MultithreadDownload.Protocols;
 using MultithreadDownload.Tasks;
 using MultithreadDownload.Utils;
@@ -14,6 +15,11 @@ namespace MultithreadDownload.Schedulers
 {
     public class DownloadTaskScheduler : IDownloadTaskScheduler, IDisposable
     {
+        /// <summary>
+        /// The map of all the tasks including the tasks that are not in the queue. e.g. the tasks that are completed or cancelled.
+        /// </summary>
+        private readonly ConcurrentDictionary<Guid, DownloadTask> _taskMap = new();
+
         /// <summary>
         /// The queue of tasks to be executed.
         /// </summary>
@@ -79,6 +85,8 @@ namespace MultithreadDownload.Schedulers
                     // The download slots -1 if there is available solt and force start the task
                     // Otherwise, block the task to wait
                     this._downloadSlots.Wait(_allocatorTokenSource.Token);
+                    // Log the start of the task
+                    DownloadLogger.LogInfo($"The Task with id: {task.ID} and path: {task.DownloadContext.TargetPath} has been started.");
                     task.Start(_workProvider, _downloadService);
                 }
             }, TaskCreationOptions.LongRunning);
@@ -148,24 +156,40 @@ namespace MultithreadDownload.Schedulers
         /// Add a task to the queue.
         /// </summary>
         /// <param name="downloadContext">The download context to use.</param>
-        public void AddTask(IDownloadContext downloadContext)
+        /// <returns>The task that is added to the queue.</returns>
+        public DownloadTask AddTask(IDownloadContext downloadContext)
         {
             // Create a new task with the given download context and maximum number of threads
             // Hook the event such that the queue progress can be invoked when the task is completed.
             DownloadTask task = DownloadTask.Create(Guid.NewGuid(), this.MaxParallelTasks, downloadContext);
+
+            // Log the creation of the task
+            DownloadLogger.LogInfo($"A Task is created with id: {task.ID} and path: {downloadContext.TargetPath}");
+
             task.Completed += delegate
             {
                 // The download slots +1
                 // Invoke the event when the task is completed
-                // Add an if statement to prevent the event is invoked when it is null.
                 this._downloadSlots.Release();
-                if (this.TasksProgressCompleted != null)
-                    this.TasksProgressCompleted.Invoke(task, new DownloadDataEventArgs(task));
+
+                // Add an ? to prevent the event is invoked when it is null.
+                this.TasksProgressCompleted?.Invoke(task, new DownloadDataEventArgs(task));
             };
-            this._taskQueue.Add(task);
-            // Add an if statement to prevent the event is invoked when it is null.
-            if (this.TaskQueueProgressChanged != null)
-                this.TaskQueueProgressChanged.Invoke(task, new DownloadDataEventArgs(task));
+            // Add the task to the task map and the task queue
+            // If the task already exists in the task map, throw an exception
+            // Because it is impossible to have two tasks with the same ID by using Guid.NewGuid()
+            bool result = _taskMap.TryAdd(task.ID, task);
+            if (!result)
+                throw new InvalidOperationException($"Unexpected exception: The task with id {task.ID} already exists in the task map.");
+            _taskQueue.Add(task);
+
+            // Log the additon of the queued task
+            DownloadLogger.LogInfo($"The Task is queued with id: {task.ID} and path: {downloadContext.TargetPath}");
+
+            // Add an ? to prevent the event is invoked when it is null.
+            TaskQueueProgressChanged?.Invoke(task, new DownloadDataEventArgs(task));
+
+            return task;
         }
 
         /// <summary>
@@ -197,10 +221,21 @@ namespace MultithreadDownload.Schedulers
         /// <summary>
         /// Get tasks that are in the queue.
         /// </summary>
-        /// <returns>All tasks in the queue.</returns>
+        /// <returns>All tasks in the map.</returns>
         public DownloadTask[] GetTasks()
         {
-            return _taskQueue.ToArray();
+            // Get all the tasks in the map and return them as an array.
+            return _taskMap.ToList().Select(x => x.Value).ToArray();
+        }
+
+        /// <summary>
+        /// Get tasks that are in the queue.
+        /// </summary>
+        /// <returns>The tasks that satisfy the condition in the map.</returns> 
+        public DownloadTask[] GetTasks(DownloadState state)
+        {
+            // Get the tasks that are satisfied the condition in the map and return them as an array.
+            return _taskMap.ToList().Where(x => x.Value.State == state).Select(x => x.Value).ToArray();
         }
 
         /// <summary>

@@ -1,10 +1,13 @@
 ﻿using FluentAssertions;
+using Microsoft.VisualStudio.TestPlatform.Utilities;
 using MultithreadDownload.Core;
 using MultithreadDownload.IntegrationTests.Fixtures;
+using MultithreadDownload.Logging;
 using MultithreadDownload.Protocols;
 using MultithreadDownload.Tasks;
 using MultithreadDownload.Utils;
 using System.Threading.Tasks;
+using Xunit.Abstractions;
 
 namespace MultithreadDownload.IntegrationTests.Scenarios
 {
@@ -13,7 +16,14 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
     /// </summary>
     public class FullDownloadTests
     {
+        private readonly ITestOutputHelper _output;
+        public FullDownloadTests(ITestOutputHelper output)
+        {
+            _output = output;
+            DownloadLogger.Current = new TestOutputLogger(_output); // 启用测试日志输出
+        }
 
+        [Fact]
         public async Task DownloadFile_SingleThread_FromInternet_WrokCorrectly()
         {
             // Arrange

@@ -1,6 +1,7 @@
 ﻿using MultithreadDownload.Downloads;
 using MultithreadDownload.Events;
 using MultithreadDownload.Exceptions;
+using MultithreadDownload.Logging;
 using MultithreadDownload.Protocols;
 using MultithreadDownload.Schedulers;
 using MultithreadDownload.Threading;
@@ -106,13 +107,19 @@ namespace MultithreadDownload.Tasks
             // Start the speed monitor with the method to get the downloaded size.
             this.SpeedMonitor.Start(() =>
             {
+                // Log the request to get the completed size of the task.
+                DownloadLogger.LogInfo($"Request to get the completed size of the task with id: {ID}.");
                 Result<long> result = this.GetCompletedDownloadSize();
                 if (result.IsSuccess)
                 {
+                    // Log the completed size of the task.
+                    DownloadLogger.LogInfo($"The completed size of the task with id: {ID} is {result.Value} bytes.");
                     return result.Value;
                 }
                 else
                 {
+                    // Log the error message.
+                    DownloadLogger.LogError($"The completed size of the task with id: {ID} cannot be got because {result.ErrorMessage}");
                     throw new NullReferenceException(result.ErrorMessage);
                 }
             });
@@ -131,7 +138,11 @@ namespace MultithreadDownload.Tasks
             // Hook the event such that a execution of finalize work can be invoke (e.g. Combine the file segments) when
             // the task is completed.
             ThreadManager.CreateThreads(downloadService.DownloadFile);
+            // Log the creation of the threads.
+            DownloadLogger.LogInfo($"The threads of the task with id: {ID} have been created.");
             workProvider.Execute_MainWork(downloadService, this);
+            // Log the execution of the main work.
+            DownloadLogger.LogInfo($"The main work of the task with id: {ID} have been executed.");
             this.ThreadManager.ThreadCompleted += (t) =>
             {
                 try
@@ -142,6 +153,8 @@ namespace MultithreadDownload.Tasks
                     // Below code will be executed when all threads is completed
                     Result<Stream> finalStream = workProvider.GetTaskFinalStream(this.DownloadContext);
                     if (!finalStream.IsSuccess) { throw new Exception("GetTaskFinalStream failed"); }
+                    // Log the execution of the final work.
+                    DownloadLogger.LogInfo($"The final work of the task with id: {ID} have been executed.");
                     Result<bool> result = workProvider.Execute_FinalizeWork(finalStream.Value, downloadService, this);
                     if (!result.IsSuccess)
                         this.State = DownloadState.Failed;
@@ -149,6 +162,8 @@ namespace MultithreadDownload.Tasks
                     // PS:
                     // Never use _state = DownloadState.Completed; here, because it will not invoke the event.
                     this.State = DownloadState.Completed;
+                    // Log the completion of the task.
+                    DownloadLogger.LogInfo($"The task with id: {ID} have been.");
                 }
                 catch (Exception ex)
                 {

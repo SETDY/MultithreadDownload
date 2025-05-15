@@ -5,15 +5,25 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace MultithreadDownload.Threading
 {
     public class DownloadThreadManager : IDownloadThreadManager
     {
         /// <summary>
+        /// Backing field for the CompletedThreadsCount property.
+        /// </summary>
+        private int _completedThreadsCount;
+
+        /// <summary>
         /// The number of completed threads.
         /// </summary>
-        public byte CompletedThreadsCount { get; private set; }
+        public byte CompletedThreadsCount
+        {
+            get => (byte)_completedThreadsCount;
+            private set => _completedThreadsCount = value;
+        }
 
         /// <summary>
         /// The number of completed threads.
@@ -149,7 +159,13 @@ namespace MultithreadDownload.Threading
             {
                 if (progress == 100)
                 {
-                    CompletedThreadsCount++;
+                    // This if statement checks if the number of completed threads is greater than the maximum number of threads
+                    // If it happens, the task may stack and cause a deadlock because the task is waiting for the thread to complete
+                    // To prevent that from happening, it throws an exception to break the deadlock
+                    if (_completedThreadsCount >= MaxParallelThreads)
+                        throw new InvalidDataException("The number of completed threads is greater than the maximum number of threads.");
+                    // Increment the completed threads count by using Interlocked to ensure thread safety
+                    Interlocked.Increment(ref _completedThreadsCount);
                     ThreadCompleted?.Invoke(thread);
                 }
             });

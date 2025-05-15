@@ -1,4 +1,5 @@
 ﻿using MultithreadDownload.Downloads;
+using MultithreadDownload.Logging;
 using MultithreadDownload.Tasks;
 using MultithreadDownload.Threads;
 using MultithreadDownload.Utils;
@@ -277,8 +278,11 @@ namespace MultithreadDownload.Protocols
                 ((HttpDownloadContext)downloadThread.DownloadContext).RangePositions[downloadThread.ID, 1] -
                 ((HttpDownloadContext)downloadThread.DownloadContext).RangePositions[downloadThread.ID, 0];
             downloadThread.SetDownloadProgress(
-                (sbyte)(downloadThread.CompletedBytesSizeCount / threadDownloadSize * 100));
-            Debug.WriteLine((downloadThread.CompletedBytesSizeCount / (threadDownloadSize + 0.0) * 100));
+                (sbyte)Math.Round((decimal)downloadThread.CompletedBytesSizeCount / threadDownloadSize * 100));
+            // Log the download progress of the download thread
+            //DownloadLogger.LogInfo($"Thread {downloadThread.ID} has downloaded {downloadThread.CompletedBytesSizeCount}");
+            //DownloadLogger.LogInfo($"Thread {downloadThread.ID} has downloaded {readBytesCount} bytes in this round and should download {threadDownloadSize} bytes");
+            //DownloadLogger.LogInfo($"The download progress of thread {downloadThread.ID} is {downloadThread.CompletedBytesSizeCount / (decimal)threadDownloadSize * 100}%");
         }
 
         public Result<bool> PostDownloadProcessing(Stream outputStream, DownloadTask task)

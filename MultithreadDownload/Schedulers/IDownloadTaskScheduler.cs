@@ -1,4 +1,5 @@
-﻿using MultithreadDownload.Events;
+﻿using MultithreadDownload.Downloads;
+using MultithreadDownload.Events;
 using MultithreadDownload.Protocols;
 using MultithreadDownload.Tasks;
 using MultithreadDownload.Utils;
@@ -50,7 +51,8 @@ namespace MultithreadDownload.Schedulers
         /// Add a task to the queue.
         /// </summary>
         /// <param name="downloadContext">The download context to use.</param>
-        void AddTask(IDownloadContext downloadContext);
+        DownloadTask AddTask(IDownloadContext downloadContext);
+
 
         /// <summary>
         /// Pause a task that is in the queue.
@@ -79,7 +81,13 @@ namespace MultithreadDownload.Schedulers
         /// <summary>
         /// Get tasks that are in the queue.
         /// </summary>
-        /// <returns></returns>
-        DownloadTask[] GetTasks();
+        /// <returns>All tasks in the map.</returns>
+        public DownloadTask[] GetTasks();
+
+        /// <summary>
+        /// Get tasks that are in the queue.
+        /// </summary>
+        /// <returns>The tasks that satisfy the condition in the map.</returns> 
+        public DownloadTask[] GetTasks(DownloadState state);
     }
 }

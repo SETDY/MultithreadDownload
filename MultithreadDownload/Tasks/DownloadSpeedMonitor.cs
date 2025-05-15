@@ -1,4 +1,5 @@
-﻿using MultithreadDownload.Utils;
+﻿using MultithreadDownload.Logging;
+using MultithreadDownload.Utils;
 using System;
 using System.Threading;
 
@@ -37,6 +38,12 @@ namespace MultithreadDownload.Tasks
         /// <param name="getDownloadedSize">A method to get the downloaded size.</param>
         public void Start(Func<long> getDownloadedSize)
         {
+            //if (_timer == null)
+            //{
+            //    // Log the warning if the timer is already initialized
+            //    DownloadLogger.LogWarning("The timer is already initialized. Please stop the timer before starting it again.");
+            //    return;
+            //}
             // Initialize properties
             this._getDownloadedSize = getDownloadedSize;
             this._lastDownloadedSize = _getDownloadedSize.Invoke();
@@ -46,12 +53,17 @@ namespace MultithreadDownload.Tasks
             // Convert to proper unit and invoke the event
             _timer = new Timer(_ =>
             {
+                // Log the execution of the timer
+                DownloadLogger.LogInfo($"Timer executed and the _isTimerStopped is {_isTimerStopped}");
                 if (_isTimerStopped) return;
                 long currentSize = _getDownloadedSize.Invoke();
                 string downloadSpeed = ((long)((currentSize - _lastDownloadedSize) / 1)).ToSpeed();
                 _lastDownloadedSize = currentSize;
 
                 OnSpeedUpdated?.Invoke(downloadSpeed);
+
+                // Log the download speed
+                //DownloadLogger.LogInfo($"The download speed is {downloadSpeed}");
             }, null, 1000, 1000);
         }
 
