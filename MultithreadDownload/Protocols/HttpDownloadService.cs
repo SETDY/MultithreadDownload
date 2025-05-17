@@ -187,11 +187,28 @@ namespace MultithreadDownload.Protocols
                 {
                     // If the bytesRead is 0 => reached the end of the stream => download successfully completed
                     if (bytesRead == 0)
+                    {
+                        // If a download thread is completed the download,
+                        // but it does not have any records on the completed bytes size count,
+                        // it means that the file which the thread should download is empty.
+                        // To make sure that the task will be finalized, there needs to add a count for the completed bytes size count.
+                        // because the finalized work will be done by the IProgress of each thread.
+                        if (downloadThread.CompletedBytesSizeCount == 0)
+                        {
+                            // Set a needly completed bytes size count for the download thread
+                            // Since the needed download size must be 0 if the file is empty,
+                            // there can just use (int) to convert a long value into int.
+                            SetCompletedByteNumbers(downloadThread,
+                                (int)(downloadThread.DownloadContext.RangePositions[downloadThread.ID, 1] - 
+                                downloadThread.DownloadContext.RangePositions[downloadThread.ID, 0])
+                                );
+                        }
                         return FinishSuccess(outputStream);
+                    }
                     // Otherwise, that means the download is still in progress
                     // Add the completed bytes size count for this thread
                     // Reset the retry count to preper getting next bytes
-                    this.SetCompletedByteNumbers(downloadThread, bytesRead);
+                    SetCompletedByteNumbers(downloadThread, bytesRead);
                     retryCount = 0; // reset retry count
                 }
                 else
@@ -274,11 +291,21 @@ namespace MultithreadDownload.Protocols
             downloadThread.AddCompletedBytesSizeCount(readBytesCount);
             // This variable is used to simply calculate the download progress
             // because it is too long that writing the whole expression.
-            long threadDownloadSize =
+            long threadDownloadSizeRange =
                 ((HttpDownloadContext)downloadThread.DownloadContext).RangePositions[downloadThread.ID, 1] -
                 ((HttpDownloadContext)downloadThread.DownloadContext).RangePositions[downloadThread.ID, 0];
-            downloadThread.SetDownloadProgress(
-                (sbyte)Math.Round((decimal)downloadThread.CompletedBytesSizeCount / threadDownloadSize * 100));
+            // FIX: the download progress set to 100% again to fix the empty file stuck bug
+            // There is used to prevent division by zero if the threadDownloadSizeRange is 0
+            // It will happen if the file is empty
+            sbyte downloadProgress = 100;
+            if (threadDownloadSizeRange > 0)
+                downloadProgress = (sbyte)(downloadThread.CompletedBytesSizeCount / (decimal)threadDownloadSizeRange * 100);
+            // This if statement is used to check if the download progress is 100%
+            // to prevent the download progress set to 100% again to fix the progresser bug
+            if (downloadThread.State != DownloadState.Completed)
+                // Set the download progress for the download thread
+                downloadThread.SetDownloadProgress(downloadProgress);
+
             // Log the download progress of the download thread
             //DownloadLogger.LogInfo($"Thread {downloadThread.ID} has downloaded {downloadThread.CompletedBytesSizeCount}");
             //DownloadLogger.LogInfo($"Thread {downloadThread.ID} has downloaded {readBytesCount} bytes in this round and should download {threadDownloadSize} bytes");

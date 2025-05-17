@@ -104,7 +104,11 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
                 {
                     int from = int.Parse(match.Groups[1].Value);
                     int to = match.Groups[2].Success ? int.Parse(match.Groups[2].Value) : buffer.Length - 1;
-                    var length = to - from + 1;
+                    int length = to - from + 1;
+                    // If the length is 0, it means the file is an empty file
+                    // To prevent the OutOfRange exception, we set the length to 0
+                    if (length == 1)
+                        length = 0;
                     response.StatusCode = 206;
                     response.ContentType = "application/octet-stream";
                     response.ContentLength64 = length;

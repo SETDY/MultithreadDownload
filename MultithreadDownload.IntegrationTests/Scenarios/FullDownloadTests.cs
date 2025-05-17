@@ -49,6 +49,10 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                 // Check if the file exists and its content is correct
                 File.Exists(downloadContext.Value.TargetPath).Should().BeTrue();
                 TestHelper.VerifyFileSHA512(downloadContext.Value.TargetPath, "5d58e5b1b40ffbd87d99eabaa30ff55baafb0318e35f38e0e220ac3630974a652428284e3ceb8841bf1a2c90aff0f6e7dfd631ca36f1b65ee1efd638fc68b0c8");
+                // After the download is complete, delete the downloaded file
+                File.Delete(downloadContext.Value.TargetPath);
+                // Set the result of the TaskCompletionSource to signal , meaning that the download is complete
+                completionSource.SetResult();
             };
 
 
@@ -146,11 +150,17 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                     downloadPath,
                     TestConstants.LARGE_TESTFILE_PATH
             );
+            // Create a TaskCompletionSource to wait for the download completion
+            // It must be used to prevent the test from finishing before the download is completed
+            TaskCompletionSource completionSource = new TaskCompletionSource();
             downloadManager.TasksProgressCompleted += (sender, e) =>
             {
                 // Assert
+                // After the download is asserted, stop the server and delete the downloaded file
                 TestHelper.VerifyFileContent(downloadPath, TestConstants.LARGE_TESTFILE_PATH);
                 server.Stop();
+                // Set the result of the TaskCompletionSource to signal that the download is complete
+                completionSource.SetResult();
             };
             server.Start();
 
@@ -163,13 +173,11 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
         public async Task DownloadFile_InvalidUrl_ShouldFailGracefully()
         {
             // Arrange
-            byte MAX_PARALLEL_THREADS = 4;
-            byte MAX_PARALLEL_TASKS = 1;
             string invalidUrl = "http://wrongUrl/nonexistentfile.txt";
             string outputPath = Path.Combine(Path.GetTempPath(), "invalid_output.txt");
             // Act
-            MultiDownload downloadManager = new MultiDownload(MAX_PARALLEL_TASKS, DownloadServiceType.Http);
-            var contextResult = await HttpDownloadContext.GetDownloadContext(MAX_PARALLEL_THREADS, outputPath, invalidUrl);
+            MultiDownload downloadManager = new MultiDownload(1, DownloadServiceType.Http);
+            var contextResult = await HttpDownloadContext.GetDownloadContext(4, outputPath, invalidUrl);
 
             // Assert
             contextResult.Should().NotBeNull();
@@ -189,9 +197,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             // Get context for the download task
             string emptyFilePath = Path.Combine("Resources", "emptyfile.txt");
             File.WriteAllText(emptyFilePath, string.Empty);
-
             string outputPath = Path.Combine(Path.GetTempPath(), "empty_output.txt");
-
             (LocalHttpFileServer server, MultiDownload downloadManager, HttpDownloadContext? context)
                 = await TestHelper.PrepareDownload(
                     DownloadServiceType.Http,
@@ -200,11 +206,15 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                     outputPath,
                     emptyFilePath
             );
+            // Create a TaskCompletionSource to wait for the download completion
+            // It must be used to prevent the test from finishing before the download is completed
+            TaskCompletionSource completionSource = new TaskCompletionSource();
             downloadManager.TasksProgressCompleted += (sender, e) =>
             {
                 // Assert
                 TestHelper.VerifyEmptyFile(outputPath);
                 server.Stop();
+                completionSource.SetResult();
             };
             server.Start();
 
@@ -214,6 +224,8 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             // Act
             downloadManager.AddTask(context);
             downloadManager.StartAllocator();
+            // Wait for the download to complete
+            await completionSource.Task;
         }
     }
 }

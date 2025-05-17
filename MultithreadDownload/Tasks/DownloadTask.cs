@@ -139,10 +139,12 @@ namespace MultithreadDownload.Tasks
             // the task is completed.
             ThreadManager.CreateThreads(downloadService.DownloadFile);
             // Log the creation of the threads.
-            DownloadLogger.LogInfo($"The threads of the task with id: {ID} have been created.");
+            //DownloadLogger.LogInfo($"The threads of the task with id: {ID} have been created.");
+            // Start the download task.
+            this.State = DownloadState.Downloading;
             workProvider.Execute_MainWork(downloadService, this);
             // Log the execution of the main work.
-            DownloadLogger.LogInfo($"The main work of the task with id: {ID} have been executed.");
+            //DownloadLogger.LogInfo($"The main work of the task with id: {ID} have been executed.");
             this.ThreadManager.ThreadCompleted += (t) =>
             {
                 try
@@ -159,8 +161,8 @@ namespace MultithreadDownload.Tasks
                     if (!result.IsSuccess)
                         this.State = DownloadState.Failed;
                     // Invoke the event to notify that the download task is completed.
-                    // PS:
-                    // Never use _state = DownloadState.Completed; here, because it will not invoke the event.
+                    // PS: Never use _state = DownloadState.Completed; here, because it will not invoke the event.
+                    // TODO: There is a bug here, the task will not be completed if the event throws an exception.
                     this.State = DownloadState.Completed;
                     // Log the completion of the task.
                     DownloadLogger.LogInfo($"The task with id: {ID} have been.");
@@ -242,6 +244,7 @@ namespace MultithreadDownload.Tasks
             // Otherwise, throw an exception.
             if (downloadContext.IsPropertiesVaild().IsSuccess)
             {
+                DownloadLogger.LogInfo($"The task with id: {taskID} is created.");
                 return new DownloadTask(taskID, maxThreads, new DownloadThreadManagerFactory(), downloadContext);
             }
             else

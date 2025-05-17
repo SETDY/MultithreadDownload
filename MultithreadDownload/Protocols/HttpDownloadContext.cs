@@ -1,4 +1,5 @@
 ﻿using MultithreadDownload.Utils;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace MultithreadDownload.Protocols
@@ -77,10 +78,13 @@ namespace MultithreadDownload.Protocols
         /// Therefore, <see cref="GetDownloadContext"/> method returns a <see cref="Result{T}"/> object
         /// to indicate success or failure and remind the caller to check the result.
         /// </remarks>
-        public static async Task<Result<HttpDownloadContext>> GetDownloadContext(byte maxParallelThreads, string targetPath, string link)
+        public static async Task<Result<HttpDownloadContext>> GetDownloadContext(byte maxParallelThreads, string savedPath, string link)
         {
             Result<long> fileSize = await HttpNetworkHelper.GetLinkFileSizeAsync(link);
             if (!fileSize.IsSuccess) { return Result<HttpDownloadContext>.Failure($"Cannot get file size from {link}"); }
+
+            // Set the target path to a unique file name
+            string targetPath = PathHelper.GetUniqueFileName(savedPath, Path.GetFileName(link));
 
             // Since GetFileSegments() method requires a file size greater than 0,
             // this if case is used to handle the case where the file size is 0

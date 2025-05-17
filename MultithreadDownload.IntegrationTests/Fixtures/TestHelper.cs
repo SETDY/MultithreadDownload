@@ -126,13 +126,24 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
         {
             string actualSHA512 = "";
             using (SHA512 hasher = SHA512.Create())
+            using (FileStream file = File.OpenRead(filePath))
             {
-                using (FileStream file = File.OpenRead(filePath))
+                // Compute the hash of the file
+                byte[] hashBytes = hasher.ComputeHash(file);
+
+                // Using StringBuilder to build the hexadecimal string
+                StringBuilder sb = new StringBuilder(hashBytes.Length * 2);
+                foreach (byte b in hashBytes)
                 {
-                    // Calculate the hash of the file and convert it to a string
-                    actualSHA512 = Encoding.Default.GetString(hasher.ComputeHash(file));
+                    // Convert each byte to a two-digit hexadecimal string
+                    sb.Append(b.ToString("x2"));
                 }
+
+                // Convert the StringBuilder to a string
+                actualSHA512 = sb.ToString();
             }
+
+            // Assert that the actual SHA512 hash matches the expected hash
             actualSHA512.Should().NotBeNullOrEmpty();
             actualSHA512.Should().Be(expectedSHA512);
         }

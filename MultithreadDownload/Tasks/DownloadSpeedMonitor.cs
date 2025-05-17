@@ -63,7 +63,7 @@ namespace MultithreadDownload.Tasks
                 OnSpeedUpdated?.Invoke(downloadSpeed);
 
                 // Log the download speed
-                //DownloadLogger.LogInfo($"The download speed is {downloadSpeed}");
+                DownloadLogger.LogInfo($"The download speed is {downloadSpeed}");
             }, null, 1000, 1000);
         }
 

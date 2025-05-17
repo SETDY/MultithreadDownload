@@ -1,4 +1,5 @@
-﻿using MultithreadDownload.Protocols;
+﻿using MultithreadDownload.Downloads;
+using MultithreadDownload.Protocols;
 using MultithreadDownload.Threads;
 using MultithreadDownload.Utils;
 using System;
@@ -70,7 +71,7 @@ namespace MultithreadDownload.Threading
         public DownloadThreadManager(IDownloadThreadFactory factory, byte maxThreads, IDownloadContext downloadContext)
         {
             // Initialize the properties
-            _threads = new List<IDownloadThread>();
+            _threads = new List<IDownloadThread>(maxThreads);
             _downloadContext = downloadContext;
             _maxThreads = maxThreads;
             _factory = factory;
@@ -157,8 +158,12 @@ namespace MultithreadDownload.Threading
             // If the progress is 100, invoke the ThreadCompleted event
             Progress<sbyte> progresser = new Progress<sbyte>(progress =>
             {
-                if (progress == 100)
+                // If the progress is 100 and the thread is not completed,
+                // set the state to completed to invoke the event and increment the completed threads count
+                if (progress == 100 && thread.State != DownloadState.Completed)
                 {
+                    // Set the state of the thread to completed
+                    thread.SetState(DownloadState.Completed);
                     // This if statement checks if the number of completed threads is greater than the maximum number of threads
                     // If it happens, the task may stack and cause a deadlock because the task is waiting for the thread to complete
                     // To prevent that from happening, it throws an exception to break the deadlock
