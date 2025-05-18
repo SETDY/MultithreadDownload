@@ -108,18 +108,18 @@ namespace MultithreadDownload.Tasks
             this.SpeedMonitor.Start(() =>
             {
                 // Log the request to get the completed size of the task.
-                DownloadLogger.LogInfo($"Request to get the completed size of the task with id: {ID}.");
+                //DownloadLogger.LogInfo($"Request to get the completed size of the task with id: {ID}.");
                 Result<long> result = this.GetCompletedDownloadSize();
                 if (result.IsSuccess)
                 {
                     // Log the completed size of the task.
-                    DownloadLogger.LogInfo($"The completed size of the task with id: {ID} is {result.Value} bytes.");
+                    //DownloadLogger.LogInfo($"The completed size of the task with id: {ID} is {result.Value} bytes.");
                     return result.Value;
                 }
                 else
                 {
                     // Log the error message.
-                    DownloadLogger.LogError($"The completed size of the task with id: {ID} cannot be got because {result.ErrorMessage}");
+                    //DownloadLogger.LogError($"The completed size of the task with id: {ID} cannot be got because {result.ErrorMessage}");
                     throw new NullReferenceException(result.ErrorMessage);
                 }
             });

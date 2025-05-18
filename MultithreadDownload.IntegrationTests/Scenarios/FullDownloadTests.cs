@@ -74,7 +74,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
         }
 
         [Fact]
-        public async Task DownloadFile_SingleThread_FromLocalHttpServer_WorksCorrectly()
+        public async Task DownloadSamllFile_SingleThread_FromLocalHttpServer_WorksCorrectly()
         {
             // Arrange
             // Create a test server that returns a known file size
@@ -110,6 +110,59 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                 {
                     server.Stop();
                     File.Delete(downloadPath);
+                }
+            };
+            server.Start();
+
+            // Act
+            downloadManager.AddTask(context);
+            Thread.Sleep(1500);
+            downloadManager.StartAllocator();
+            // Wait for the download to complete
+            await completionSource.Task;
+        }
+
+        [Fact]
+        public async Task DownloadLargeFile_SingleThread_FromLocalHttpServer_WorksCorrectly()
+        {
+            // Since Github has limitations on the size of the file that can be saved,
+            // the test file is not uploaded to the repository.
+            // Therefore, this test will be skipped when running in Github Actions.
+            // Since Skip.If() method has a issue with the Xunit test runner,
+            // we use TestHelper.SkipTestOnCI() and Assert.True() to skip the test.
+            if (TestHelper.SkipTestOnCI()) { return; }
+
+            // Arrange
+            // Create a test server that returns a known file size
+            // Get context for the download task
+            (LocalHttpFileServer server, MultiDownload downloadManager, HttpDownloadContext? context)
+                = await TestHelper.PrepareDownload(
+                DownloadServiceType.Http,
+                1,
+                1,
+                Path.GetTempPath(),
+                TestConstants.LARGE_TESTFILE_PATH
+            );
+            // Create a TaskCompletionSource to wait for the download completion
+            // It must be used to prevent the test from finishing before the download is completed
+            TaskCompletionSource completionSource = new TaskCompletionSource();
+            context.Should().NotBeNull();
+            downloadManager.TasksProgressCompleted += (sender, e) =>
+            {
+                try
+                {
+                    // Assert => Check if the file exists and its content is correct
+                    TestHelper.VerifyFileContent(context.TargetPath, TestConstants.LARGE_TESTFILE_PATH);
+                    completionSource.SetResult();
+                }
+                catch (Exception ex)
+                {
+                    completionSource.SetException(ex);
+                }
+                finally
+                {
+                    server.Stop();
+                    File.Delete(context.TargetPath);
                 }
             };
             server.Start();

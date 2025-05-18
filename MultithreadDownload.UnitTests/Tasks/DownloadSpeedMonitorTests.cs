@@ -19,11 +19,14 @@ namespace MultithreadDownload.UnitTests.Tasks
 
             // Simulate 512 bytes download and wait about 1 second
             downloadedBytes += 512;
-            await Task.Delay(1100);
+            await Task.Delay(1000);
 
             // Assert
-            var speedStr = await tcs.Task.TimeoutAfter(TimeSpan.FromSeconds(3));
-            speedStr.Should().Contain("B/s").And.Contain("512");
+            string speedStr = await tcs.Task.TimeoutAfter(TimeSpan.FromSeconds(3));
+            speedStr.Should().Contain("B/s");
+            // Since the timer is not precise, we need to check the range
+            int speedValue = int.Parse(speedStr.Split(' ')[0]);
+            speedValue.Should().BeInRange(490, 520);
 
             monitor.Stop();
         }
@@ -43,12 +46,17 @@ namespace MultithreadDownload.UnitTests.Tasks
             downloadedBytes += 5 * 1024 * 1024;
             await Task.Delay(1100);
 
-            // Assert
+            // Wait for the next tick before asserting
             string? speedStr = await tcs.Task.TimeoutAfter(TimeSpan.FromSeconds(3));
-            speedStr.Should().Contain("MiB/s").And.Contain("5");
+
+            speedStr.Should().Contain("MiB/s");
+            // Since the timer is not precise, we need to check the range
+            double speedValue = double.Parse(speedStr.Split(' ')[0]);
+            speedValue.Should().BeInRange(4.8, 5.2);
 
             monitor.Stop();
         }
+
 
         [Fact]
         public async Task DownloadSpeedMonitor_ShouldReportContinuousGrowth()
@@ -95,7 +103,8 @@ namespace MultithreadDownload.UnitTests.Tasks
             monitor.Stop();
         }
 
-        [Fact]        public async Task DownloadSpeedMonitor_ShouldNotRaiseEventAfterStop()
+        [Fact]        
+        public async Task DownloadSpeedMonitor_ShouldNotRaiseEventAfterStop()
         {
             // Arrange
             long downloadedBytes = 0;

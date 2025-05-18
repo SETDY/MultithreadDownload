@@ -84,7 +84,10 @@ namespace MultithreadDownload.Protocols
             if (!fileSize.IsSuccess) { return Result<HttpDownloadContext>.Failure($"Cannot get file size from {link}"); }
 
             // Set the target path to a unique file name
-            string targetPath = PathHelper.GetUniqueFileName(savedPath, Path.GetFileName(link));
+            // If the file name is empty, use a temporary file name
+            string targetPath = PathHelper.GetUniqueFileName(savedPath,
+                Path.GetFileName(link) == "" ? Path.GetTempFileName() : Path.GetFileName(link)
+                );
 
             // Since GetFileSegments() method requires a file size greater than 0,
             // this if case is used to handle the case where the file size is 0
