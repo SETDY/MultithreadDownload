@@ -26,6 +26,8 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
         [Fact]
         public async Task DownloadFile_SingleThread_FromInternet_WrokCorrectly()
         {
+            if (TestHelper.SkipTestOnCI()) { return; }
+
             // Arrange
             // Get context for the download taskwith a single thread
             string url = "https://builds.dotnet.microsoft.com/dotnet/Sdk/9.0.300/dotnet-sdk-9.0.300-win-x64.exe";

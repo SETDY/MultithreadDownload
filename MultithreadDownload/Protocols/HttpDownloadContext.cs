@@ -1,4 +1,5 @@
 ﻿using MultithreadDownload.Utils;
+using System;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -83,11 +84,18 @@ namespace MultithreadDownload.Protocols
             Result<long> fileSize = await HttpNetworkHelper.GetLinkFileSizeAsync(link);
             if (!fileSize.IsSuccess) { return Result<HttpDownloadContext>.Failure($"Cannot get file size from {link}"); }
 
+            //FIX: There is a fix for the issue of empty file name
+            // If the file name is not specified, use the file name from the link
+            string targetFileName = Path.GetFileName(savedPath);
+            if (string.IsNullOrEmpty(targetFileName))
+            {
+                targetFileName = Path.GetFileName(link);
+                // If the file name is also not specified, use a random file name
+                targetFileName = string.IsNullOrEmpty(targetFileName) ? targetFileName = Path.GetRandomFileName() : Path.GetFileName(link);
+            }
+
             // Set the target path to a unique file name
-            // If the file name is empty, use a temporary file name
-            string targetPath = PathHelper.GetUniqueFileName(savedPath,
-                Path.GetFileName(link) == "" ? Path.GetTempFileName() : Path.GetFileName(link)
-                );
+            string targetPath = PathHelper.GetUniqueFileName(PathHelper.GetDirectoryNameSafe(savedPath), targetFileName);
 
             // Since GetFileSegments() method requires a file size greater than 0,
             // this if case is used to handle the case where the file size is 0
