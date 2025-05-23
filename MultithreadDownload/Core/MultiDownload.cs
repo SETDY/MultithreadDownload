@@ -63,7 +63,7 @@ namespace MultithreadDownload.Core
             _taskScheduler = new DownloadTaskScheduler(_maxParallelTasks, _downloadService, _workProvider);
 
             // Log the initialization
-            DownloadLogger.LogInfo($"MultiDownload initialized with {downloadService.GetType().Name} and maxParallelTasks = {_maxParallelTasks}");
+            //DownloadLogger.LogInfo($"MultiDownload initialized with {downloadService.GetType().Name} and maxParallelTasks = {_maxParallelTasks}");
 
             HookEvents();
         }
@@ -85,7 +85,7 @@ namespace MultithreadDownload.Core
             _taskScheduler = new DownloadTaskScheduler(_maxParallelTasks, _downloadService, _workProvider);
 
             // Log the initialization
-            DownloadLogger.LogInfo($"MultiDownload initialized with {serviceType} and maxParallelTasks = {_maxParallelTasks}");
+            //DownloadLogger.LogInfo($"MultiDownload initialized with {serviceType} and maxParallelTasks = {_maxParallelTasks}");
 
             HookEvents();
         }
@@ -153,7 +153,7 @@ namespace MultithreadDownload.Core
             DownloadTask addedTask = _taskScheduler.AddTask(downloadContext);
 
             // Log the addition of the task
-            DownloadLogger.LogInfo($"The Task is added with id: {addedTask.ID} and path: {downloadContext.TargetPath}");
+            //DownloadLogger.LogInfo($"The Task is added with id: {addedTask.ID} and path: {downloadContext.TargetPath}");
 
             return addedTask;
         }

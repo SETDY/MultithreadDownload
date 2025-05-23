@@ -11,7 +11,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading;
 
-namespace MultithreadDownload.Protocols
+namespace MultithreadDownload.Protocols.Http
 {
     /// <summary>
     /// HttpDownloadService is a class that implements IDownloadService interface
@@ -162,155 +162,14 @@ namespace MultithreadDownload.Protocols
         }
 
         #endregion Implement of GetStreams method
-
+        #region Implement of DownloadFile method
         public Result<bool> DownloadFile(Stream inputStream, Stream outputStream, IDownloadThread downloadThread)
         {
-            // Download the file from the input stream(Internet) to the output stream(Local drive).
-            // If the download is successful, get the bytes of file and write it into file
-            // and return the number of bytes written.
-            // Otherwise, retry for a maximum of TRYTIMES times
-            // If still failed, return a failure result with the error message.
-
-            //TODO: Costomize the buffer size and retry times
-            const int BUFFER_SIZE = 4096;
-            const int MAX_TOTAL_RETRIES = 5;
-            const int WAIT_MS = 2000;
-
-            byte[] buffer = new byte[BUFFER_SIZE];
-            int retryCount = 0;
-
-            downloadThread.SetState(DownloadState.Downloading);
-
-            while (downloadThread.State == DownloadState.Downloading)
-            {
-                if (TryReadAndWrite(inputStream, outputStream, buffer, out int bytesRead))
-                {
-                    // If the bytesRead is 0 => reached the end of the stream => download successfully completed
-                    if (bytesRead == 0)
-                    {
-                        // If a download thread is completed the download,
-                        // but it does not have any records on the completed bytes size count,
-                        // it means that the file which the thread should download is empty.
-                        // To make sure that the task will be finalized, there needs to add a count for the completed bytes size count.
-                        // because the finalized work will be done by the IProgress of each thread.
-                        if (downloadThread.CompletedBytesSizeCount == 0)
-                        {
-                            // Set a needly completed bytes size count for the download thread
-                            // Since the needed download size must be 0 if the file is empty,
-                            // there can just use (int) to convert a long value into int.
-                            SetCompletedByteNumbers(downloadThread,
-                                (int)(downloadThread.DownloadContext.RangePositions[downloadThread.ID, 1] - 
-                                downloadThread.DownloadContext.RangePositions[downloadThread.ID, 0])
-                                );
-                        }
-                        return FinishSuccess(outputStream);
-                    }
-                    // Otherwise, that means the download is still in progress
-                    // Add the completed bytes size count for this thread
-                    // Reset the retry count to preper getting next bytes
-                    SetCompletedByteNumbers(downloadThread, bytesRead);
-                    retryCount = 0; // reset retry count
-                }
-                else
-                {
-                    // If cannot read and write the data from the input stream to the output stream,
-                    // retry for a maximum of MAX_TOTAL_RETRIES times with a wait time of WAIT_MS milliseconds
-                    retryCount++;
-                    if (retryCount >= MAX_TOTAL_RETRIES)
-                        break;
-
-                    Thread.Sleep(WAIT_MS);
-                }
-            }
-            // If the download is still failed after MAX_RETRY times or user cancel the download task
-            // Clean up the download progress by closing and disposing the output stream and
-            // return a failure result with the error message.
-            return FinishFailure(outputStream, downloadThread.DownloadContext, MAX_TOTAL_RETRIES);
+            // Using HttpFileDownloader, download the file from the input stream(Internet) to the output stream(Local drive).
+            HttpFileDownloader fileDownloader = new HttpFileDownloader(inputStream, outputStream, downloadThread);
+            return fileDownloader.DownloadFile();
         }
-
-        /// <summary>
-        /// Try to read and write the data from the input stream to the output stream
-        /// </summary>
-        /// <param name="input">The input stream</param>
-        /// <param name="output">The output stream</param>
-        /// <param name="buffer">The buffer to read the data</param>
-        /// <param name="bytesRead">The number of bytes read</param>
-        /// <returns>Whether the operation is success or not</returns>
-        private bool TryReadAndWrite(Stream input, Stream output, byte[] buffer, out int bytesRead)
-        {
-            bytesRead = 0;
-            try
-            {
-                bytesRead = input.Read(buffer, 0, buffer.Length);
-                if (bytesRead > 0)
-                    output.Write(buffer, 0, bytesRead);
-
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Finish the download process successfully
-        /// </summary>
-        /// <param name="output">The output stream</param>
-        /// <returns></returns>
-        private Result<bool> FinishSuccess(Stream output)
-        {
-            CleanDownloadProgess(output, null);
-            return Result<bool>.Success(true);
-        }
-
-        /// <summary>
-        /// Finish the download process failed
-        /// </summary>
-        /// <param name="output">The output stream</param>
-        /// <param name="context">The download context</param>
-        /// <param name="retries">The number of retryment</param>
-        /// <returns>The result of the operation</returns>
-        private Result<bool> FinishFailure(Stream output, IDownloadContext context, int retries)
-        {
-            CleanDownloadProgess(output, null);
-            return Result<bool>.Failure(
-                $"Thread failed after {retries} retries: {((HttpDownloadContext)context).Url}");
-        }
-
-
-        /// <summary>
-        /// Set the completed byte numbers for the download thread
-        /// </summary>
-        /// <param name="downloadThread">The thread that is downloading the file</param>
-        /// <param name="readBytesCount">The number of bytes that have been read</param>
-        private void SetCompletedByteNumbers(IDownloadThread downloadThread, int readBytesCount)
-        {
-            // Add the completed byte numbers for the download thread
-            // Set the download progress for the download thread
-            downloadThread.AddCompletedBytesSizeCount(readBytesCount);
-            // This variable is used to simply calculate the download progress
-            // because it is too long that writing the whole expression.
-            long threadDownloadSizeRange =
-                ((HttpDownloadContext)downloadThread.DownloadContext).RangePositions[downloadThread.ID, 1] -
-                ((HttpDownloadContext)downloadThread.DownloadContext).RangePositions[downloadThread.ID, 0];
-            // FIX: the download progress set to 100% again to fix the empty file stuck bug
-            // There is used to prevent division by zero if the threadDownloadSizeRange is 0
-            // It will happen if the file is empty
-            sbyte downloadProgress = 100;
-            if (threadDownloadSizeRange > 0)
-                downloadProgress = (sbyte)(downloadThread.CompletedBytesSizeCount / (decimal)threadDownloadSizeRange * 100);
-            // This if statement is used to check if the download progress is 100%
-            // to prevent the download progress set to 100% again to fix the progresser bug
-            if (downloadThread.State != DownloadState.Completed)
-                // Set the download progress for the download thread
-                downloadThread.SetDownloadProgress(downloadProgress);
-
-            // Log the download progress of the download thread
-            //DownloadLogger.LogInfo($"Thread {downloadThread.ID} has downloaded {downloadThread.CompletedBytesSizeCount}");
-            //DownloadLogger.LogInfo($"Thread {downloadThread.ID} has downloaded {readBytesCount} bytes in this round and should download {threadDownloadSize} bytes");
-            //DownloadLogger.LogInfo($"The download progress of thread {downloadThread.ID} is {downloadThread.CompletedBytesSizeCount / (decimal)threadDownloadSize * 100}%");
-        }
+        #endregion Implement of DownloadFile method
 
         public Result<bool> PostDownloadProcessing(Stream outputStream, DownloadTask task)
         {
@@ -322,7 +181,7 @@ namespace MultithreadDownload.Protocols
             // After that, we need to combine the segments of the file to a single file
             if (task.ThreadManager.CompletedThreadsCount != task.ThreadManager.MaxParallelThreads)
             {
-                this.CleanDownloadProgess(outputStream,
+                CleanDownloadProgess(outputStream,
                     task.ThreadManager.GetThreads().Select(x => x.FileSegmentPath).ToArray());
                 return Result<bool>.Failure(
                     $"Task {task.ID} does not be completed and cannot do PostDownloadProcessing().Therefore, The task has be cancelled");
@@ -338,7 +197,7 @@ namespace MultithreadDownload.Protocols
                 Debug.WriteLine($"Failed to combine segments: {result.ErrorMessage}");
                 return Result<bool>.Failure($"Failed to combine segments: {result.ErrorMessage}");
             }
-            this.CleanDownloadProgess(outputStream);
+            CleanDownloadProgess(outputStream);
             return Result<bool>.Success(true);
         }
 

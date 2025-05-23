@@ -3,7 +3,7 @@ using Microsoft.VisualStudio.TestPlatform.Utilities;
 using MultithreadDownload.Core;
 using MultithreadDownload.IntegrationTests.Fixtures;
 using MultithreadDownload.Logging;
-using MultithreadDownload.Protocols;
+using MultithreadDownload.Protocols.Http;
 using MultithreadDownload.Tasks;
 using MultithreadDownload.Utils;
 using System.Threading.Tasks;

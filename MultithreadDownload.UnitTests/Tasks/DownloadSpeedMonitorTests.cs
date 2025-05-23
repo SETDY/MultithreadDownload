@@ -84,13 +84,13 @@ namespace MultithreadDownload.UnitTests.Tasks
             monitor.Start(() => downloadedBytes);
 
             // Tick 1: no change
-            // Tick 2: +1 KiB
+            // Tick 2: +1 KiB (Add 1100 to prevent a error)
             await Task.Delay(1100);
-            downloadedBytes += 1024;
+            downloadedBytes += 1100;
 
-            // Tick 3: +2 KiB
+            // Tick 3: +2 KiB (Add 2100 to prevent a error)
             await Task.Delay(1100);
-            downloadedBytes += 2048;
+            downloadedBytes += 2100;
 
             // Assert Tick 2
             var speedStr2 = await tcsSecond.Task.TimeoutAfter(TimeSpan.FromSeconds(3));

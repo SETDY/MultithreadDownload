@@ -1,6 +1,6 @@
 ﻿using FluentAssertions;
 using MultithreadDownload.Core;
-using MultithreadDownload.Protocols;
+using MultithreadDownload.Protocols.Http;
 using MultithreadDownload.Tasks;
 using MultithreadDownload.Utils;
 using System;

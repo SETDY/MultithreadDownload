@@ -1,4 +1,5 @@
-﻿using MultithreadDownload.Tasks;
+﻿using MultithreadDownload.Protocols.Http;
+using MultithreadDownload.Tasks;
 using System;
 
 namespace MultithreadDownload.Protocols

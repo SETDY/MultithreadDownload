@@ -1,7 +1,7 @@
 ﻿using FluentAssertions;
 using MultithreadDownload.Core;
 using MultithreadDownload.IntegrationTests.Fixtures;
-using MultithreadDownload.Protocols;
+using MultithreadDownload.Protocols.Http;
 using MultithreadDownload.Tasks;
 using MultithreadDownload.Utils;
 

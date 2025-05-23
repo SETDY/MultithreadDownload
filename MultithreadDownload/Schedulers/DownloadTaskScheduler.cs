@@ -86,7 +86,7 @@ namespace MultithreadDownload.Schedulers
                     // Otherwise, block the task to wait
                     this._downloadSlots.Wait(_allocatorTokenSource.Token);
                     // Log the start of the task
-                    DownloadLogger.LogInfo($"The Task with id: {task.ID} and path: {task.DownloadContext.TargetPath} has been started.");
+                    //DownloadLogger.LogInfo($"The Task with id: {task.ID} and path: {task.DownloadContext.TargetPath} has been started.");
                     task.Start(_workProvider, _downloadService);
                 }
             }, TaskCreationOptions.LongRunning);
@@ -164,7 +164,7 @@ namespace MultithreadDownload.Schedulers
             DownloadTask task = DownloadTask.Create(Guid.NewGuid(), this.MaxParallelTasks, downloadContext);
 
             // Log the creation of the task
-            DownloadLogger.LogInfo($"A Task is created with id: {task.ID} and path: {downloadContext.TargetPath}");
+            //DownloadLogger.LogInfo($"A Task is created with id: {task.ID} and path: {downloadContext.TargetPath}");
 
             task.Completed += delegate
             {
@@ -184,7 +184,7 @@ namespace MultithreadDownload.Schedulers
             _taskQueue.Add(task);
 
             // Log the additon of the queued task
-            DownloadLogger.LogInfo($"The Task is queued with id: {task.ID} and path: {downloadContext.TargetPath}");
+            //DownloadLogger.LogInfo($"The Task is queued with id: {task.ID} and path: {downloadContext.TargetPath}");
 
             // Add an ? to prevent the event is invoked when it is null.
             TaskQueueProgressChanged?.Invoke(task, new DownloadDataEventArgs(task));

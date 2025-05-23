@@ -3,7 +3,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 
-namespace MultithreadDownload.Protocols
+namespace MultithreadDownload.Protocols.Http
 {
     /// <summary>
     /// Represents the context for an HTTP download.
@@ -36,10 +36,10 @@ namespace MultithreadDownload.Protocols
         public HttpDownloadContext(string targetPath, string url, long[,] rangePositions)
         {
             // Initialize the properties
-            this.TargetPath = targetPath;
-            this.RangePositions = rangePositions;
-            this.Url = url;
-            this.CompletedSize = 0;
+            TargetPath = targetPath;
+            RangePositions = rangePositions;
+            Url = url;
+            CompletedSize = 0;
         }
 
         public Result<bool> IsPropertiesVaild()
@@ -50,12 +50,12 @@ namespace MultithreadDownload.Protocols
                 return Result<bool>.Failure("Target path is not valid.");
             }
             // Check if the URL is valid
-            if (string.IsNullOrEmpty(Url) || !(HttpNetworkHelper.LinkCanConnectionAsync(this.Url).Result))
+            if (string.IsNullOrEmpty(Url) || !HttpNetworkHelper.LinkCanConnectionAsync(Url).Result)
             {
                 return Result<bool>.Failure("URL is not valid.");
             }
             // Check if the range start and offset are valid
-            if (this.RangePositions == null)
+            if (RangePositions == null)
             {
                 return Result<bool>.Failure("Range position cannot be null");
             }
@@ -64,7 +64,7 @@ namespace MultithreadDownload.Protocols
 
         public void SetCompletedSize(long size)
         {
-            this.CompletedSize = size;
+            CompletedSize = size;
         }
 
         /// <summary>

@@ -165,7 +165,7 @@ namespace MultithreadDownload.Tasks
                     // TODO: There is a bug here, the task will not be completed if the event throws an exception.
                     this.State = DownloadState.Completed;
                     // Log the completion of the task.
-                    DownloadLogger.LogInfo($"The task with id: {ID} have been.");
+                    DownloadLogger.LogInfo($"The task with id: {ID} have been completed.");
                 }
                 catch (Exception ex)
                 {

@@ -25,6 +25,8 @@ namespace MultithreadDownload.Logging
 
         public static void LogInfo(string message) => Current.LogInfo(message);
         public static void LogWarning(string message) => Current.LogWarning(message);
+#nullable enable
         public static void LogError(string message, Exception? exception = null) => Current.LogError(message, exception);
+#nullable disable
     }
 }

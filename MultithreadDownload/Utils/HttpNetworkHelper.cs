@@ -19,7 +19,7 @@ namespace MultithreadDownload.Utils
         /// <remarks>
         /// 1. Althought it is recommended to use a single instance of HttpClient for the lifetime of the application,
         /// the class will be use a specific instance of HttpClient which is only for this class
-        /// becase the <see cref="MultithreadDownload.Protocols.HttpClientPool"/> which now used has been use for download file.
+        /// becase the <see cref="Protocols.Http.HttpClientPool"/> which now used has been use for download file.
         /// 2. Since the timeout of <see cref="_client"/> has been controlled by cts in the methods,
         /// the default timeout of <see cref="_client"/> is set to infinite.
         /// </remarks>

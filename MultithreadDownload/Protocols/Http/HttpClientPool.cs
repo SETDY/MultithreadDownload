@@ -1,7 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Net.Http;
 
-namespace MultithreadDownload.Protocols
+namespace MultithreadDownload.Protocols.Http
 {
     /// <summary>
     /// A pool of HttpClient instances for efficient reuse.
