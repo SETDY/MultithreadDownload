@@ -12,15 +12,17 @@ using Xunit.Abstractions;
 namespace MultithreadDownload.IntegrationTests.Scenarios
 {
     /// <summary>
-    /// This class contains tests for the full download functionality.
+    /// Integration tests for the whole download process with only one task in real download scenarios.
+    /// These tests validate the MultiDownload's behavior during actual file downloads
+    /// with various configurations and network conditions.
     /// </summary>
-    public class FullDownloadTests
+    public class SingleTaskDownloadTests
     {
         private readonly ITestOutputHelper _output;
-        public FullDownloadTests(ITestOutputHelper output)
+        public SingleTaskDownloadTests(ITestOutputHelper output)
         {
             _output = output;
-            DownloadLogger.Current = new TestOutputLogger(_output); // 启用测试日志输出
+            DownloadLogger.Current = new TestOutputLogger(_output); // Activate the logger to output logs to xUnit's output
         }
 
         [Fact]
@@ -163,6 +165,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                 }
                 finally
                 {
+                    // After the download is asserted, stop the server and delete the downloaded file
                     server.Stop();
                     File.Delete(context.TargetPath);
                 }
@@ -267,8 +270,11 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             downloadManager.TasksProgressCompleted += (sender, e) =>
             {
                 // Assert
+                // Check if the file exists and is empty. Then, delete the file
                 TestHelper.VerifyEmptyFile(outputPath);
+                // After the download is asserted, stop the server
                 server.Stop();
+                // Set the result of the TaskCompletionSource to signal that the download asserting is complete
                 completionSource.SetResult();
             };
             server.Start();

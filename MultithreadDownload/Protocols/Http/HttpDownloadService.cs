@@ -147,9 +147,12 @@ namespace MultithreadDownload.Protocols.Http
                 // Set the timeout for the request
                 using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(WAIT_TIME)))
                 {
-                    // Send a request and get the response
+                    // Send a request and get a streaming response that will update the response by the time passed.
                     // Check if the response is successful
-                    HttpResponseMessage responseMessage = client.Send(requestMessage);
+                    // If not, throw an exception.
+                    HttpResponseMessage responseMessage = client
+                        .SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead)
+                        .GetAwaiter().GetResult();
                     responseMessage.EnsureSuccessStatusCode();
                     return Result<HttpResponseMessage>.Success(responseMessage);
                 }

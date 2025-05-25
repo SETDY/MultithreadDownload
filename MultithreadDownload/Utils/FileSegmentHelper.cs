@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MultithreadDownload.Logging;
+using System;
 using System.IO;
 
 namespace MultithreadDownload.Utils
@@ -20,6 +21,10 @@ namespace MultithreadDownload.Utils
             if (fileSegmentPaths.Length == 0 || finalFileStream == null) { return Result<bool>.Failure("The file segment paths or final file path cannot be null."); }
             try
             {
+                // If it is a single segment, just rename the file segment to the final file name
+                // and return the result of the operation.
+                if (HandleSingleSegment(fileSegmentPaths, ref finalFileStream, out Result<bool> success))
+                    return success;
                 Result<bool> result = CombineSegments(fileSegmentPaths, ref finalFileStream);
                 if (!result.IsSuccess) { return Result<bool>.Failure($"Cannot combine file segments: {result.ErrorMessage}"); }
                 return Result<bool>.Success(true);
@@ -38,6 +43,37 @@ namespace MultithreadDownload.Utils
         }
 
         #region Private Methods about implementation of CombineSegmentsSafe()
+
+        /// <summary>
+        /// Handles the case where there is only a single segment to download.
+        /// </summary>
+        /// <returns>Whether it is a single segment and be handled or not.</returns>
+        private static bool HandleSingleSegment(string[] fileSegmentPaths, ref FileStream finalFileStream, out Result<bool> success)
+        {
+            // If it is not a single segment, return false and set success to true.
+            // Otherwise, to save time, just rename the file segment to the final file name and return true.
+            if (fileSegmentPaths.Length != 1)
+            { 
+                success = Result<bool>.Success(true);
+                return false;
+            }
+
+            // Get the final file name and dispose file stream and delete the unwriten final file
+            // to let the segment can be renamed to the final file name.
+            string finalFileNamePath = finalFileStream.Name;
+            CleanupFileStream(ref finalFileStream, new string[] { finalFileNamePath });
+            try
+            {
+                File.Move(fileSegmentPaths[0], finalFileNamePath);
+            }
+            catch (Exception)
+            {
+                success = Result<bool>.Failure($"Cannot rename file segment: {fileSegmentPaths[0]} to final file: {finalFileNamePath}");
+                return true;
+            }
+            success = Result<bool>.Success(true);
+            return true;
+        }
 
         /// <summary>
         /// Combines the segmented files into a single file after download completion.
@@ -105,15 +141,16 @@ namespace MultithreadDownload.Utils
                 finalFileSegmentStream.Write(readFileBytes, 0, readFileBytesCount);
             }
             while (readFileBytesCount > 0);
-            CleanupFileStream(ref threadFileSegmentStream, threadFileSegmentPath);
+            CleanupFileStream(ref threadFileSegmentStream, new string[] { threadFileSegmentPath });
         }
 
+#nullable enable
         /// <summary>
         /// Performs cleanup operations for file streams and associated files.
         /// </summary>
         /// <param name="fileStream">The file stream to cleanup.</param>
         /// <param name="filePath">Array of file paths to delete.</param>
-        private static void CleanupFileStream(ref FileStream fileStream, string[] filePaths)
+        private static void CleanupFileStream(ref FileStream fileStream, string?[] filePaths)
         {
             // Flush and close the file stream if it exists
             // Then attempt to delete all associated files
@@ -125,38 +162,16 @@ namespace MultithreadDownload.Utils
             }
             try
             {
-                CleanupFiles(filePaths);
+                if (filePaths != null)
+                    CleanupFiles(filePaths);
             }
             catch (Exception)
             {
+                DownloadLogger.LogError($"Failed to delete files: {string.Join(", ", filePaths)}");
                 return;
             }
         }
-
-        /// <summary>
-        /// Performs cleanup operations for a file stream and its associated file.
-        /// </summary>
-        /// <param name="fileStream">The file stream to cleanup.</param>
-        /// <param name="filePath">The path of the file to delete.</param>
-        private static void CleanupFileStream(ref FileStream fileStream, string filePath)
-        {
-            // Flush and close the file stream if it exists
-            // Then attempt to delete the associated file
-            // If deletion fails, silently continue
-            if (fileStream != null)
-            {
-                fileStream.Flush();
-                fileStream.Close();
-            }
-            try
-            {
-                CleanupFiles(new string[] { filePath });
-            }
-            catch (Exception)
-            {
-                return;
-            }
-        }
+#nullable disable
 
         /// <summary>
         /// Performs cleanup operations for associated files.

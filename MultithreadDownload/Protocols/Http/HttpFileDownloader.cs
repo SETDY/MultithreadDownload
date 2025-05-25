@@ -1,4 +1,5 @@
 ﻿using MultithreadDownload.Downloads;
+using MultithreadDownload.Logging;
 using MultithreadDownload.Threads;
 using MultithreadDownload.Utils;
 using System;
@@ -88,6 +89,7 @@ namespace MultithreadDownload.Protocols.Http
                 // Write the chunk of data to the output stream
                 // If the write operation failed, check if the maximum number of retries has been reached
                 // If is, break the loop.
+                //DownloadLogger.LogInfo($"Set Download Bytes from {_thread.CompletedBytesSizeCount} to {_thread.CompletedBytesSizeCount + bytesRead} at {DateTime.Now}");
                 SetCompletedByteNumbers(bytesRead);
                 if (!TryWriteChunk(bytesRead, ref retryCount))
                     break;

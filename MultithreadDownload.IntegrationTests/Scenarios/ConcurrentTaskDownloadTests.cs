@@ -8,9 +8,11 @@ using MultithreadDownload.Utils;
 namespace MultithreadDownload.IntegrationTests.Scenarios
 {
     /// <summary>
-    /// This class contains tests for the concurrent download functionality.
+    /// Integration tests for the whole download process with only multi task in real download scenarios.
+    /// These tests validate the MultiDownload's behavior during actual file downloads
+    /// with various configurations and network conditions.
     /// </summary>
-    public class ConcurrentDownloadTests
+    public class ConcurrentTaskDownloadTests
     {
 
         [Theory]

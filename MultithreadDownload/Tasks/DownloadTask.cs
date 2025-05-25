@@ -67,6 +67,11 @@ namespace MultithreadDownload.Tasks
         public IDownloadThreadManager ThreadManager { get; private set; }
 
         /// <summary>
+        /// The download speed tracker for monitoring the download speed.
+        /// </summary>
+        public IDownloadSpeedTracker SpeedTracker { get; private set; }
+
+        /// <summary>
         /// When the state of download is completed, this event will be invoked
         /// </summary>
         public event EventHandler<DownloadDataEventArgs> StateChange;
@@ -79,11 +84,6 @@ namespace MultithreadDownload.Tasks
         /// </remarks>
         public event Action Completed;
 
-        /// <summary>
-        /// The download speed monitor for monitoring the download speed.
-        /// </summary>
-        public readonly DownloadSpeedMonitor SpeedMonitor = new DownloadSpeedMonitor();
-
         #endregion Properties
 
         private DownloadTask(Guid taskID, byte maxThreads, IDownloadThreadManagerFactory factory, IDownloadContext downloadContext)
@@ -95,34 +95,19 @@ namespace MultithreadDownload.Tasks
             this.DownloadContext = downloadContext;
             this.ThreadManager = factory.Create(new DownloadThreadFactory(),
                 this.DownloadContext, maxThreads);
-            this.StartSpeedMonitor();
+            this.SpeedTracker = new DownloadSpeedTracker();
         }
 
-        /// <summary>
-        /// Start the download speed monitor.
-        /// </summary>
-        /// <exception cref="NullReferenceException">The download thread manager is null.</exception>
-        private void StartSpeedMonitor()
+        private DownloadTask(Guid taskID, byte maxThreads, IDownloadThreadManagerFactory factory, IDownloadSpeedTracker speedTracker, IDownloadContext downloadContext)
         {
-            // Start the speed monitor with the method to get the downloaded size.
-            this.SpeedMonitor.Start(() =>
-            {
-                // Log the request to get the completed size of the task.
-                //DownloadLogger.LogInfo($"Request to get the completed size of the task with id: {ID}.");
-                Result<long> result = this.GetCompletedDownloadSize();
-                if (result.IsSuccess)
-                {
-                    // Log the completed size of the task.
-                    //DownloadLogger.LogInfo($"The completed size of the task with id: {ID} is {result.Value} bytes.");
-                    return result.Value;
-                }
-                else
-                {
-                    // Log the error message.
-                    //DownloadLogger.LogError($"The completed size of the task with id: {ID} cannot be got because {result.ErrorMessage}");
-                    throw new NullReferenceException(result.ErrorMessage);
-                }
-            });
+            // Initialize the download task with the given download delegate, download context ,and factory.
+            // Initialize the speed monitor with the method to get the downloaded size.
+            this.ID = taskID;
+            this._state = DownloadState.Waiting;
+            this.DownloadContext = downloadContext;
+            this.ThreadManager = factory.Create(new DownloadThreadFactory(),
+                this.DownloadContext, maxThreads);
+            this.SpeedTracker = speedTracker;
         }
 
         /// <summary>
@@ -156,7 +141,11 @@ namespace MultithreadDownload.Tasks
                     Result<Stream> finalStream = workProvider.GetTaskFinalStream(this.DownloadContext);
                     if (!finalStream.IsSuccess) { throw new Exception("GetTaskFinalStream failed"); }
                     // Log the execution of the final work.
+                    // Change the set to AfterProcessing to indicate that the task is combining the downloaded parts.
+                    // Since the download task has campleted its download, stop the speed monitor.
+                    SpeedTracker.Dispose();
                     DownloadLogger.LogInfo($"The final work of the task with id: {ID} have been executed.");
+                    this.State = DownloadState.AfterProcessing;
                     Result<bool> result = workProvider.Execute_FinalizeWork(finalStream.Value, downloadService, this);
                     if (!result.IsSuccess)
                         this.State = DownloadState.Failed;
@@ -199,7 +188,7 @@ namespace MultithreadDownload.Tasks
             // Dispose the download task and release the resources.
             this.Cancel();
             this.ThreadManager.Dispose();
-            this.SpeedMonitor.Stop();
+            this.SpeedTracker.Dispose();
         }
 
         /// <summary>
