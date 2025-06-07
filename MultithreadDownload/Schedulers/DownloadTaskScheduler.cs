@@ -68,6 +68,9 @@ namespace MultithreadDownload.Schedulers
 
         public DownloadTaskScheduler(byte maxDownloadingTasks, IDownloadService downloadService, IDownloadTaskWorkProvider workProvider)
         {
+            // Check the parameters
+            if (maxDownloadingTasks <= 0)
+                throw new ArgumentOutOfRangeException(nameof(maxDownloadingTasks), "The maximum number of parallel tasks must be greater than 0.");
             // Initialize the properties
             this.MaxParallelTasks = maxDownloadingTasks;
             _downloadSlots = new SemaphoreSlim(this.MaxParallelTasks);

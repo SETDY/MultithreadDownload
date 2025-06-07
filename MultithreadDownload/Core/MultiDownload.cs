@@ -4,14 +4,16 @@ using MultithreadDownload.Protocols;
 using MultithreadDownload.Schedulers;
 using MultithreadDownload.Tasks;
 using System;
+using System.Linq;
 
 namespace MultithreadDownload.Core
 {
     /// <summary>
-    /// The MultiDownload class is responsible for managing multiple download tasks.
+    /// The MultiDownload class is responsible for managing multiple download tasks by using a single type of download service etc.
     /// </summary>
     public class MultiDownload : IDisposable
     {
+        #region Private Fields
         /// <summary>
         /// The scheduler that manages the download tasks.
         /// </summary>
@@ -31,7 +33,9 @@ namespace MultithreadDownload.Core
         /// The work provider used to manage the download tasks.
         /// </summary>
         private readonly IDownloadTaskWorkProvider _workProvider;
+        #endregion
 
+        #region Properties
         /// <summary>
         /// Event raised when the progress of the task queue changes.
         /// </summary>
@@ -41,6 +45,7 @@ namespace MultithreadDownload.Core
         /// Event raised when a task have completed its progress.
         /// </summary>
         public event EventHandler TasksProgressCompleted;
+        #endregion
 
         /// <summary>
         /// Initializes a new instance of the <see cref="MultiDownload"/> class.
@@ -54,7 +59,7 @@ namespace MultithreadDownload.Core
         public MultiDownload(byte maxParallelTasks, IDownloadService downloadService, IDownloadTaskWorkProvider workProvider)
         {
             /// Validate the parameters
-            ValidateParameters(downloadService);
+            ValidateParameters(downloadService, workProvider);
 
             // Initialize the properties
             _downloadService = downloadService;
@@ -133,10 +138,23 @@ namespace MultithreadDownload.Core
         #endregion Allocator Methods
 
         #region Task Management Methods
-
+        /// <summary>
+        /// Gets all download tasks managed by the scheduler.
+        /// </summary>
+        /// <returns>The array of all download tasks.</returns>
         public DownloadTask[] GetDownloadTasks()
         {
             return _taskScheduler.GetTasks();
+        }
+
+        /// <summary>
+        /// Gets download tasks that match the specified predicate.
+        /// </summary>
+        /// <param name="predicate">The predicate to filter tasks.</param>
+        /// <returns>The array of download tasks that match the predicate.</returns>
+        public DownloadTask[] GetDownloadTasks(Func<DownloadTask,bool> predicate)
+        {
+            return _taskScheduler.GetTasks().Where(predicate).ToArray();
         }
 
         /// <summary>
@@ -145,10 +163,9 @@ namespace MultithreadDownload.Core
         /// <param name="downloadContext">Download context.</param>
         public DownloadTask AddTask(IDownloadContext downloadContext)
         {
+            // Validate the download context
             if (downloadContext == null)
-            {
                 throw new ArgumentNullException(nameof(downloadContext));
-            }
             // TODO: Validate the download context whether it matches the download service
             DownloadTask addedTask = _taskScheduler.AddTask(downloadContext);
 
@@ -183,6 +200,8 @@ namespace MultithreadDownload.Core
         /// </summary>
         public void Dispose()
         {
+            //_workProvider.Dispose();
+            //_downloadService.Dispose();
             _taskScheduler.Dispose();
         }
     }
