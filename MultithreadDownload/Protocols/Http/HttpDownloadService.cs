@@ -1,8 +1,9 @@
-﻿using MultithreadDownload.Downloads;
+﻿using MultithreadDownload.Core.Errors;
+using MultithreadDownload.Downloads;
 using MultithreadDownload.Logging;
 using MultithreadDownload.Tasks;
 using MultithreadDownload.Threads;
-using MultithreadDownload.Utils;
+using MultithreadDownload.Primitives;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -10,6 +11,8 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading;
+using System.Threading.Tasks;
+using static System.Net.WebRequestMethods;
 
 namespace MultithreadDownload.Protocols.Http
 {
@@ -116,9 +119,12 @@ namespace MultithreadDownload.Protocols.Http
             // Retrun Result<HttpResponseMessage> so that the exception must be handled by the caller
             for (int i = 0; i < MAX_RETRY; i++)
             {
-                Result<HttpResponseMessage> result = SendRequest(client, requestMessage);
+                Result<HttpResponseMessage, DownloadError> result = SendRequest(client, requestMessage);
                 // If the request is successful, return the response.
                 // Otherwise, wait for WAIT_TIME milliseconds and retry.
+                result.Match(
+
+                    )
                 if (!result.IsSuccess)
                 {
                     Thread.Sleep(WAIT_TIME);
@@ -126,7 +132,7 @@ namespace MultithreadDownload.Protocols.Http
                 }
                 else
                 {
-                    return Result<HttpResponseMessage>.Success(result.Value);
+                    return Result<HttpResponseMessage>.Success(result);
                 }
             }
             return Result<HttpResponseMessage>.Failure("Failed to send request after multiple attempts.");
@@ -137,8 +143,8 @@ namespace MultithreadDownload.Protocols.Http
         /// </summary>
         /// <param name="client">A HttpClient instance</param>
         /// <param name="requestMessage">A HttpRequestMessage instance</param>
-        /// <returns>Result<HttpResponseMessage></returns>
-        private Result<HttpResponseMessage> SendRequest(HttpClient client, HttpRequestMessage requestMessage)
+        /// <returns>The result of sending the request and getting the response</returns>
+        private Result<HttpResponseMessage, DownloadError> SendRequest(HttpClient client, HttpRequestMessage requestMessage)
         {
             // Try to send the request and get the response
             // Retrun Result<HttpResponseMessage> so that the exception must be handled by the caller
@@ -154,17 +160,25 @@ namespace MultithreadDownload.Protocols.Http
                         .SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead)
                         .GetAwaiter().GetResult();
                     responseMessage.EnsureSuccessStatusCode();
-                    return Result<HttpResponseMessage>.Success(responseMessage);
+                    return Result<HttpResponseMessage, DownloadError>.Success(responseMessage);
                 }
+            }
+            catch (TaskCanceledException)
+            {
+                return Result<HttpResponseMessage, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.Timeout, $"Http request timed out after {WAIT_TIME}."));
+            }
+            catch (HttpRequestException httpEx)
+            {
+                return Result<HttpResponseMessage, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.HttpError, $"Http request failed: {httpEx.Message}"));
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Request failed: {ex.Message}");
-                return Result<HttpResponseMessage>.Failure($"Request failed: {ex.Message}");
+                return Result<HttpResponseMessage, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.UnexpectedOrUnknownException, $"Http request failed: {ex.Message}"));
             }
         }
 
         #endregion Implement of GetStreams method
+
         #region Implement of DownloadFile method
         public Result<bool> DownloadFile(Stream inputStream, Stream outputStream, IDownloadThread downloadThread)
         {
@@ -174,21 +188,57 @@ namespace MultithreadDownload.Protocols.Http
         }
         #endregion Implement of DownloadFile method
 
-        public Result<bool> PostDownloadProcessing(Stream outputStream, DownloadTask task)
+        #region Implement of PostDownloadProcessing method
+        public Result<bool, DownloadError> PostDownloadProcessing(Stream outputStream, DownloadTask task)
         {
-            // If the worker thread is not alive, it means that the download task has been cancelled
-            // Clean up the download progress by closing and disposing the output stream and delete the file
-            // However, if the worker thread is alive, it means that the download task is completed
-            // In this case, we need to clean up the download progress by closing and disposing the output stream
-            // but do not delete the file
-            // After that, we need to combine the segments of the file to a single file
-            if (task.ThreadManager.CompletedThreadsCount != task.ThreadManager.MaxParallelThreads)
+            // Firstly, Check the state of the task and the completed threads count.
+            // If the task is cancelled, clean up the download progress by closing and disposing the output stream and delete the file segments.
+            // If the completed threads count is not equal to the max parallel threads count, take care of the situation that the task has been cancelled. (For explaination, see the method ValidateOrCleanup below.)
+            // Secondly, combine the segments of the file to a single file.
+            // Finally, clean up the download progress by closing and disposing the output stream and delete the file segments with logging.
+            return ValidateOrCleanup(task, outputStream)
+                   .AndThen((isSuccess) => CombineSegments(task, outputStream))
+                   .AndThen((isSuccess) => CleanUpTaskWithLogging(task, outputStream, "The download task has been completed successfully. " +
+                        "Cleaning up the download progress and combining the segments."))
+                   .OnFailure(errorCode => DownloadLogger.LogError($"PostDownloadProcessing failed: {errorCode}"));
+        }
+
+        /// <summary>
+        /// Validate the state of the download task and the completed threads count to determine if the task has been cancelled or not and clean up the download progress if necessary.
+        /// </summary>
+        /// <param name="task">The download task to validate</param>
+        /// <param name="outputStream">The output stream to clean up</param>
+        /// <returns>The result of the validation and cleanup operation</returns>
+        private Result<bool, DownloadError> ValidateOrCleanup(DownloadTask task, Stream outputStream)
+        {
+            return (task.State, task.ThreadManager.CompletedThreadsCount == task.ThreadManager.MaxParallelThreads) switch
             {
-                CleanDownloadProgess(outputStream,
-                    task.ThreadManager.GetThreads().Select(x => x.FileSegmentPath).ToArray());
-                return Result<bool>.Failure(
-                    $"Task {task.ID} does not be completed and cannot do PostDownloadProcessing().Therefore, The task has be cancelled");
-            }
+                // If the state of the task is cancelled, it means that the download task has been cancelled
+                // Clean up the download progress by closing and disposing the output stream and delete the file
+                (DownloadState.Cancelled, _) => CleanUpTaskWithLogging(task, outputStream,
+                    "Task has been cancelled. Cleaning up download progress."),
+
+                // If the completed threads count is not equal to the max parallel threads count,
+                // it means that the download task has not been completed but wrongly entered the PostDownloadProcessing method
+                // In this case, we need to take care of the situation that the task has been cancelled
+                // because the process has a major bug and cannot recover it easily.
+                (_, false) => CleanUpTaskWithLogging(task, outputStream,
+                    $"Task {task.ID} has not been completed but it enters to PostDownloadProcessing method. " +
+                    $"Completed threads count: {task.ThreadManager.CompletedThreadsCount}, Max parallel threads: {task.ThreadManager.MaxParallelThreads}"),
+
+                _ => Result<bool, DownloadError>.Success(true)
+            };
+        }
+
+        /// <summary>
+        /// Combine the segments of the file to a single file by using FileSegmentHelper.CombineSegmentsSafe method.
+        /// </summary>
+        /// <param name="task">The download task which contains the file segments to combine</param>
+        /// <param name="outputStream">The final output stream to write the combined file to</param>
+        /// <returns>The result of the operation</returns>
+        private Result<bool, DownloadError> CombineSegments(DownloadTask task, Stream outputStream)
+        {
+            // Combine the segments of the file to a single file
             // This line is used to use ref keyword to pass the outputStream to the CombineSegmentsSafe method
             FileStream finalFileStream = outputStream as FileStream;
             Result<bool> result = FileSegmentHelper.CombineSegmentsSafe(
@@ -197,64 +247,91 @@ namespace MultithreadDownload.Protocols.Http
             );
             if (!result.IsSuccess)
             {
-                Debug.WriteLine($"Failed to combine segments: {result.ErrorMessage}");
-                return Result<bool>.Failure($"Failed to combine segments: {result.ErrorMessage}");
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.UnexpectedOrUnknownException,
+                    $"Failed to combine segments: {result.ErrorMessage}"));
             }
-            CleanDownloadProgess(outputStream);
-            return Result<bool>.Success(true);
+            return Result<bool, DownloadError>.Success(true);
+        }
+        #endregion
+
+        #region Private methods for cleaning up the download progress
+
+        /// <summary>
+        /// Clean up the download progress by disposing the output stream and deleting the file segments with logging
+        /// </summary>
+        /// <param name="task"></param>
+        /// <param name="outputStream"></param>
+        /// <param name="reason"></param>
+        /// <returns></returns>
+        private Result<bool, DownloadError> CleanUpTaskWithLogging(DownloadTask task, Stream outputStream, string reason)
+        {
+            // Get the file segment paths from the task's thread manager
+            string[] segmentPaths = task.ThreadManager.GetThreads().Select(x => x.FileSegmentPath).ToArray();
+
+            // According to different reasons, log different levels of logs
+            if (task.State == DownloadState.Cancelled)
+            {
+                DownloadLogger.LogInfo($"Task {task.ID} cleanup: {reason}");
+                Debug.WriteLine($"Task {task.ID} has been cancelled. Cleaning up download progress.");
+            }
+            else
+            {
+                DownloadLogger.LogError($"Task {task.ID} cleanup: {reason}. " +
+                    $"Completed threads: {task.ThreadManager.CompletedThreadsCount}, " +
+                    $"Max threads: {task.ThreadManager.MaxParallelThreads}");
+            }
+
+            return CleanUpTask(outputStream, segmentPaths);
         }
 
+#nullable enable
         /// <summary>
         /// Clean up the download progress by closing and disposing the output stream
         /// </summary>
-        /// <param name="targettream">The stream you want to clean</param>
-        /// <param name="filePath">The path of the downloading file</param>
-        /// <returns>Whether the operation is success or not</returns>
-        private Result<bool> CleanDownloadProgess(Stream targetStream)
+        /// <param name="targetStream">The output stream to clean up</param>
+        /// <param name="filePaths">The file paths of the segments to delete</param>
+        /// <returns>Whether the clean up is successful or not</returns>
+        private Result<bool, DownloadError> CleanUpTask(Stream targetStream, string[]? filePaths = null)
         {
             // Clean up the download progress by closing and disposing the output stream
             // If the filePath is not null, delete the file
             // for why the filePath is null, it means that the download is not completed
             // e.g. The download only executed to DownloadFile().
-            // Return a success result if the operation is successful
-            if (targetStream == null) { return Result<bool>.Failure("Output stream is null"); }
-            try
-            {
-                targetStream.Flush();
-                targetStream.Close();
-                targetStream.Dispose();
-                return Result<bool>.Success(true);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Failed to clean download progress: {ex.Message}");
-                return Result<bool>.Failure($"Failed to clean download progress: {ex.Message}");
-            }
-        }
+            // Return a success result if the operation is successful.
+            // Otherwise, return a failure result with the error code.
+            return FileSegmentHelper.DeletSegements(filePaths).Match(
+                // Match the result of deleting segments
+                onSuccess: _ =>
+                {
+                    // Log the success message if necessary and clean up the target stream
+                    DownloadLogger.LogInfo("Successfully deleted segments after download task is cancelled or completed.");
+                    return targetStream.CleanUp();
+                },
+                onFailure: errorCode =>
+                {
+                    // Log the error message if necessary
+                    DownloadLogger.LogError($"When cleaning up the download progress for deleting segments, an error occurred: {errorCode}");
+                    // If the deletion of segments failed, we still need to clean up the target stream to minimize the resource leak
+                    return targetStream.CleanUp();
+                }
+            ).Match(
+                // Match the result of cleaning up the target stream
+                onSuccess: _ =>
+                {
+                    // Log the success message if necessary
+                    DownloadLogger.LogInfo("Successfully cleaned up the output stream");
+                    return Result<bool, DownloadError>.Success(true);
+                },
+                onFailure: errorCode =>
+                {
+                    // Return a failure result and log the error message at the same time
+                    return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.UnexpectedOrUnknownException, 
+                        $"When cleaning up the output stream, an error occurred: {errorCode}"));
+                }
+            );
 
-        private Result<bool> CleanDownloadProgess(Stream targetStream, string[] filePaths)
-        {
-            // Clean up the download progress by closing and disposing the output stream
-            // If the filePath is not null, delete the file
-            // for why the filePath is null, it means that the download is not completed
-            // e.g. The download only executed to DownloadFile().
-            // Return a success result if the operation is successful
-            if (targetStream == null) { return Result<bool>.Failure("Output stream is null"); }
-            try
-            {
-                targetStream.Flush();
-                targetStream.Close();
-                targetStream.Dispose();
-                // Delete the file if the filePath is not null
-                if (filePaths != null)
-                    filePaths.ToList().ForEach(path => File.Delete(path));
-                return Result<bool>.Success(true);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Failed to clean download progress: {ex.Message}");
-                return Result<bool>.Failure($"Failed to clean download progress: {ex.Message}");
-            }
         }
+#nullable disable
+        #endregion
     }
 }

@@ -1,8 +1,10 @@
-﻿using MultithreadDownload.Logging;
+﻿using MultithreadDownload.Core.Errors;
+using MultithreadDownload.Logging;
 using System;
 using System.IO;
+using System.Linq;
 
-namespace MultithreadDownload.Utils
+namespace MultithreadDownload.Primitives
 {
     /// <summary>
     /// The FileSegmentHelper class provides methods to handle file segmentation for multithreaded downloads.
@@ -251,6 +253,48 @@ namespace MultithreadDownload.Utils
                 currentStart = currentEnd + 1;
             }
             return Result<long[,]>.Success(segments);
+        }
+
+        /// <summary>
+        /// Deletes the specified segments from the file system.
+        /// </summary>
+        /// <param name="segementPaths">The paths of the segments to delete.</param>
+        /// <returns>The result of the deletion operation.</returns>
+        public static Result<bool, DownloadError> DeletSegements(string[] segementPaths)
+        {
+            // Validate the input parameters => the segment paths must not be null
+            if (segementPaths == null)
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.NullReference, "Segment paths cannot be null."));
+            // If the segment paths are empty, it means there are no segments to delete,
+            // so, return success without doing anything.
+            if (segementPaths.Length == 0)
+                return Result<bool, DownloadError>.Success(true);
+            try
+            {
+                // Attempt to delete the segment files if they exist
+                segementPaths.ToList().ForEach(path =>
+                {
+                    if (File.Exists(path))
+                        File.Delete(path);
+                });
+                return Result<bool, DownloadError>.Success(true);
+            }
+            // Catch specific exceptions to provide more detailed error messages
+            catch (UnauthorizedAccessException ex)
+            {
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.PermissionDenied, 
+                    $"Unauthorized access while deleting segments: {ex.Message}"));
+            }
+            catch (IOException ex)
+            {
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.DiskOperationFailed, 
+                    $"IO error while deleting segments: {ex.Message}"));
+            }
+            catch (Exception ex)
+            {
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.UnexpectedOrUnknownException, 
+                    $"Unexpected error while deleting segments: {ex.Message}"));
+            }
         }
     }
 }

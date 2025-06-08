@@ -1,6 +1,7 @@
-﻿using MultithreadDownload.Tasks;
+﻿using MultithreadDownload.Core.Errors;
+using MultithreadDownload.Tasks;
 using MultithreadDownload.Threads;
-using MultithreadDownload.Utils;
+using MultithreadDownload.Primitives;
 using System.IO;
 
 namespace MultithreadDownload.Protocols
@@ -33,6 +34,6 @@ namespace MultithreadDownload.Protocols
         /// <param name="output">The stream containing the downloaded data.</param>
         /// <param name="threadInfo">Information about the current download thread.</param>
         /// <returns>A <see cref="Result{bool}"/> indicating success or failure.</returns>
-        Result<bool> PostDownloadProcessing(Stream outputStream, DownloadTask task);
+        Result<bool, DownloadErrorCode> PostDownloadProcessing(Stream outputStream, DownloadTask task);
     }
 }

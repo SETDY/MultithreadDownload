@@ -4,7 +4,7 @@ using MultithreadDownload.IntegrationTests.Fixtures;
 using MultithreadDownload.Logging;
 using MultithreadDownload.Protocols.Http;
 using MultithreadDownload.Tasks;
-using MultithreadDownload.Utils;
+using MultithreadDownload.Primitives;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;

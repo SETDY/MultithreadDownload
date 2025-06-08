@@ -2,7 +2,7 @@
 using MultithreadDownload.Events;
 using MultithreadDownload.Protocols;
 using MultithreadDownload.Tasks;
-using MultithreadDownload.Utils;
+using MultithreadDownload.Primitives;
 using System;
 
 namespace MultithreadDownload.Schedulers

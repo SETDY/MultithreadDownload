@@ -3,7 +3,7 @@ using MultithreadDownload.Core;
 using MultithreadDownload.IntegrationTests.Fixtures;
 using MultithreadDownload.Protocols.Http;
 using MultithreadDownload.Tasks;
-using MultithreadDownload.Utils;
+using MultithreadDownload.Primitives;
 
 namespace MultithreadDownload.IntegrationTests.Scenarios
 {

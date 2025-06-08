@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace MultithreadDownload.Utils
+namespace MultithreadDownload.Primitives
 {
     /// <summary>
     /// A class that provides http network-related helper methods.

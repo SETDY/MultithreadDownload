@@ -2,7 +2,7 @@
 using MultithreadDownload.Logging;
 using MultithreadDownload.Protocols;
 using MultithreadDownload.Threads;
-using MultithreadDownload.Utils;
+using MultithreadDownload.Primitives;
 using System;
 using System.IO;
 using System.Threading;

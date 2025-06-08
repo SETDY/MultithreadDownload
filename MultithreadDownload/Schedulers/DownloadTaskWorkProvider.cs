@@ -1,6 +1,6 @@
 ﻿using MultithreadDownload.Protocols;
 using MultithreadDownload.Tasks;
-using MultithreadDownload.Utils;
+using MultithreadDownload.Primitives;
 using System;
 using System.IO;
 

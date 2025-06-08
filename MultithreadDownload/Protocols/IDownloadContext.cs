@@ -1,4 +1,4 @@
-﻿using MultithreadDownload.Utils;
+﻿using MultithreadDownload.Primitives;
 
 namespace MultithreadDownload.Protocols
 {

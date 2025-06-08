@@ -1,6 +1,6 @@
 ﻿using System.IO;
 
-namespace MultithreadDownload.Utils
+namespace MultithreadDownload.Primitives
 {
     public static class PathHelper
     {

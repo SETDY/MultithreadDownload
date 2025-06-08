@@ -1,4 +1,5 @@
-﻿using MultithreadDownload.Downloads;
+﻿using MultithreadDownload.Core.Errors;
+using MultithreadDownload.Downloads;
 using MultithreadDownload.Events;
 using MultithreadDownload.Exceptions;
 using MultithreadDownload.Logging;
@@ -6,7 +7,7 @@ using MultithreadDownload.Protocols;
 using MultithreadDownload.Schedulers;
 using MultithreadDownload.Threading;
 using MultithreadDownload.Threads;
-using MultithreadDownload.Utils;
+using MultithreadDownload.Primitives;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -86,6 +87,17 @@ namespace MultithreadDownload.Tasks
 
         #endregion Properties
 
+        #region Constructors
+        /// <summary>
+        /// Initialize a new instance of the <see cref="DownloadTask"/> class with the specified parameters.
+        /// </summary>
+        /// <param name="taskID">The unique identifier for the download task.</param>
+        /// <param name="maxThreads">The maximum number of threads to use for the download task.</param>
+        /// <param name="factory">The factory to create the download thread manager.</param>
+        /// <param name="downloadContext">The context containing information about the download operation.</param>
+        /// <remarks>
+        /// This constructor initializes the download task with the specified parameters, designed to be used when the user does not provide a custom speed tracker.
+        /// </remarks>
         private DownloadTask(Guid taskID, byte maxThreads, IDownloadThreadManagerFactory factory, IDownloadContext downloadContext)
         {
             // Initialize the download task with the given download delegate, download context ,and factory.
@@ -98,6 +110,16 @@ namespace MultithreadDownload.Tasks
             this.SpeedTracker = new DownloadSpeedTracker();
         }
 
+        /// <summary>
+        /// Initialize a new instance of the <see cref="DownloadTask"/> class with the general parameters.
+        /// </summary>
+        /// <param name="taskID">The unique identifier for the download task.</param>
+        /// <param name="maxThreads">The maximum number of threads to use for the download task.</param>
+        /// <param name="factory">The factory to create the download thread manager.</param>
+        /// <param name="downloadContext">The context containing information about the download operation.</param>
+        /// <remarks>
+        /// This constructor initializes the download task with the specified parameters, designed to be used when the user provides a custom speed tracker.
+        /// </remarks>
         private DownloadTask(Guid taskID, byte maxThreads, IDownloadThreadManagerFactory factory, IDownloadSpeedTracker speedTracker, IDownloadContext downloadContext)
         {
             // Initialize the download task with the given download delegate, download context ,and factory.
@@ -109,19 +131,34 @@ namespace MultithreadDownload.Tasks
                 this.DownloadContext, maxThreads);
             this.SpeedTracker = speedTracker;
         }
+        #endregion Constructors
 
         /// <summary>
-        /// Start a task that is in the queue.
+        /// Execute a task that is in the queue newly.
         /// </summary>
         /// <param name="task">The task to start.</param>
         /// <param name="downloadService">The download service to use.</param>
         /// <exception cref="NullReferenceException">The task is null.</exception>
-        public void Start(IDownloadTaskWorkProvider workProvider, IDownloadService downloadService)
+        public Result<bool, DownloadErrorCode> ExecuteDownloadTask(IDownloadTaskWorkProvider workProvider, IDownloadService downloadService)
         {
+            // Check parameters and properties.
+            // If the task already has a state that is not Waiting, return an error message.
+            if (State != DownloadState.Waiting)
+            {
+                DownloadLogger.LogError($"The task with id: {ID} is already started or completed. Current state: {State}.");
+                return Result<bool, DownloadErrorCode>.Failure(DownloadErrorCode.TaskAlreadyStarted);
+            }
+            // If the download service is null, return an error message.
+            if (workProvider == null)
+            {
+                DownloadLogger.LogError($"The work provider is null.");
+                return Result<bool, DownloadErrorCode>.Failure(DownloadErrorCode.NullReference);
+            }
+
             // Create new doanload threads with the given maximum number of threads.
             // Execute the main work of the task => Start all download threads to download the file
-            // Hook the event such that a execution of finalize work can be invoke (e.g. Combine the file segments) when
-            // the task is completed.
+            // Hook the event such that a execution of finalize work can be invoke (e.g. Combine the file segments)
+            // when the task is completed.
             ThreadManager.CreateThreads(downloadService.DownloadFile);
             // Log the creation of the threads.
             //DownloadLogger.LogInfo($"The threads of the task with id: {ID} have been created.");
@@ -134,18 +171,17 @@ namespace MultithreadDownload.Tasks
             {
                 try
                 {
+                    // If all the threads have not completed, return to wait for the next thread to complete.
                     if (this.ThreadManager.CompletedThreadsCount !=
                             this.ThreadManager.MaxParallelThreads) { return; }
 
                     // Below code will be executed when all threads is completed
-                    Result<Stream> finalStream = workProvider.GetTaskFinalStream(this.DownloadContext);
-                    if (!finalStream.IsSuccess) { throw new Exception("GetTaskFinalStream failed"); }
-                    // Log the execution of the final work.
-                    // Change the set to AfterProcessing to indicate that the task is combining the downloaded parts.
+                    // Change the set to AfterProcessing to indicate that the task is combining the downloaded parts etc.
+                    this.State = DownloadState.AfterProcessing;
                     // Since the download task has campleted its download, stop the speed monitor.
                     SpeedTracker.Dispose();
-                    DownloadLogger.LogInfo($"The final work of the task with id: {ID} have been executed.");
-                    this.State = DownloadState.AfterProcessing;
+                    Result<Stream> finalStream = workProvider.GetTaskFinalStream(this.DownloadContext);
+                    if (!finalStream.IsSuccess) { throw new Exception("GetTaskFinalStream failed"); }
                     Result<bool> result = workProvider.Execute_FinalizeWork(finalStream.Value, downloadService, this);
                     if (!result.IsSuccess)
                         this.State = DownloadState.Failed;
@@ -153,6 +189,7 @@ namespace MultithreadDownload.Tasks
                     // PS: Never use _state = DownloadState.Completed; here, because it will not invoke the event.
                     // TODO: There is a bug here, the task will not be completed if the event throws an exception.
                     this.State = DownloadState.Completed;
+
                     // Log the completion of the task.
                     DownloadLogger.LogInfo($"The task with id: {ID} have been completed.");
                 }
@@ -174,7 +211,7 @@ namespace MultithreadDownload.Tasks
             throw new NotImplementedException();
         }
 
-        internal void Cancel()
+        public void Cancel()
         {
             // If the download task is already cancelled, return an error message.
             // Otherwise, cancel the download task and it will invoke the state change event.
