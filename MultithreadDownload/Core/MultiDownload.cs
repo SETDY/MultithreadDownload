@@ -95,28 +95,6 @@ namespace MultithreadDownload.Core
             HookEvents();
         }
 
-        #region Private Methods
-
-        /// <summary>
-        /// Validates the parameters passed to the constructor.
-        /// </summary>
-        /// <param name="parameters">The parameters to validate.</param>
-        private void ValidateParameters(params object[] parameters)
-        {
-            foreach (object parameter in parameters)
-            {
-                ArgumentNullException.ThrowIfNull(parameter);
-            }
-        }
-
-        private void HookEvents()
-        {
-            _taskScheduler.TaskQueueProgressChanged += (s, e) => TaskQueueProgressChanged?.Invoke(this, e);
-            _taskScheduler.TasksProgressCompleted += (s, e) => TasksProgressCompleted?.Invoke(this, EventArgs.Empty);
-        }
-
-        #endregion Private Methods
-
         #region Allocator Methods
 
         /// <summary>
@@ -194,6 +172,28 @@ namespace MultithreadDownload.Core
         public void Cancel(Guid taskId) => _taskScheduler.CancelTask(taskId);
 
         #endregion Task Management Methods
+
+        #region Private Methods
+
+        /// <summary>
+        /// Validates the parameters passed to the constructor.
+        /// </summary>
+        /// <param name="parameters">The parameters to validate.</param>
+        private void ValidateParameters(params object[] parameters)
+        {
+            foreach (object parameter in parameters)
+            {
+                ArgumentNullException.ThrowIfNull(parameter);
+            }
+        }
+
+        private void HookEvents()
+        {
+            _taskScheduler.TaskQueueProgressChanged += (s, e) => TaskQueueProgressChanged?.Invoke(this, e);
+            _taskScheduler.TasksProgressCompleted += (s, e) => TasksProgressCompleted?.Invoke(this, EventArgs.Empty);
+        }
+
+        #endregion Private Methods
 
         /// <summary>
         /// Dispose of the MultiDownload instance and release resources.

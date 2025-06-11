@@ -13,6 +13,9 @@ using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
 using static System.Net.WebRequestMethods;
+using MultithreadDownload.Utils;
+using System.Collections.Generic;
+using System.Collections;
 
 namespace MultithreadDownload.Protocols.Http
 {
@@ -40,24 +43,51 @@ namespace MultithreadDownload.Protocols.Http
         /// <param name="downloadContext"></param>
         /// <param name="rangePostions"></param>
         /// <returns>The streams for each of the download threads of the download task</returns>
-        public Result<Stream[]> GetStreams(IDownloadContext downloadContext)
+        public Result<Stream[], DownloadError> GetStreams(IDownloadContext downloadContext)
         {
-            Stream[] streams = new Stream[downloadContext.RangePositions.GetLength(0)];
-            for (int i = 0; i < downloadContext.RangePositions.GetLength(0); i++)
-            {
-                // Get the start and end position of the file to be downloaded
-                long startPosition = downloadContext.RangePositions[i, 0];
-                long endPosition = downloadContext.RangePositions[i, 1];
-                // Get the stream from the download context
-                Result<Stream> result = GetStream(downloadContext, startPosition, endPosition);
-                if (!result.IsSuccess)
+            // Set the enumerator for the range positions of the download context
+            // to get the streams for each of the download threads of the download task.
+            IEnumerable<Result<Stream, DownloadError>> resultEnumerator = 
+                Enumerable.Range(0, downloadContext.RangePositions.GetLength(0))
+                .Select(i =>
                 {
-                    Debug.WriteLine($"Get a error message from the request: {result.ErrorMessage} which is from url: {((HttpDownloadContext)downloadContext).Url}");
-                    return Result<Stream[]>.Failure($"Thread cannot connect to {((HttpDownloadContext)downloadContext).Url}");
-                }
-                streams[i] = result.Value;
+                    long start = downloadContext.RangePositions[i, 0];
+                    long end = downloadContext.RangePositions[i, 1];
+                    return GetStreamSafe(downloadContext, start, end);
+                });
+            // Using the TryAll method to get the result of streams for each of the download threads of the download task.
+            return Result<Stream, DownloadError>.TryAll(resultEnumerator);
+        }
+
+        /// <summary>
+        /// Get the stream for the download thread of the download task safely.
+        /// </summary>
+        /// <param name="downloadContext">The download context</param>
+        /// <param name="startPosition">The start position of the file to be downloaded</param>
+        /// <param name="endPosition">The end position of the file to be downloaded</param>
+        /// <returns>The result of getting the stream</returns>
+        /// <remarks>
+        /// This method is used to handle the exceptions that may occur when getting the stream.
+        /// Therefore, Should use this method instead of GetStream directly.
+        /// </remarks>
+        private Result<Stream, DownloadError> GetStreamSafe(IDownloadContext downloadContext, long startPosition, long endPosition)
+        {
+            try
+            {
+                return GetStream(downloadContext, startPosition, endPosition);
             }
-            return Result<Stream[]>.Success(streams);
+            catch (HttpRequestException httpEx)
+            {
+                return Result<Stream, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.HttpError, $"GetStream failed for an http request exception. Message: {httpEx.Message}"));
+            }
+            catch (ArgumentOutOfRangeException argEx)
+            {
+                return Result<Stream, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.TaskContextInvalid, $"GetStream failed for an invalid parameter from the context. Message: {argEx.Message}"));
+            }
+            catch (Exception ex)
+            {
+                return Result<Stream, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.UnexpectedOrUnknownException, $"GetStream failed for an unexpected exception. Message: {ex.Message}"));
+            }
         }
 
         /// <summary>
@@ -67,7 +97,7 @@ namespace MultithreadDownload.Protocols.Http
         /// <param name="startPosition">The start position of the file to be downloaded</param>
         /// <param name="endPosition">The end position of the file to be downloaded</param>
         /// <returns></returns>
-        private Result<Stream> GetStream(IDownloadContext downloadContext, long startPosition, long endPosition)
+        private Result<Stream, DownloadError> GetStream(IDownloadContext downloadContext, long startPosition, long endPosition)
         {
             // Get the download context from the download thread.
             // Since the class is about Http, we can just cast it to HttpDownloadContext.
@@ -81,23 +111,21 @@ namespace MultithreadDownload.Protocols.Http
                 startPosition,
                 endPosition
                 );
-            Result<HttpResponseMessage> result = SendRequestSafe(
-                client,
-                requestMessage
-                );
-            // Exception handling:
+
             // If the request is successful, return the response stream.
-            // Otherwise, return a failure result with the error message.
-            if (!result.IsSuccess)
-            {
-                Debug.WriteLine($"Get a error message from the request: {result.ErrorMessage} which is from url: {httpDownloadContext.Url}");
-                return Result<Stream>.Failure($"Thread  cannot connect to {httpDownloadContext.Url}");
-            }
-            return Result<Stream>.Success(result.Value.Content.ReadAsStream());
+            // Otherwise, return a failure result with the same error message.
+            return SendRequestWithRetry(client, requestMessage).Map(response => response.Content.ReadAsStream());
+
         }
 
         private HttpRequestMessage CreateRequestMessage(string url, long startDownloadPosition, long endDownloadPosition)
         {
+            // Validate the parameters
+            if (string.IsNullOrEmpty(url))
+                throw new ArgumentNullException("Url cannot be empty or null");
+            if (startDownloadPosition < 0 || endDownloadPosition < 0 || startDownloadPosition > endDownloadPosition)
+                throw new ArgumentOutOfRangeException("Invalid download position");
+
             // Set the method which is Get for the request and the offset of the requsted file.
             HttpRequestMessage httpRequestMessage =
                 new HttpRequestMessage(HttpMethod.Get, url);
@@ -107,61 +135,37 @@ namespace MultithreadDownload.Protocols.Http
         }
 
         /// <summary>
-        /// Send the request and get the response safely
+        /// Send the request and get the response safely and with retry mechanism
         /// </summary>
         /// <param name="client">A HttpClient instance</param>
         /// <param name="requestMessage">A HttpRequestMessage instance</param>
         /// <returns>Result<HttpResponseMessage></returns>
-        private Result<HttpResponseMessage> SendRequestSafe(HttpClient client, HttpRequestMessage requestMessage)
+        private Result<HttpResponseMessage, DownloadError> SendRequestWithRetry(HttpClient client, HttpRequestMessage requestMessage)
         {
             // Try to send the request and get the response
-            // If failed, retry for a maximum of MAX_RETRY times
-            // Retrun Result<HttpResponseMessage> so that the exception must be handled by the caller
-            for (int i = 0; i < MAX_RETRY; i++)
-            {
-                Result<HttpResponseMessage, DownloadError> result = SendRequest(client, requestMessage);
-                // If the request is successful, return the response.
-                // Otherwise, wait for WAIT_TIME milliseconds and retry.
-                result.Match(
-
-                    )
-                if (!result.IsSuccess)
-                {
-                    Thread.Sleep(WAIT_TIME);
-                    continue;
-                }
-                else
-                {
-                    return Result<HttpResponseMessage>.Success(result);
-                }
-            }
-            return Result<HttpResponseMessage>.Failure("Failed to send request after multiple attempts.");
+            // If failed, retry for a maximum of MAX_RETRY times and wait for WAIT_TIME milliseconds between each retry.
+            // Retrun Result<HttpResponseMessage, DownloadError> so that the exception must be handled by the caller
+            return RetryHelper.Retry<HttpResponseMessage, DownloadError>(
+                (int)MAX_RETRY,
+                WAIT_TIME,
+                () => SendRequestSafe(client, requestMessage),
+                () => DownloadError.Create(DownloadErrorCode.Timeout, $"Http request timed out after {WAIT_TIME * MAX_RETRY}.")
+            );
         }
 
         /// <summary>
-        /// Send the request and get the response
+        /// Send the request and get the response safely
         /// </summary>
         /// <param name="client">A HttpClient instance</param>
         /// <param name="requestMessage">A HttpRequestMessage instance</param>
         /// <returns>The result of sending the request and getting the response</returns>
-        private Result<HttpResponseMessage, DownloadError> SendRequest(HttpClient client, HttpRequestMessage requestMessage)
+        private Result<HttpResponseMessage, DownloadError> SendRequestSafe(HttpClient client, HttpRequestMessage requestMessage)
         {
             // Try to send the request and get the response
             // Retrun Result<HttpResponseMessage> so that the exception must be handled by the caller
             try
             {
-                // Set the timeout for the request
-                using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(WAIT_TIME)))
-                {
-                    // Send a request and get a streaming response that will update the response by the time passed.
-                    // Check if the response is successful
-                    // If not, throw an exception.
-                    HttpResponseMessage responseMessage = client
-                        .SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead)
-                        .GetAwaiter().GetResult();
-                    responseMessage.EnsureSuccessStatusCode();
-                    return Result<HttpResponseMessage, DownloadError>.Success(responseMessage);
-                }
+                return SendRequest(client, requestMessage);
             }
             catch (TaskCanceledException)
             {
@@ -177,13 +181,37 @@ namespace MultithreadDownload.Protocols.Http
             }
         }
 
+        /// <summary>
+        /// Send the request and get the response
+        /// </summary>
+        /// <param name="client">The http client</param>
+        /// <param name="requestMessage">The http request message</param>
+        /// <returns>The result of sending the request and getting the response</returns>
+        private Result<HttpResponseMessage, DownloadError> SendRequest(HttpClient client, HttpRequestMessage requestMessage)
+        {
+            // Set the timeout for the request
+            using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(WAIT_TIME)))
+            {
+                // Send a request and get a streaming response that will update the response by the time passed.
+                // Check if the response is successful
+                // If not, throw an exception.
+                HttpResponseMessage responseMessage = client
+                    .SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead)
+                    .GetAwaiter().GetResult();
+                responseMessage.EnsureSuccessStatusCode();
+                return Result<HttpResponseMessage, DownloadError>.Success(responseMessage);
+            }
+        }
+
         #endregion Implement of GetStreams method
 
         #region Implement of DownloadFile method
-        public Result<bool> DownloadFile(Stream inputStream, Stream outputStream, IDownloadThread downloadThread)
+        public Result<bool, DownloadError> DownloadFile(Stream inputDownloadingStream, Stream outputWritingStream, IDownloadThread processingDownloadThread)
         {
             // Using HttpFileDownloader, download the file from the input stream(Internet) to the output stream(Local drive).
-            HttpFileDownloader fileDownloader = new HttpFileDownloader(inputStream, outputStream, downloadThread);
+            HttpFileDownloader fileDownloader = new HttpFileDownloader
+                (inputDownloadingStream, outputWritingStream, processingDownloadThread);
+            // Download the file and return the result.
             return fileDownloader.DownloadFile();
         }
         #endregion Implement of DownloadFile method
@@ -254,7 +282,7 @@ namespace MultithreadDownload.Protocols.Http
         }
         #endregion
 
-        #region Private methods for cleaning up the download progress
+        #region Internal static methods for cleaning up the download progress
 
         /// <summary>
         /// Clean up the download progress by disposing the output stream and deleting the file segments with logging
@@ -263,7 +291,7 @@ namespace MultithreadDownload.Protocols.Http
         /// <param name="outputStream"></param>
         /// <param name="reason"></param>
         /// <returns></returns>
-        private Result<bool, DownloadError> CleanUpTaskWithLogging(DownloadTask task, Stream outputStream, string reason)
+        internal static Result<bool, DownloadError> CleanUpTaskWithLogging(DownloadTask task, Stream outputStream, string reason)
         {
             // Get the file segment paths from the task's thread manager
             string[] segmentPaths = task.ThreadManager.GetThreads().Select(x => x.FileSegmentPath).ToArray();
@@ -281,7 +309,7 @@ namespace MultithreadDownload.Protocols.Http
                     $"Max threads: {task.ThreadManager.MaxParallelThreads}");
             }
 
-            return CleanUpTask(outputStream, segmentPaths);
+            return CleanUpDownloadProcess(outputStream, segmentPaths);
         }
 
 #nullable enable
@@ -291,7 +319,7 @@ namespace MultithreadDownload.Protocols.Http
         /// <param name="targetStream">The output stream to clean up</param>
         /// <param name="filePaths">The file paths of the segments to delete</param>
         /// <returns>Whether the clean up is successful or not</returns>
-        private Result<bool, DownloadError> CleanUpTask(Stream targetStream, string[]? filePaths = null)
+        internal static Result<bool, DownloadError> CleanUpDownloadProcess(Stream targetStream, string[]? filePaths = null)
         {
             // Clean up the download progress by closing and disposing the output stream
             // If the filePath is not null, delete the file
@@ -305,6 +333,7 @@ namespace MultithreadDownload.Protocols.Http
                 {
                     // Log the success message if necessary and clean up the target stream
                     DownloadLogger.LogInfo("Successfully deleted segments after download task is cancelled or completed.");
+                    // Clean up the target stream by closing and disposing it
                     return targetStream.CleanUp();
                 },
                 onFailure: errorCode =>

@@ -10,11 +10,13 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using MultithreadDownload.Core.Errors;
 
 namespace MultithreadDownload.Protocols.Http
 {
     internal class HttpFileDownloader
     {
+        #region Private Fields
         /// <summary>
         /// The size of the buffer used for reading and writing data
         /// </summary>
@@ -49,6 +51,7 @@ namespace MultithreadDownload.Protocols.Http
         /// The buffer used for reading and writing data
         /// </summary>
         private readonly byte[] _buffer = new byte[BUFFER_SIZE];
+        #endregion
 
         /// <summary>
         /// Initializes a new instance of the <see cref="FileDownloader"/> class.
@@ -67,19 +70,29 @@ namespace MultithreadDownload.Protocols.Http
         /// Download the file using the input and output streams
         /// </summary>
         /// <returns>Whether the download was successful or not</returns>
-        public Result<bool> DownloadFile()
+        public Result<bool, DownloadError> DownloadFile()
         {
+            // Set the state of the download thread to downloading
             _thread.SetState(DownloadState.Downloading);
+            // Initialize the retry count to 0
+            // The retry count is used to keep track of the number of retries for reading and writing data in same process loop
+            // Therefore, if the write operation fails and then the read operation fails, the retry count will be incremented by 2 totally
             int retryCount = 0;
+            DownloadError failedError = null;
 
+            // If the state of the download thread is downloading, continue the download process
             while (_thread.State == DownloadState.Downloading)
             {
                 // Read a chunk of data from the input stream
                 // If the read operation failed, check if the maximum number of retries has been reached
                 // If is, break the loop.
                 if (!TryReadChunk(out int bytesRead, ref retryCount))
+                {
+                    // Set the failed error to indicate that the read operation failed after maximum retries
+                    failedError = DownloadError.Create(DownloadErrorCode.HttpError, "Failed to read data from input stream after maximum retries.");
                     break;
-                // Reset the retry count to 0
+                }
+                // Since the read operation was successful, reset the retry count
                 retryCount = 0;
                 // If the read operation was successful, check if the end of the stream has been reached
                 // If is, finish the download process
@@ -89,15 +102,21 @@ namespace MultithreadDownload.Protocols.Http
                 // Write the chunk of data to the output stream
                 // If the write operation failed, check if the maximum number of retries has been reached
                 // If is, break the loop.
+                // Log the number of completed bytes for the download thread if needed
                 //DownloadLogger.LogInfo($"Set Download Bytes from {_thread.CompletedBytesSizeCount} to {_thread.CompletedBytesSizeCount + bytesRead} at {DateTime.Now}");
                 SetCompletedByteNumbers(bytesRead);
                 if (!TryWriteChunk(bytesRead, ref retryCount))
+                {
+                    // Set the failed error to indicate that the write operation failed after maximum retries
+                    failedError = DownloadError.Create(DownloadErrorCode.DiskOperationFailed, "Failed to write data to output stream after maximum retries.");
                     break;
+                }
             }
 
-            return FinishFailed();
+            return FinishFailed(failedError);
         }
 
+        #region Private Methods
         /// <summary>
         /// Try to read a chunk of data from the input stream
         /// </summary>
@@ -144,6 +163,8 @@ namespace MultithreadDownload.Protocols.Http
         /// <returns>The result of the operation</returns>
         private bool HandleRetry(ref int retryCount)
         {
+            // If the maximum number of retries has been reached, return false
+            // Otherwise, wait for a specified time and return true to retry the operation
             if (++retryCount >= MAX_TOTAL_RETRIES)
                 return false;
             Thread.Sleep(WAIT_MS);
@@ -164,9 +185,10 @@ namespace MultithreadDownload.Protocols.Http
         /// Finish the download process successfully
         /// </summary>
         /// <returns>The result of the operation</returns>
-        private Result<bool> FinishDownload()
+        private Result<bool, DownloadError> FinishDownload()
         {
-            // Make sure the progress is set when the file is empty
+            // Since if the file is empty, the completed bytes size count will be zero,
+            // we need to make sure the progress is set when the file is empty
             if (_thread.CompletedBytesSizeCount == 0)
                 EnsureNonZeroProgress();
 
@@ -174,12 +196,13 @@ namespace MultithreadDownload.Protocols.Http
         }
 
         /// <summary>
-        /// Ensure that the progress is non-zero
+        /// Ensure that the progress is non-zero to set the completed bytes size count to the expected value
         /// </summary>
         private void EnsureNonZeroProgress()
         {
-            var range = ((HttpDownloadContext)_thread.DownloadContext).RangePositions;
-            long expected = range[_thread.ID, 1] - range[_thread.ID, 0];
+            long[,] downloadedRange = ((HttpDownloadContext)_thread.DownloadContext).RangePositions;
+            long expected = downloadedRange[_thread.ID, 1] - downloadedRange[_thread.ID, 0];
+            // Set the completed bytes size count to the expected value
             SetCompletedByteNumbers((int)expected);
         }
 
@@ -212,7 +235,7 @@ namespace MultithreadDownload.Protocols.Http
                 ? (sbyte)(_thread.CompletedBytesSizeCount / (decimal)rangeSize * 100)
                 : (sbyte)100;
 
-            // Set the progress of the thread
+            // Set the progress of the thread if the thread state is not completed
             if (_thread.State != DownloadState.Completed)
                 _thread.SetDownloadProgress(progress);
         }
@@ -222,10 +245,10 @@ namespace MultithreadDownload.Protocols.Http
         /// </summary>
         /// <param name="output">The output stream</param>
         /// <returns></returns>
-        private Result<bool> FinishSuccessfully(Stream output)
+        private Result<bool, DownloadError> FinishSuccessfully(Stream output)
         {
-            CleanUpDownloadProgess(output, null);
-            return Result<bool>.Success(true);
+            HttpDownloadService.CleanUpDownloadProcess(output, null);
+            return Result<bool, DownloadError>.Success(true);
         }
 
         /// <summary>
@@ -235,42 +258,13 @@ namespace MultithreadDownload.Protocols.Http
         /// <param name="context">The download context</param>
         /// <param name="retries">The number of retryment</param>
         /// <returns>The result of the operation</returns>
-        private Result<bool> FinishFailed()
-        {
-            CleanUpDownloadProgess(_output, null);
-            return Result<bool>.Failure(
-                $"Thread failed after {MAX_TOTAL_RETRIES} retries: {((HttpDownloadContext)_thread.DownloadContext).Url}");
-        }
-
-        /// <summary>
-        /// Clean up the download progress by closing and disposing the output stream
-        /// </summary>
-        /// <param name="targetStream">The output stream</param>
-        /// <param name="filePaths">The file paths to delete</param>
-        /// <returns>The result of the operation</returns>
-        private Result<bool> CleanUpDownloadProgess(Stream targetStream, string[] filePaths)
+        private Result<bool, DownloadError> FinishFailed(DownloadError error)
         {
             // Clean up the download progress by closing and disposing the output stream
-            // If the filePath is not null, delete the file
-            // for why the filePath is null, it means that the download is not completed
-            // e.g. The download only executed to DownloadFile().
-            // Return a success result if the operation is successful
-            if (targetStream == null) { return Result<bool>.Failure("Output stream is null"); }
-            try
-            {
-                targetStream.Flush();
-                targetStream.Close();
-                targetStream.Dispose();
-                // Delete the file if the filePath is not null
-                if (filePaths != null)
-                    filePaths.ToList().ForEach(path => File.Delete(path));
-                return Result<bool>.Success(true);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Failed to clean download progress: {ex.Message}");
-                return Result<bool>.Failure($"Failed to clean download progress: {ex.Message}");
-            }
+            HttpDownloadService.CleanUpDownloadProcess(_output, null);
+            DownloadLogger.LogError($"Thread failed after {MAX_TOTAL_RETRIES} retries: {((HttpDownloadContext)_thread.DownloadContext).Url}");
+            return Result<bool, DownloadError>.Failure(error);
         }
+        #endregion
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace MultithreadDownload.Primitives
 {
@@ -153,6 +154,27 @@ namespace MultithreadDownload.Primitives
         public U Match<U>(Func<T, U> onSuccess, Func<ErrorCode, U> onFailure)
         {
             return IsSuccess ? onSuccess(Value.Value!) : onFailure(ErrorState);
+        }
+
+        /// <summary>
+        /// Tries to aggregate multiple Result instances.
+        /// </summary>
+        /// <param name="results">The enumerable of Result instances to aggregate.</param>
+        /// <returns>The aggregated values in a result instance.</returns>
+        public static Result<T[], ErrorCode> TryAll(IEnumerable<Result<T, ErrorCode>> results)
+        {
+            List<T> resultValueList = new List<T>();
+            foreach (Result<T, ErrorCode> result in results)
+            {
+                // Deremine if any of the results is a failure
+                // If is, return the failure and stop the aggregation
+                // Otherwise, add the value to the result list and continue
+                if (!result.IsSuccess)
+                    return Result<T[], ErrorCode>.Failure(result.ErrorState);
+
+                resultValueList.Add(result.Value.UnwrapOr(default));
+            }
+            return Result<T[], ErrorCode>.Success(resultValueList.ToArray());
         }
         #endregion
     }

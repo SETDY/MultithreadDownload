@@ -3,6 +3,7 @@ using MultithreadDownload.Tasks;
 using MultithreadDownload.Primitives;
 using System;
 using System.IO;
+using MultithreadDownload.Core.Errors;
 
 namespace MultithreadDownload.Schedulers
 {
@@ -14,16 +15,11 @@ namespace MultithreadDownload.Schedulers
         /// <param name="downloadService"></param>
         /// <param name="task"></param>
         /// <returns></returns>
-        public Result<bool> Execute_MainWork(IDownloadService downloadService, DownloadTask task)
+        public Result<bool, DownloadError> Execute_MainWork(IDownloadService downloadService, DownloadTask task)
         {
-           Result<Stream[]> inputStreams = downloadService.GetStreams(task.DownloadContext);
-            if (!inputStreams.IsSuccess) { return Result<bool>.Failure("GetStream failed"); }
-            Result<Stream[]> outputStreams = GetTaskStreams((byte)task.ThreadManager.MaxParallelThreads, task.DownloadContext);
-            if (!outputStreams.IsSuccess) { return Result<bool>.Failure("GetTaskStreams failed"); }
-
-
-            task.ThreadManager.Start(inputStreams.Value, outputStreams.Value);
-            return Result<bool>.Success(true);
+            task.ThreadManager.Start(
+                downloadService.GetStreams(task.DownloadContext).UnwrapOrThrow("Get input streams failed."),
+                GetTaskStreams(task.ThreadManager.MaxParallelThreads, task.DownloadContext).UnwrapOrThrow("Get output streams failed."));
         }
 
         /// <summary>
@@ -32,7 +28,7 @@ namespace MultithreadDownload.Schedulers
         /// <param name="maxParallelThreads">The maximum number of parallel threads.</param>
         /// <param name="downloadContext">The download context to use.</param>
         /// <returns></returns>
-        private Result<Stream[]> GetTaskStreams(byte maxParallelThreads, IDownloadContext downloadContext)
+        private Result<Stream[], DownloadError> GetTaskStreams(byte maxParallelThreads, IDownloadContext downloadContext)
         {
             // Use GetUniqueFileName() to get a unique file name for the download context
             // for preventing file name conflicts then create the file streams for each thread.

@@ -17,7 +17,7 @@ namespace MultithreadDownload.Protocols
         /// <param name="downloadContext"></param>
         /// <param name="rangePostions"></param>
         /// <returns>The streams for each of the download threads of the download task</returns>
-        Result<Stream[]> GetStreams(IDownloadContext downloadContext);
+        Result<Stream[], DownloadError> GetStreams(IDownloadContext downloadContext);
 
         /// <summary>
         /// Performs the actual download using the given input and output streams.
@@ -26,7 +26,7 @@ namespace MultithreadDownload.Protocols
         /// <param name="outputStream">The output stream to which data is written.</param>
         /// <param name="threadInfo">Information about the current download thread.</param>
         /// <returns>A <see cref="Result{bool}"/> indicating whether the operation was successful.</returns>
-        Result<bool> DownloadFile(Stream inputStream, Stream outputStream, IDownloadThread downloadThread);
+        Result<bool, DownloadError> DownloadFile(Stream inputStream, Stream outputStream, IDownloadThread downloadThread);
 
         /// <summary>
         /// Handles post-processing tasks after a all parts of file has been downloaded.
@@ -34,6 +34,6 @@ namespace MultithreadDownload.Protocols
         /// <param name="output">The stream containing the downloaded data.</param>
         /// <param name="threadInfo">Information about the current download thread.</param>
         /// <returns>A <see cref="Result{bool}"/> indicating success or failure.</returns>
-        Result<bool, DownloadErrorCode> PostDownloadProcessing(Stream outputStream, DownloadTask task);
+        Result<bool, DownloadError> PostDownloadProcessing(Stream outputStream, DownloadTask task);
     }
 }
