@@ -50,9 +50,19 @@ namespace MultithreadDownload.Tasks
 
                 this._state = value;
                 this.StateChange?.Invoke(this, new DownloadDataEventArgs(this));
+                // If the state is changed to Completed, log it and invoke the Completed event
                 if (this._state == DownloadState.Completed)
                 {
-                    this.Completed?.Invoke();
+                    // Log the completion of the task.
+                    DownloadLogger.LogInfo($"The task with id: {ID} have been completed.");
+                    try
+                    {
+                        this.Completed?.Invoke();
+                    }
+                    catch (Exception ex)
+                    {
+                        DownloadLogger.LogError($"An error occurred when the Completed event was invoked for the task with id: {ID}.", ex);
+                    }
                 }
             }
         }
@@ -175,23 +185,40 @@ namespace MultithreadDownload.Tasks
                     if (this.ThreadManager.CompletedThreadsCount !=
                             this.ThreadManager.MaxParallelThreads) { return; }
 
+                    // If the task is already completed or failed, throw an exception.
+                    // This is to prevent the task from being finalized multiple times.
+                    // Theoretically, this should never happen, but it is a good practice to check it.
+                    if (this.State is DownloadState.Completed or DownloadState.Failed) { throw new InvalidOperationException(
+                        $"The task with id: {ID} is already completed or failed. Current state: {this.State}"); }
+
                     // Below code will be executed when all threads is completed
                     // Change the set to AfterProcessing to indicate that the task is combining the downloaded parts etc.
                     this.State = DownloadState.AfterProcessing;
                     // Since the download task has campleted its download, stop the speed monitor.
                     SpeedTracker.Dispose();
-                    Result<Stream> finalStream = workProvider.GetTaskFinalStream(this.DownloadContext);
-                    if (!finalStream.IsSuccess) { throw new Exception("GetTaskFinalStream failed"); }
-                    Result<bool> result = workProvider.Execute_FinalizeWork(finalStream.Value, downloadService, this);
-                    if (!result.IsSuccess)
-                        this.State = DownloadState.Failed;
-                    // Invoke the event to notify that the download task is completed.
-                    // PS: Never use _state = DownloadState.Completed; here, because it will not invoke the event.
-                    // TODO: There is a bug here, the task will not be completed if the event throws an exception.
-                    this.State = DownloadState.Completed;
-
-                    // Log the completion of the task.
-                    DownloadLogger.LogInfo($"The task with id: {ID} have been completed.");
+                    workProvider.GetTaskFinalStream(this.DownloadContext)
+                        .AndThen(finalStream =>
+                            workProvider.Execute_FinalizeWork(finalStream, downloadService, this)
+                        ).
+                        Match(
+                            success =>
+                            {
+                                // If the finalization is successful, set the state to Completed.
+                                // At the same time, the event will be invoked to notify that the download task is completed.
+                                // PS: Never use _state = DownloadState.Completed; here, because it will not invoke the event.
+                                // TODO: There is a bug here, the task will not be completed if the event throws an exception.
+                                this.State = DownloadState.Completed;
+                                DownloadLogger.LogInfo($"The task with id: {ID} have been finalized successfully.");
+                                return true;
+                            },
+                            error =>
+                            {
+                                // If the finalization fails, set the state to Failed.
+                                this.State = DownloadState.Failed;
+                                DownloadLogger.LogError($"The task with id: {ID} have been failed to finalize. Error: {error}");
+                                return false;
+                            }
+                        );
                 }
                 catch (Exception ex)
                 {

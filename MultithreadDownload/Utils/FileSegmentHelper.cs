@@ -204,20 +204,20 @@ namespace MultithreadDownload.Primitives
         /// <param name="threadCount">The number of threads to split the file into.</param>
         /// <param name="path">The main path of the file to split.</param>
         /// <returns>Whether the operation was successful.</returns>
-        public static Result<string[]> SplitPaths(int maxThreads, string path)
+        public static Result<string[], DownloadError> SplitPaths(int maxThreads, string path)
         {
             // If the thread count is 0, return failure
             // If the file name is empty, return failure
             // Otherwise, create an array of strings to store the paths of the file segments
             // Set the paths to the array and return it
-            if (maxThreads <= 0) { return Result<string[]>.Failure("The number of threads cannot be 0 oor negative."); }
-            if ("".Equals(Path.GetFileName(path))) { return Result<string[]>.Failure("The file name cannot be empty."); }
+            if (maxThreads <= 0) { return Result<string[], DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.ArgumentOutOfRange, "The number of threads cannot be 0 oor negative.")); }
+            if ("".Equals(Path.GetFileName(path))) { return Result<string[], DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.ArgumentOutOfRange, "The file name cannot be empty.")); }
             string[] resultPaths = new string[maxThreads];
             for (int i = 0; i < maxThreads; i++)
             {
                 resultPaths[i] = Path.Combine(PathHelper.GetDirectoryNameSafe(path), $"{Path.GetFileNameWithoutExtension(path)}-{i}.downtemp");
             }
-            return Result<string[]>.Success(resultPaths);
+            return Result<string[], DownloadError>.Success(resultPaths);
         }
 
         /// <summary>

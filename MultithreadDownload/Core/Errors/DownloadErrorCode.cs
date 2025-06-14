@@ -49,6 +49,7 @@ namespace MultithreadDownload.Core.Errors
 
         // GeneralError.
         NullReference,
+        ArgumentOutOfRange,
         UnexpectedOrUnknownException,
     }
 

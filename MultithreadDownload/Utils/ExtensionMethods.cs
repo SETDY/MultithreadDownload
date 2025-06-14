@@ -117,6 +117,7 @@ namespace MultithreadDownload.Primitives
 
             // Last resort for unexpected or unknown errors
             DownloadErrorCode.UnexpectedOrUnknownException or
+            DownloadErrorCode.ArgumentOutOfRange or
             DownloadErrorCode.NullReference =>
                 DownloadErrorCategory.Unexpected,
 
