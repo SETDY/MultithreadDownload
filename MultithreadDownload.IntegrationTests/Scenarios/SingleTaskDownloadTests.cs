@@ -23,6 +23,19 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
         {
             _output = output;
             DownloadLogger.Current = new TestOutputLogger(_output); // Activate the logger to output logs to xUnit's output
+
+            // Below code is to handle unhandled exceptions and unobserved task exceptions globally
+            // This part of code should only be used in the most complex suituations where you need to debug the unhandled exceptions or unobserved task exceptions.
+
+            AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
+            {
+                DownloadLogger.LogError("!!! UnhandledException: " + args.ExceptionObject?.ToString());
+            };
+
+            TaskScheduler.UnobservedTaskException += (sender, args) =>
+            {
+                DownloadLogger.LogError("!!! UnobservedTaskException: " + args.Exception?.ToString());
+            };
         }
 
         [Fact]

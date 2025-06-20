@@ -144,39 +144,36 @@ namespace MultithreadDownload.Tasks
         #endregion Constructors
 
         /// <summary>
-        /// Execute a task that is in the queue newly.
+        /// Execute this task that is in the queue newly or manually started.
         /// </summary>
         /// <param name="task">The task to start.</param>
         /// <param name="downloadService">The download service to use.</param>
         /// <exception cref="NullReferenceException">The task is null.</exception>
-        public Result<bool, DownloadErrorCode> ExecuteDownloadTask(IDownloadTaskWorkProvider workProvider, IDownloadService downloadService)
+        public Result<bool, DownloadError> ExecuteDownloadTask(IDownloadTaskWorkProvider workProvider, IDownloadService downloadService)
         {
             // Check parameters and properties.
             // If the task already has a state that is not Waiting, return an error message.
             if (State != DownloadState.Waiting)
-            {
-                DownloadLogger.LogError($"The task with id: {ID} is already started or completed. Current state: {State}.");
-                return Result<bool, DownloadErrorCode>.Failure(DownloadErrorCode.TaskAlreadyStarted);
-            }
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.TaskAlreadyStarted, $"The task with id: {ID} is already started or completed. Current state: {State}."));
             // If the download service is null, return an error message.
             if (workProvider == null)
-            {
-                DownloadLogger.LogError($"The work provider is null.");
-                return Result<bool, DownloadErrorCode>.Failure(DownloadErrorCode.NullReference);
-            }
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.NullReference, $"The work provider is null."));
 
             // Create new doanload threads with the given maximum number of threads.
             // Execute the main work of the task => Start all download threads to download the file
             // Hook the event such that a execution of finalize work can be invoke (e.g. Combine the file segments)
             // when the task is completed.
             ThreadManager.CreateThreads(downloadService.DownloadFile);
+            SetThreadCompletedEventHandler(workProvider, downloadService);
             // Log the creation of the threads.
             //DownloadLogger.LogInfo($"The threads of the task with id: {ID} have been created.");
             // Start the download task.
             this.State = DownloadState.Downloading;
-            workProvider.Execute_MainWork(downloadService, this);
-            // Log the execution of the main work.
-            //DownloadLogger.LogInfo($"The main work of the task with id: {ID} have been executed.");
+            return workProvider.Execute_MainWork(downloadService, this);
+        }
+
+        private void SetThreadCompletedEventHandler(IDownloadTaskWorkProvider workProvider, IDownloadService downloadService)
+        {
             this.ThreadManager.ThreadCompleted += (t) =>
             {
                 try
@@ -188,8 +185,11 @@ namespace MultithreadDownload.Tasks
                     // If the task is already completed or failed, throw an exception.
                     // This is to prevent the task from being finalized multiple times.
                     // Theoretically, this should never happen, but it is a good practice to check it.
-                    if (this.State is DownloadState.Completed or DownloadState.Failed) { throw new InvalidOperationException(
-                        $"The task with id: {ID} is already completed or failed. Current state: {this.State}"); }
+                    if (this.State is DownloadState.Completed or DownloadState.Failed)
+                    {
+                        throw new InvalidOperationException(
+                        $"The task with id: {ID} is already completed or failed. Current state: {this.State}");
+                    }
 
                     // Below code will be executed when all threads is completed
                     // Change the set to AfterProcessing to indicate that the task is combining the downloaded parts etc.
@@ -222,7 +222,7 @@ namespace MultithreadDownload.Tasks
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"Unexpected error occurred when a thread are completed.\nThe message is {ex.Message}");
+                    DownloadLogger.LogError($"Unexpected error occurred when a thread are completed.\nThe message is {ex.Message}", ex);
                 }
             };
         }

@@ -98,8 +98,10 @@ namespace MultithreadDownload.Primitives
         /// <param name="message">The message to include in the exception if the Option has no value.</param>
         /// <returns>The value if it exists.</returns>
         /// <exception cref="InvalidOperationException">Thrown if the Option has no value.</exception>
+#nullable enable
         public T UnwrapOrThrow(string? message = null) =>
             HasValue ? _value! : throw new InvalidOperationException(message ?? "No value present.");
+#nullable disable
     }
 }
 

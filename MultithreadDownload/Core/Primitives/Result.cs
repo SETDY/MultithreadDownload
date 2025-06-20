@@ -57,7 +57,7 @@ namespace MultithreadDownload.Primitives
         public static Result<T, ErrorCode> Failure(ErrorCode errorCode) => new Result<T, ErrorCode>(errorCode);
         #endregion
 
-        #region Fluent Methods
+        #region Fluent non-static Methods
 #nullable enable
         /// <summary>
         /// Unwraps the result value or throws an exception if the operation failed.
@@ -155,7 +155,9 @@ namespace MultithreadDownload.Primitives
         {
             return IsSuccess ? onSuccess(Value.Value!) : onFailure(ErrorState);
         }
+        #endregion
 
+        #region Fluent Static Methods
         /// <summary>
         /// Tries to aggregate multiple Result instances.
         /// </summary>
@@ -175,6 +177,24 @@ namespace MultithreadDownload.Primitives
                 resultValueList.Add(result.Value.UnwrapOr(default));
             }
             return Result<T[], ErrorCode>.Success(resultValueList.ToArray());
+        }
+
+        /// <summary>
+        /// Check multiple Result instances for success.
+        /// If all are successful, returns Result&lt;bool, E&gt;.Success(true).
+        /// If any fails, returns Result&lt;bool, E&gt;.Failure with the first error encountered.
+        /// </summary>
+        /// <param name="results">The enumerable of Result instances to check.</param>
+        public static Result<bool, ErrorCode> AllSucceeded(IEnumerable<Result<T, ErrorCode>> results)
+        {
+            // Loop through each result and check if it is successful
+            // If any result is not successful, return the failure
+            foreach (var result in results)
+            {
+                if (!result.IsSuccess)
+                    return Result<bool, ErrorCode>.Failure(result.ErrorState!);
+            }
+            return Result<bool, ErrorCode>.Success(true);
         }
         #endregion
     }

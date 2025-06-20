@@ -1,4 +1,5 @@
 ﻿using FluentAssertions;
+using MultithreadDownload.Core.Errors;
 using System.Runtime.InteropServices;
 
 namespace MultithreadDownload.UnitTests.Utils
@@ -201,11 +202,12 @@ namespace MultithreadDownload.UnitTests.Utils
         public void SplitPaths_ShouldReturnFailure_WhenThreadCountIsZeroOrNegative(int maxThreads)
         {
             // Act
-            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, "UserData\\Downloads\\file.zip");
+            Result<string[], DownloadError> result = FileSegmentHelper.SplitPaths(maxThreads, "UserData\\Downloads\\file.zip");
 
             // Assert => Whether the processing is failed.
             result.IsSuccess.Should().BeFalse();
-            result.ErrorMessage.Should().Contain("cannot be 0");
+            result.ErrorState.Category.Should().Be(DownloadErrorCategory.Unexpected);
+            result.ErrorState.Code.Should().Be(DownloadErrorCode.ArgumentOutOfRange);
         }
 
         /// <summary>
@@ -219,12 +221,12 @@ namespace MultithreadDownload.UnitTests.Utils
             string directoryPath = Path.Combine(Path.GetTempPath(), "TestDirectory") + Path.DirectorySeparatorChar;
 
             // Act
-            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, directoryPath);
+            Result<string[], DownloadError> result = FileSegmentHelper.SplitPaths(maxThreads, directoryPath);
 
             // Assert
             result.IsSuccess.Should().BeFalse();
-            result.ErrorMessage.Should().NotBeNullOrEmpty()
-                .And.Contain("file name"); // Assuming your error message mentions that a file name is required
+            result.ErrorState.Category.Should().Be(DownloadErrorCategory.Unexpected);
+            result.ErrorState.Code.Should().Be(DownloadErrorCode.ArgumentOutOfRange);
         }
 
         /// <summary>
@@ -244,14 +246,15 @@ namespace MultithreadDownload.UnitTests.Utils
             string testFilePath = Path.Combine("UserData", "Downloads", "file.zip");
 
             // Act
-            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, testFilePath);
+            Result<string[], DownloadError> result = FileSegmentHelper.SplitPaths(maxThreads, testFilePath);
 
             // Assert => Whether the processing is successful.
             result.IsSuccess.Should().BeTrue();
-            result.Value.Should().HaveCount(maxThreads);
-            for (int i = 0; i < result.Value.Length; i++)
+            string[] valueOfResult = result.Value.UnwrapOrThrow();
+            valueOfResult.Should().HaveCount(maxThreads);
+            for (int i = 0; i < valueOfResult.Length; i++)
             {
-                result.Value[i].Should().Be(Path.Combine("UserData", "Downloads", $"file-{i}.downtemp"));
+                valueOfResult[i].Should().Be(Path.Combine("UserData", "Downloads", $"file-{i}.downtemp"));
             }
         }
 
@@ -266,14 +269,15 @@ namespace MultithreadDownload.UnitTests.Utils
             string testFilePath = Path.Combine("testDir1", "data", "download", "myfile");
 
             // Act
-            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, testFilePath);
+            Result<string[], DownloadError> result = FileSegmentHelper.SplitPaths(maxThreads, testFilePath);
 
             // Assert => Whether the processing is successful.
             result.IsSuccess.Should().BeTrue();
-            result.Value.Should().NotBeNullOrEmpty();
-            result.Value.Should().HaveCount(2);
-            result.Value[0].Should().EndWith("myfile-0.downtemp");
-            result.Value[1].Should().EndWith("myfile-1.downtemp");
+            string[] valueOfResult = result.Value.UnwrapOrThrow();
+            valueOfResult.Should().NotBeNullOrEmpty();
+            valueOfResult.Should().HaveCount(2);
+            valueOfResult[0].Should().EndWith("myfile-0.downtemp");
+            valueOfResult[1].Should().EndWith("myfile-1.downtemp");
         }
 
         /// <summary>
@@ -297,13 +301,14 @@ namespace MultithreadDownload.UnitTests.Utils
             string testFilePath = "C:\\file.iso";
 
             // Act
-            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, testFilePath);
+            Result<string[], DownloadError> result = FileSegmentHelper.SplitPaths(maxThreads, testFilePath);
 
             // Assert
             result.IsSuccess.Should().BeTrue();
-            result.Value.Should().NotBeNullOrEmpty();
-            result.Value.Should().HaveCount(1);
-            result.Value[0].Should().Be("C:\\file-0.downtemp");
+            string[] valueOfResult = result.Value.UnwrapOrThrow();
+            valueOfResult.Should().NotBeNullOrEmpty();
+            valueOfResult.Should().HaveCount(1);
+            valueOfResult[0].Should().Be("C:\\file-0.downtemp");
         }
 
         [Fact]
@@ -314,15 +319,16 @@ namespace MultithreadDownload.UnitTests.Utils
             string path = "home/user/downloads/file.tar.gz";
 
             // Act
-            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, path);
+            Result<string[], DownloadError> result = FileSegmentHelper.SplitPaths(maxThreads, path);
 
             // Assert
             result.IsSuccess.Should().BeTrue();
-            result.Value.Should().NotBeNullOrEmpty();
-            result.Value.Should().HaveCount(2);
+            string[] valueOfResult = result.Value.UnwrapOrThrow();
+            valueOfResult.Should().NotBeNullOrEmpty();
+            valueOfResult.Should().HaveCount(2);
             // Use Path.Combine to ensure corss platform compatibility
-            result.Value[0].Should().Be(Path.Combine("home", "user", "downloads", "file.tar-0.downtemp"));
-            result.Value[1].Should().Be(Path.Combine("home", "user", "downloads", "file.tar-1.downtemp"));
+            valueOfResult[0].Should().Be(Path.Combine("home", "user", "downloads", "file.tar-0.downtemp"));
+            valueOfResult[1].Should().Be(Path.Combine("home", "user", "downloads", "file.tar-1.downtemp"));
         }
 
         [Fact]
@@ -333,15 +339,16 @@ namespace MultithreadDownload.UnitTests.Utils
             string path = Path.Combine("UserData", "Downloads", "bigfile.bin");
 
             // Act
-            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, path);
+            Result<string[], DownloadError> result = FileSegmentHelper.SplitPaths(maxThreads, path);
 
             // Assert
             result.IsSuccess.Should().BeTrue();
-            result.Value.Should().NotBeNullOrEmpty();
-            result.Value.Should().HaveCount(1000);
-            for (int i = 0; i < result.Value.Length; i++)
+            string[] valueOfResult = result.Value.UnwrapOrThrow();
+            valueOfResult.Should().NotBeNullOrEmpty();
+            valueOfResult.Should().HaveCount(1000);
+            for (int i = 0; i < valueOfResult.Length; i++)
             {
-                result.Value[i].Should().EndWith($"bigfile-{i}.downtemp");
+                valueOfResult[i].Should().EndWith($"bigfile-{i}.downtemp");
             }
         }
 

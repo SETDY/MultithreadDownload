@@ -90,7 +90,7 @@ namespace MultithreadDownload.Schedulers
                     this._downloadSlots.Wait(_allocatorTokenSource.Token);
                     // Log the start of the task
                     //DownloadLogger.LogInfo($"The Task with id: {task.ID} and path: {task.DownloadContext.TargetPath} has been started.");
-                    task.Start(_workProvider, _downloadService);
+                    task.ExecuteDownloadTask(_workProvider, _downloadService);
                 }
             }, TaskCreationOptions.LongRunning);
         }

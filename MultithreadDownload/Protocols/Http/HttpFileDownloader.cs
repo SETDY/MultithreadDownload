@@ -247,7 +247,10 @@ namespace MultithreadDownload.Protocols.Http
         /// <returns></returns>
         private Result<bool, DownloadError> FinishSuccessfully(Stream output)
         {
-            HttpDownloadService.CleanUpDownloadProcess(output, null);
+            // Clean up the download progress by closing and disposing the output stream
+            // This will also ensure that the output stream is flushed and all data is written
+            DownloadLogger.LogInfo($"The thread with ID {_thread.ID} completed successfully: {((HttpDownloadContext)_thread.DownloadContext).Url}");
+            HttpDownloadService.CleanUpDownloadProcess(output, Array.Empty<string>());
             return Result<bool, DownloadError>.Success(true);
         }
 
@@ -261,8 +264,8 @@ namespace MultithreadDownload.Protocols.Http
         private Result<bool, DownloadError> FinishFailed(DownloadError error)
         {
             // Clean up the download progress by closing and disposing the output stream
-            HttpDownloadService.CleanUpDownloadProcess(_output, null);
             DownloadLogger.LogError($"Thread failed after {MAX_TOTAL_RETRIES} retries: {((HttpDownloadContext)_thread.DownloadContext).Url}");
+            HttpDownloadService.CleanUpDownloadProcess(_output, new string[] { _thread.FileSegmentPath });
             return Result<bool, DownloadError>.Failure(error);
         }
         #endregion

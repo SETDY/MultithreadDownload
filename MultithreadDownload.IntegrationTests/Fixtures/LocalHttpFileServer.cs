@@ -1,153 +1,132 @@
-using System.Diagnostics;
-using System.Net;
+﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Hosting;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
+using System.Net.Http;
 
 namespace MultithreadDownload.IntegrationTests.Fixtures
 {
-    public class LocalHttpFileServer
+    public class LocalHttpFileServer : IDisposable
     {
-        private readonly HttpListener _listener = new();
-        private readonly string _baseFilePath;
-        private readonly string _url;
+        private readonly byte[] _fileContentBuffer;
         private readonly bool _noRange;
+        private readonly TestServer _server;
+        private readonly IHost _host;
+        private readonly string _url = "http://localhost:5001/";
 
-        /// <summary>
-        /// The initialization of the local HTTP file server.
-        /// </summary>
-        /// <param name="prefixUrl">The url prefix for the HTTP server.</param>
-        /// <param name="filePath">The file path to be served.</param>
-        /// <remarks>
-        /// The example of <paramref name="prefixUrl"/> is http://localhost:8080/ and
-        /// the example of <paramref name="filePath"/> is C:\testfile.txt
-        /// </remarks>
+        public string Url => _url;
+
         public LocalHttpFileServer(string prefixUrl, string filePath)
-        {
-            _url = prefixUrl;
-            _baseFilePath = filePath;
-            _listener.Prefixes.Add(prefixUrl);
-        }
+            : this(prefixUrl, filePath, false) { }
 
-        /// <summary>
-        /// The initialization of the local HTTP file server.
-        /// </summary>
-        /// <param name="prefixUrl">The url prefix for the HTTP server.</param>
-        /// <param name="filePath">The file path to be served.</param>
-        /// <param name="noRange">The flag to disable range requests.</param>
-        /// <remarks>
-        /// The example of <paramref name="prefixUrl"/> is http://localhost:8080/ and
-        /// the example of <paramref name="filePath"/> is C:\testfile.txt
-        /// </remarks>
         public LocalHttpFileServer(string prefixUrl, string filePath, bool noRange)
         {
-            _url = prefixUrl;
-            _baseFilePath = filePath;
-            _listener.Prefixes.Add(prefixUrl);
+            _url = prefixUrl.EndsWith("/") ? prefixUrl : prefixUrl + "/";
+            _fileContentBuffer = File.ReadAllBytes(filePath);
             _noRange = noRange;
+
+            _host = new HostBuilder()
+                .ConfigureWebHost(webBuilder =>
+                {
+                    webBuilder.UseTestServer();
+                    webBuilder.Configure(app =>
+                    {
+                        app.Run(async context =>
+                        {
+                            var request = context.Request;
+                            var response = context.Response;
+                            response.Headers.Add("Accept-Ranges", "bytes");
+
+                            if (HandleRequest_HEAD(request, response)) return;
+
+                            if (!_noRange && await HandleRequest_Range(request, response)) return;
+
+                            await HandleRequest_FullGET(response);
+                        });
+                    });
+                })
+                .Start();
+
+            _server = _host.GetTestServer();
         }
 
-        /// <summary>
-        /// Start the local HTTP file server.
-        /// </summary>
-        public void Start()
-        {
-            _listener.Start();
-            Task.Run(() => HandleRequests());
-        }
+        public void Start() { /* no-op: TestServer is started in constructor */ }
 
-        /// <summary>
-        /// Stop the local HTTP file server.
-        /// </summary>
-        public void Stop() => _listener.Stop();
+        public void Stop() => Dispose();
 
-        /// <summary>
-        /// Handle the requests from the HTTP server.
-        /// </summary>
-        /// <returns>The asynchronous operation.</returns>
-        private async Task HandleRequests()
+        public HttpClient CreateClient() => _server.CreateClient();
+
+        private bool HandleRequest_HEAD(HttpRequest request, HttpResponse response)
         {
-            while (_listener.IsListening)
+            if (request.Method == HttpMethods.Head)
             {
-                try
-                {
-                    HttpListenerContext context = await _listener.GetContextAsync();
-                    HttpListenerRequest request = context.Request;
-                    HttpListenerResponse response = context.Response;
-
-                    if (response == null) { continue; }
-
-                    var buffer = File.ReadAllBytes(_baseFilePath);
-                    response.AddHeader("Accept-Ranges", "bytes");
-
-                    if (HandleRequest_HEAD(request, response, buffer)) { continue; }
-
-                    if (await HandleRequest_Range(request, response, buffer)) { continue; }
-
-                    HandleRequest_FullGET(request, response, buffer);
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine("An exception occurred while handling the request: " + ex.Message);
-                }
+                Debug.WriteLine("Processing HEAD request");
+                response.ContentType = "application/octet-stream";
+                response.ContentLength = _fileContentBuffer.Length;
+                response.StatusCode = 200;
+                return true;
             }
+            return false;
         }
 
-        private async Task<bool> HandleRequest_Range(HttpListenerRequest request, HttpListenerResponse response
-            , byte[] buffer)
+        private async Task<bool> HandleRequest_Range(HttpRequest request, HttpResponse response)
         {
-            var range = request.Headers["Range"];
-            // Handle range requests
-            if (range != null)
+            var range = request.Headers["Range"].ToString();
+            if (!string.IsNullOrEmpty(range))
             {
                 var match = Regex.Match(range, @"bytes=(\d+)-(\d*)");
-
                 if (match.Success)
                 {
                     int from = int.Parse(match.Groups[1].Value);
-                    int to = match.Groups[2].Success ? int.Parse(match.Groups[2].Value) : buffer.Length - 1;
+                    int to = match.Groups[2].Success ? int.Parse(match.Groups[2].Value) : _fileContentBuffer.Length - 1;
+
+                    if (from > to || from < 0 || from >= _fileContentBuffer.Length)
+                    {
+                        response.StatusCode = 416;
+                        response.Headers["Content-Range"] = $"bytes */{_fileContentBuffer.Length}";
+                        return true;
+                    }
+
+                    to = Math.Min(to, _fileContentBuffer.Length - 1);
                     int length = to - from + 1;
-                    // If the length is 0, it means the file is an empty file
-                    // To prevent the OutOfRange exception, we set the length to 0
-                    if (length == 1)
-                        length = 0;
+
                     response.StatusCode = 206;
                     response.ContentType = "application/octet-stream";
-                    response.ContentLength64 = length;
-                    response.AddHeader("Content-Range", $"bytes {from}-{to}/{buffer.Length}");
+                    response.ContentLength = length;
+                    response.Headers["Content-Range"] = $"bytes {from}-{to}/{_fileContentBuffer.Length}";
 
-                    await response.OutputStream.WriteAsync(buffer, from, length);
-                    response.Close();
-
+                    await SafeWriteAsync(response.Body, _fileContentBuffer, from, length);
                     return true;
                 }
             }
             return false;
         }
 
-        private bool HandleRequest_HEAD(HttpListenerRequest request, HttpListenerResponse response
-            , byte[] buffer)
+        private async Task HandleRequest_FullGET(HttpResponse response)
         {
-            // Handle HEAD request
-            if (request.HttpMethod == "HEAD")
-            {
-                Debug.WriteLine("Processing HEAD request");
-                response.ContentType = "application/octet-stream";
-                response.ContentLength64 = buffer.Length;
-                response.StatusCode = 200;
-                response.KeepAlive = false;
-                response.Close();
-                return true;
-            }
-            return false;
+            response.ContentType = "application/octet-stream";
+            response.ContentLength = _fileContentBuffer.Length;
+            await response.Body.WriteAsync(_fileContentBuffer, 0, _fileContentBuffer.Length);
         }
 
-        private async void HandleRequest_FullGET(HttpListenerRequest request, HttpListenerResponse response
-    , byte[] buffer)
+        private async Task SafeWriteAsync(Stream stream, byte[] buffer, int offset, int count, int chunkSize = 81920)
         {
-            // Normal full GET request
-            response.ContentType = "application/octet-stream";
-            response.ContentLength64 = buffer.Length;
-            await response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-            response.Close();
+            int remaining = count;
+            while (remaining > 0)
+            {
+                int writeSize = Math.Min(chunkSize, remaining);
+                await stream.WriteAsync(buffer, offset, writeSize);
+                offset += writeSize;
+                remaining -= writeSize;
+            }
+        }
+
+        public void Dispose()
+        {
+            _host.Dispose();
         }
     }
 }

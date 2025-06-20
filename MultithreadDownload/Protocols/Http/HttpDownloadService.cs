@@ -142,13 +142,11 @@ namespace MultithreadDownload.Protocols.Http
         /// <returns>Result<HttpResponseMessage></returns>
         private Result<HttpResponseMessage, DownloadError> SendRequestWithRetry(HttpClient client, HttpRequestMessage requestMessage)
         {
-            // Try to send the request and get the response
-            // If failed, retry for a maximum of MAX_RETRY times and wait for WAIT_TIME milliseconds between each retry.
-            // Retrun Result<HttpResponseMessage, DownloadError> so that the exception must be handled by the caller
+            // FIXED: Modify the lambda expression to ensure proper handling of async methods
             return RetryHelper.Retry<HttpResponseMessage, DownloadError>(
                 (int)MAX_RETRY,
                 WAIT_TIME,
-                () => SendRequestSafe(client, requestMessage),
+                () => SendRequestSafe(client, requestMessage).Result, // Here use .Result to unwrap the Task and return the Result
                 () => DownloadError.Create(DownloadErrorCode.Timeout, $"Http request timed out after {WAIT_TIME * MAX_RETRY}.")
             );
         }
@@ -159,13 +157,14 @@ namespace MultithreadDownload.Protocols.Http
         /// <param name="client">A HttpClient instance</param>
         /// <param name="requestMessage">A HttpRequestMessage instance</param>
         /// <returns>The result of sending the request and getting the response</returns>
-        private Result<HttpResponseMessage, DownloadError> SendRequestSafe(HttpClient client, HttpRequestMessage requestMessage)
+        private async Task<Result<HttpResponseMessage, DownloadError>> SendRequestSafe(HttpClient client, HttpRequestMessage requestMessage)
         {
             // Try to send the request and get the response
             // Retrun Result<HttpResponseMessage> so that the exception must be handled by the caller
             try
             {
-                return SendRequest(client, requestMessage);
+                // Use await keyword to wait for the response
+                return await SendRequest(client, requestMessage);
             }
             catch (TaskCanceledException)
             {
@@ -187,7 +186,7 @@ namespace MultithreadDownload.Protocols.Http
         /// <param name="client">The http client</param>
         /// <param name="requestMessage">The http request message</param>
         /// <returns>The result of sending the request and getting the response</returns>
-        private Result<HttpResponseMessage, DownloadError> SendRequest(HttpClient client, HttpRequestMessage requestMessage)
+        private async Task<Result<HttpResponseMessage, DownloadError>> SendRequest(HttpClient client, HttpRequestMessage requestMessage)
         {
             // Set the timeout for the request
             using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(WAIT_TIME)))
@@ -195,11 +194,23 @@ namespace MultithreadDownload.Protocols.Http
                 // Send a request and get a streaming response that will update the response by the time passed.
                 // Check if the response is successful
                 // If not, throw an exception.
-                HttpResponseMessage responseMessage = client
-                    .SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead)
-                    .GetAwaiter().GetResult();
-                responseMessage.EnsureSuccessStatusCode();
-                return Result<HttpResponseMessage, DownloadError>.Success(responseMessage);
+                try
+                {
+                    HttpResponseMessage responseMessage = await client
+                        .SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead);
+                    responseMessage.EnsureSuccessStatusCode();
+                    return Result<HttpResponseMessage, DownloadError>.Success(responseMessage);
+                }
+                catch (TaskCanceledException)
+                {
+                    return Result<HttpResponseMessage, DownloadError>.Failure(DownloadError.Create(
+                        DownloadErrorCode.Timeout, $"The request to {requestMessage.RequestUri.AbsoluteUri} timed out."));
+                }
+                catch (Exception ex)
+                {
+                    return Result<HttpResponseMessage, DownloadError>.Failure(DownloadError.Create(
+                        DownloadErrorCode.UnexpectedOrUnknownException, $"An unexpected exception occurs when send the request or get the response. Message: {ex.Message}"));
+                }
             }
         }
 
@@ -237,6 +248,10 @@ namespace MultithreadDownload.Protocols.Http
         /// <param name="task">The download task to validate</param>
         /// <param name="outputStream">The output stream to clean up</param>
         /// <returns>The result of the validation and cleanup operation</returns>
+        /// <remarks>
+        /// This method is used to ensure that the download task is in a valid state before proceeding with the post-download processing
+        /// and handle the situation that the task has been cancelled or not completed correctly.
+        /// </remarks>
         private Result<bool, DownloadError> ValidateOrCleanup(DownloadTask task, Stream outputStream)
         {
             return (task.State, task.ThreadManager.CompletedThreadsCount == task.ThreadManager.MaxParallelThreads) switch
@@ -251,7 +266,7 @@ namespace MultithreadDownload.Protocols.Http
                 // In this case, we need to take care of the situation that the task has been cancelled
                 // because the process has a major bug and cannot recover it easily.
                 (_, false) => CleanUpTaskWithLogging(task, outputStream,
-                    $"Task {task.ID} has not been completed but it enters to PostDownloadProcessing method. " +
+                    $"Task {task.ID} has not been completed but it enters wrongly to PostDownloadProcessing method. " +
                     $"Completed threads count: {task.ThreadManager.CompletedThreadsCount}, Max parallel threads: {task.ThreadManager.MaxParallelThreads}"),
 
                 _ => Result<bool, DownloadError>.Success(true)
@@ -304,7 +319,7 @@ namespace MultithreadDownload.Protocols.Http
             }
             else
             {
-                DownloadLogger.LogError($"Task {task.ID} cleanup: {reason}. " +
+                DownloadLogger.LogInfo($"Task {task.ID} cleanup: {reason}. " +
                     $"Completed threads: {task.ThreadManager.CompletedThreadsCount}, " +
                     $"Max threads: {task.ThreadManager.MaxParallelThreads}");
             }
@@ -319,7 +334,7 @@ namespace MultithreadDownload.Protocols.Http
         /// <param name="targetStream">The output stream to clean up</param>
         /// <param name="filePaths">The file paths of the segments to delete</param>
         /// <returns>Whether the clean up is successful or not</returns>
-        internal static Result<bool, DownloadError> CleanUpDownloadProcess(Stream targetStream, string[]? filePaths = null)
+        internal static Result<bool, DownloadError> CleanUpDownloadProcess(Stream targetStream, string[] filePaths)
         {
             // Clean up the download progress by closing and disposing the output stream
             // If the filePath is not null, delete the file
@@ -332,7 +347,7 @@ namespace MultithreadDownload.Protocols.Http
                 onSuccess: _ =>
                 {
                     // Log the success message if necessary and clean up the target stream
-                    DownloadLogger.LogInfo("Successfully deleted segments after download task is cancelled or completed.");
+                    DownloadLogger.LogInfo("Successfully deleted segments after download task/thread is cancelled or completed.");
                     // Clean up the target stream by closing and disposing it
                     return targetStream.CleanUp();
                 },

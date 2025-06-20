@@ -7,6 +7,7 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using MultithreadDownload.Core.Errors;
 
 namespace MultithreadDownload.Threading
 {
@@ -62,9 +63,16 @@ namespace MultithreadDownload.Threading
         /// </summary>
         private readonly CancellationTokenSource _cancellation;
 
-        private readonly Func<Stream, Stream, IDownloadThread, Result<bool>> _work;
+        /// <summary>
+        /// The function that will be executed in the download thread to perform the download operation.
+        /// </summary>
+        /// <remarks>
+        /// For example, <see cref="Protocols.Http.HttpDownloadService"/>.DownloadFile(Stream inputStream, Stream outputStream, IDownloadThread downloadThread) 
+        /// is a work of download threads.
+        /// </remarks>
+        private readonly Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> _work;
 
-        public DownloadThread(int id, IDownloadContext downloadContext, string fileSegmentPath, Func<Stream, Stream, IDownloadThread, Result<bool>> work)
+        public DownloadThread(int id, IDownloadContext downloadContext, string fileSegmentPath, Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> work)
         {
             // Initialize the properties
             ID = id;
@@ -111,6 +119,13 @@ namespace MultithreadDownload.Threading
             _cancellation.Dispose();
         }
 
+        // TODO: This method should not be public in term of constructional design, but it is needed for download working perfectly now.
+        //       It should be refactored later to be private or internal.
+        /// <summary>
+        /// Adds the completed bytes size count for this thread.
+        /// </summary>
+        /// <param name="size">The size of the completed bytes to add.</param>
+        /// <exception cref="ArgumentOutOfRangeException">The size is negative.</exception>
         public void AddCompletedBytesSizeCount(long size)
         {
             if (size < 0)

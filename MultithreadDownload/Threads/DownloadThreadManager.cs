@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using MultithreadDownload.Core.Errors;
 
 namespace MultithreadDownload.Threading
 {
@@ -86,18 +87,17 @@ namespace MultithreadDownload.Threading
         /// The work delegate is the main download work that will be executed by the download thread.
         /// The main download work is IDownloadSerivce.DownloadFile()
         /// </remarks>
-        public Result<bool> CreateThreads(Func<Stream, Stream, IDownloadThread, Result<bool>> mainWork)
+        public Result<bool, DownloadError> CreateThreads(Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork)
         {
             // Check if the target file already exists
             // If it does, return a failure result
             // Otherwise, split the file paths and create new download threads with the maximum number of threads
             if (File.Exists(_downloadContext.TargetPath))
-                return Result<bool>.Failure("The final file already exists.");
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.FileAlreadyExists, "The final file already exists."));
 
-            Result<string[]> segmentPaths = FileSegmentHelper.SplitPaths(MaxParallelThreads, _downloadContext.TargetPath);
-            if (!segmentPaths.IsSuccess)
-                return Result<bool>.Failure("SplitPaths failed");
-            return CreateThreads(MaxParallelThreads, segmentPaths.Value, mainWork);
+            return FileSegmentHelper
+                .SplitPaths(MaxParallelThreads, _downloadContext.TargetPath)
+                .AndThen(segmentPaths => CreateThreads(MaxParallelThreads, segmentPaths, mainWork));
         }
 
         /// <summary>
@@ -108,24 +108,15 @@ namespace MultithreadDownload.Threading
         /// The work delegate is the main download work that will be executed by the download thread.
         /// The main download work is IDownloadSerivce.DownloadFile()
         /// </remarks>
-        private Result<bool> CreateThreads(byte threadsCount, string[] fileSegmentPaths, Func<Stream, Stream, IDownloadThread, Result<bool>> mainWork)
+        private Result<bool, DownloadError> CreateThreads(byte threadsCount, string[] fileSegmentPaths, Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork)
         {
             // Creates new download threads with the given number of threads.
             if (threadsCount <= 0 || threadsCount != fileSegmentPaths.Length)
-                return Result<bool>.Failure("The number of threads must be greater than 0 and equal to the number of file segments.");
-            Result<bool> result = Result<bool>.Success(true);
-            try
-            {
-                for (int i = 0; i < threadsCount; i++)
-                {
-                    result = CreateThread(fileSegmentPaths[i], mainWork);
-                }
-            }
-            catch (Exception)
-            {
-                result = Result<bool>.Failure("Failed to create thread.");
-            }
-            return result;
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.ArgumentOutOfRange, "The number of threads must be greater than 0 and equal to the number of file segments."));
+
+            IEnumerable<Result<bool, DownloadError>> resultEnumertor = fileSegmentPaths
+                .Select(fileSegmentPath => CreateThread(fileSegmentPath, mainWork));
+            return Result<bool, DownloadError>.AllSucceeded(resultEnumertor);
         }
 
         /// <summary>
@@ -136,16 +127,28 @@ namespace MultithreadDownload.Threading
         /// The work delegate is the main download work that will be executed by the download thread.
         /// The main download work is IDownloadSerivce.DownloadFile()
         /// </remarks>
-        public Result<bool> CreateThread(string fileSegmentPath, Func<Stream, Stream, IDownloadThread, Result<bool>> mainWork)
+        public Result<bool, DownloadError> CreateThread(string fileSegmentPath, Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork)
         {
-            if (this._threads.Count > this._maxThreads) { Result<bool>.Failure("The number of download threads is at the maximum postition."); }
-            // Create a new thread with the factory
-            // Set the progresser for the thread
-            // Add the thread to the list of threads
-            IDownloadThread downloadThread = _factory.Create(0, _downloadContext, fileSegmentPath, mainWork);
+            // Check if the number of threads is greater than the maximum number of threads allowed
+            // If it is, return a failure result
+            if (this._threads.Count > this._maxThreads)
+                Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.ThreadMaxExceeded, "The number of download threads is at the maximum postition."));
+            // Validate the input parameters
+            //  - The file segment path cannot be null or empty
+            //  - The main work delegate cannot be null
+            if (string.IsNullOrEmpty(fileSegmentPath))
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.PathNotFound, "The file segment path cannot be null or empty."));
+            if (mainWork is null)
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.NullReference, "The main work delegate cannot be null."));
+
+            // Firstly, Create a new thread with the factory
+            // Then, Set the progresser for the thread
+            // Finally, Add the thread to the list of threads
+            IDownloadThread downloadThread = 
+                _factory.Create(this._threads.Count, _downloadContext, fileSegmentPath, mainWork);
             this.SetThreadProgresser(downloadThread);
             _threads.Add(downloadThread);
-            return Result<bool>.Success(true);
+            return Result<bool, DownloadError>.Success(true);
         }
 
         /// <summary>
