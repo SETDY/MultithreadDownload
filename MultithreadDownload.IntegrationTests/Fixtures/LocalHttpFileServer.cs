@@ -6,66 +6,93 @@ using Microsoft.Extensions.Hosting;
 using System.Text.RegularExpressions;
 using System.Diagnostics;
 using System.Net.Http;
+using System.Net.Sockets;
+using System.Net;
+using MultithreadDownload.Logging;
 
 namespace MultithreadDownload.IntegrationTests.Fixtures
 {
-    public class LocalHttpFileServer : IDisposable
+    public class LocalHttpFileServer
     {
+        private IHost? _host;
+        private int _port;
+        private readonly string _filePath;
         private readonly byte[] _fileContentBuffer;
         private readonly bool _noRange;
-        private readonly TestServer _server;
-        private readonly IHost _host;
-        private readonly string _url = "http://localhost:5001/";
 
-        public string Url => _url;
+        public string Url => $"http://localhost:{_port}/";
 
-        public LocalHttpFileServer(string prefixUrl, string filePath)
-            : this(prefixUrl, filePath, false) { }
-
-        public LocalHttpFileServer(string prefixUrl, string filePath, bool noRange)
+        public LocalHttpFileServer(string _, string filePath, bool noRange = false)
         {
-            _url = prefixUrl.EndsWith("/") ? prefixUrl : prefixUrl + "/";
+            _filePath = filePath;
             _fileContentBuffer = File.ReadAllBytes(filePath);
             _noRange = noRange;
-
-            _host = new HostBuilder()
-                .ConfigureWebHost(webBuilder =>
-                {
-                    webBuilder.UseTestServer();
-                    webBuilder.Configure(app =>
-                    {
-                        app.Run(async context =>
-                        {
-                            var request = context.Request;
-                            var response = context.Response;
-                            response.Headers.Add("Accept-Ranges", "bytes");
-
-                            if (HandleRequest_HEAD(request, response)) return;
-
-                            if (!_noRange && await HandleRequest_Range(request, response)) return;
-
-                            await HandleRequest_FullGET(response);
-                        });
-                    });
-                })
-                .Start();
-
-            _server = _host.GetTestServer();
         }
 
-        public void Start() { /* no-op: TestServer is started in constructor */ }
+        public void Start()
+        {
+            if (_host != null)
+                throw new InvalidOperationException("Server is already running.");
+            // Pick a random free port
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            _port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            listener.Stop();
+            // Log the server is starting if needed
+            DownloadLogger.LogInfo($"Starting LocalHttpFileServer at {Url} with file size {_fileContentBuffer.Length} bytes. No Range: {_noRange}");
 
-        public void Stop() => Dispose();
+            _host = Host.CreateDefaultBuilder()
+                .ConfigureWebHostDefaults(webBuilder =>
+                {
+                    webBuilder.UseKestrel()
+                        .UseUrls(Url)
+                        .Configure(app =>
+                        {
+                            app.Use(async (context, next) =>
+                            {
+                                try
+                                {
+                                    await next();
+                                }
+                                catch (Exception ex)
+                                {
+                                    DownloadLogger.LogError("Unhandled exception during request", ex);
+                                    context.Response.StatusCode = 500;
+                                }
+                            });
 
-        public HttpClient CreateClient() => _server.CreateClient();
+                            app.Run(async context =>
+                            {
+                                DownloadLogger.LogInfo($"Received request: {context.Request.Method} {context.Request.Path}");
+                                var request = context.Request;
+                                var response = context.Response;
+
+                                response.Headers.Add("Accept-Ranges", "bytes");
+
+                                if (HandleRequest_HEAD(request, response)) return;
+                                if (!_noRange && await HandleRequest_Range(request, response)) return;
+                                await HandleRequest_FullGET(response);
+                            });
+                        });
+                })
+                .Build();
+
+            _host.Start();
+        }
+
+        public void Stop()
+        {
+            _host?.StopAsync().GetAwaiter().GetResult();
+            _host?.Dispose();
+        }
 
         private bool HandleRequest_HEAD(HttpRequest request, HttpResponse response)
         {
             if (request.Method == HttpMethods.Head)
             {
-                Debug.WriteLine("Processing HEAD request");
+                DownloadLogger.LogInfo($"Handling HEAD request: {request.Method} {request.Path}");
                 response.ContentType = "application/octet-stream";
-                response.ContentLength = _fileContentBuffer.Length;
+                response.Headers.ContentLength = _fileContentBuffer.Length;
                 response.StatusCode = 200;
                 return true;
             }
@@ -74,6 +101,8 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
 
         private async Task<bool> HandleRequest_Range(HttpRequest request, HttpResponse response)
         {
+            // Log the range request details if needed
+            // DownloadLogger.LogInfo($"Handling Range request: {request.Method} {request.Path} with Range header: {request.Headers["Range"]}");
             var range = request.Headers["Range"].ToString();
             if (!string.IsNullOrEmpty(range))
             {
@@ -99,6 +128,8 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
                     response.Headers["Content-Range"] = $"bytes {from}-{to}/{_fileContentBuffer.Length}";
 
                     await SafeWriteAsync(response.Body, _fileContentBuffer, from, length);
+                    // Log the successful range request processing if needed
+                    //DownloadLogger.LogInfo($"Range request processed: {from}-{to} of {_fileContentBuffer.Length} bytes.");
                     return true;
                 }
             }
@@ -107,26 +138,46 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
 
         private async Task HandleRequest_FullGET(HttpResponse response)
         {
+            response.StatusCode = 200;
             response.ContentType = "application/octet-stream";
             response.ContentLength = _fileContentBuffer.Length;
-            await response.Body.WriteAsync(_fileContentBuffer, 0, _fileContentBuffer.Length);
+            await SafeWriteAsync(response.Body, _fileContentBuffer, 0, _fileContentBuffer.Length);
         }
 
         private async Task SafeWriteAsync(Stream stream, byte[] buffer, int offset, int count, int chunkSize = 81920)
         {
+            // Log the start of the write operation if needed
+            //DownloadLogger.LogInfo($"Writing {count} bytes to stream in chunks of {chunkSize} bytes.");
             int remaining = count;
+            long totalWritten = 0;
             while (remaining > 0)
             {
-                int writeSize = Math.Min(chunkSize, remaining);
-                await stream.WriteAsync(buffer, offset, writeSize);
-                offset += writeSize;
-                remaining -= writeSize;
+                try
+                {
+                    int writeSize = Math.Min(chunkSize, remaining);
+                    await stream.WriteAsync(buffer, offset, writeSize);
+                    await stream.FlushAsync();
+                    totalWritten += writeSize;
+                    // Log the number of bytes written in this chunk if needed
+                    //DownloadLogger.LogInfo($"Wrote {writeSize} bytes to stream. Total written: {totalWritten} bytes.");
+                    offset += writeSize;
+                    remaining -= writeSize;
+                }
+                catch (Exception ex)
+                {
+                    // Log the error and stop the write operation
+                    DownloadLogger.LogError("An error occurred while writing to the stream. Stopping write operation.");
+                    DownloadLogger.LogError(ex.Message, ex);
+                }
             }
-        }
-
-        public void Dispose()
-        {
-            _host.Dispose();
+            await stream.FlushAsync();
+            if (totalWritten != count)
+            {
+                DownloadLogger.LogError($"[Mismatch] Content-Length = {count}, but only wrote {totalWritten} bytes.");
+                throw new InvalidOperationException($"Content-Length mismatch: expected {count} bytes, but wrote {totalWritten} bytes.");
+            }
+            // Log the successful completion of the write operation if needed
+            //DownloadLogger.LogInfo("Write operation completed successfully.");
         }
     }
 }

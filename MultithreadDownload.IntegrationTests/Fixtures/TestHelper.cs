@@ -45,13 +45,13 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
         public static  (LocalHttpFileServer Server, MultiDownload Manager, string url)
         PrepareDownload(DownloadServiceType downloadServiceType, byte maxParallelTasks, string realFilePath)
         {
-            string url = TestHelper.GenerateTemporaryUrl();
-            LocalHttpFileServer server = new LocalHttpFileServer(url, realFilePath);
+            //string url = TestHelper.GenerateTemporaryUrl();
+            LocalHttpFileServer server = new LocalHttpFileServer("", realFilePath);
             server.Start();
 
             MultiDownload downloadManager = new MultiDownload(maxParallelTasks, downloadServiceType);
 
-            return (server, downloadManager, url);
+            return (server, downloadManager, server.Url);
         }
 
         public static async Task<HttpDownloadContext> GetHttpDownloadContext(byte maxDownloadThreads ,string url, string outputPath)
@@ -107,7 +107,8 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
         public static void VerifyFileContent(string actualPath, string expectedPath)
         {
             File.Exists(actualPath).Should().BeTrue();
-            File.ReadAllText(actualPath).Should().Be(File.ReadAllText(expectedPath));
+            // If the file's hash is equal to the expected hash, then the file content must be the same.
+            VerifyFileSHA512(actualPath, GetFileSHA512(expectedPath));
             File.Delete(actualPath);
         }
 
@@ -124,7 +125,14 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
 
         public static void VerifyFileSHA512(string filePath, string expectedSHA512)
         {
-            string actualSHA512 = "";
+            string actualSHA512 = GetFileSHA512(filePath);
+            // Assert that the actual SHA512 hash matches the expected hash
+            actualSHA512.Should().NotBeNullOrEmpty();
+            actualSHA512.Should().Be(expectedSHA512);
+        }
+
+        private static string GetFileSHA512(string filePath)
+        {
             using (SHA512 hasher = SHA512.Create())
             using (FileStream file = File.OpenRead(filePath))
             {
@@ -139,14 +147,9 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
                     sb.Append(b.ToString("x2"));
                 }
 
-                // Convert the StringBuilder to a string
-                actualSHA512 = sb.ToString();
+                // Convert the StringBuilder to a string and return it.
+                return sb.ToString();
             }
-
-            // Assert that the actual SHA512 hash matches the expected hash
-            actualSHA512.Should().NotBeNullOrEmpty();
-            actualSHA512.Should().Be(expectedSHA512);
         }
-
     }
 }

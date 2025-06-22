@@ -187,7 +187,7 @@ namespace MultithreadDownload.Schedulers
             _taskQueue.Add(task);
 
             // Log the additon of the queued task
-            //DownloadLogger.LogInfo($"The Task is queued with id: {task.ID} and path: {downloadContext.TargetPath}");
+            DownloadLogger.LogInfo($"The Task is queued with id: {task.ID} and path: {downloadContext.TargetPath}");
 
             // Add an ? to prevent the event is invoked when it is null.
             TaskQueueProgressChanged?.Invoke(task, new DownloadDataEventArgs(task));

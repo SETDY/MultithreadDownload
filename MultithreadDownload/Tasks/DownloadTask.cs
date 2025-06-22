@@ -61,7 +61,12 @@ namespace MultithreadDownload.Tasks
                     }
                     catch (Exception ex)
                     {
+                        // If the progarmme enter here, that means some methods that scribe to the Completed event have thrown an exception.
+                        // Therefore, log the error and throw an exception has to be excuted.
+                        // Otherwise, the task will not be funtionally completed but into a dead loop and the user will not know why the task is not userly completed.
                         DownloadLogger.LogError($"An error occurred when the Completed event was invoked for the task with id: {ID}.", ex);
+                        throw new InvalidOperationException(
+                            $"An error occurred when the Completed event was invoked for the task with id: {ID}.", ex);
                     }
                 }
             }
@@ -163,17 +168,22 @@ namespace MultithreadDownload.Tasks
             // Execute the main work of the task => Start all download threads to download the file
             // Hook the event such that a execution of finalize work can be invoke (e.g. Combine the file segments)
             // when the task is completed.
+            // Log the creation of the threads and start the download task.
+            DownloadLogger.LogInfo($"The task with id: {ID} is starting to create threads.");
             ThreadManager.CreateThreads(downloadService.DownloadFile);
             SetThreadCompletedEventHandler(workProvider, downloadService);
             // Log the creation of the threads.
-            //DownloadLogger.LogInfo($"The threads of the task with id: {ID} have been created.");
+            DownloadLogger.LogInfo($"The threads of the task with id: {ID} have been created.");
             // Start the download task.
             this.State = DownloadState.Downloading;
+            DownloadLogger.LogInfo($"Downloading {this.ID}");
             return workProvider.Execute_MainWork(downloadService, this);
         }
 
         private void SetThreadCompletedEventHandler(IDownloadTaskWorkProvider workProvider, IDownloadService downloadService)
         {
+            // Log to Set the event handler for when a thread is completed.
+            DownloadLogger.LogInfo($"Setting the event handler for when a thread is completed for the task with id: {ID}.");
             this.ThreadManager.ThreadCompleted += (t) =>
             {
                 try
@@ -220,9 +230,18 @@ namespace MultithreadDownload.Tasks
                             }
                         );
                 }
+                catch(InvalidOperationException iex)
+                {
+                    DownloadLogger.LogError($"An error occurred when the thread completed for the task with id: {ID}.\n" +
+                        $"This may be happen when a method subscribe the task completed event but it throws a exception\n" +
+                        $"The message is {iex.Message}", iex);
+                    // This exception has to be thrown to prevent the programme from entering a dead loop.
+                    throw;
+                }
                 catch (Exception ex)
                 {
                     DownloadLogger.LogError($"Unexpected error occurred when a thread are completed.\nThe message is {ex.Message}", ex);
+                    throw;
                 }
             };
         }

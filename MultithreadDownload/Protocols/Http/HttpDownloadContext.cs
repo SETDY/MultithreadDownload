@@ -84,7 +84,7 @@ namespace MultithreadDownload.Protocols.Http
             Result<long> fileSize = await HttpNetworkHelper.GetLinkFileSizeAsync(link);
             if (!fileSize.IsSuccess) { return Result<HttpDownloadContext>.Failure($"Cannot get file size from {link}"); }
 
-            //FIX: There is a fix for the issue of empty file name
+            //FIXED: There is a fix for the issue of empty file name
             // If the file name is not specified, use the file name from the link
             string targetFileName = Path.GetFileName(savedPath);
             if (string.IsNullOrEmpty(targetFileName))

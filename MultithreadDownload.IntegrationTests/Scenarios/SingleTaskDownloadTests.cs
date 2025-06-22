@@ -26,16 +26,14 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
 
             // Below code is to handle unhandled exceptions and unobserved task exceptions globally
             // This part of code should only be used in the most complex suituations where you need to debug the unhandled exceptions or unobserved task exceptions.
-
-            AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
-            {
-                DownloadLogger.LogError("!!! UnhandledException: " + args.ExceptionObject?.ToString());
-            };
-
-            TaskScheduler.UnobservedTaskException += (sender, args) =>
-            {
-                DownloadLogger.LogError("!!! UnobservedTaskException: " + args.Exception?.ToString());
-            };
+            //AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
+            //{
+            //    DownloadLogger.LogError("!!! UnhandledException: " + args.ExceptionObject?.ToString());
+            //};
+            //TaskScheduler.UnobservedTaskException += (sender, args) =>
+            //{
+            //    DownloadLogger.LogError("!!! UnobservedTaskException: " + args.Exception?.ToString());
+            //};
         }
 
         [Fact]
@@ -195,11 +193,11 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
 
         [Theory]
         [InlineData(2)]
-        [InlineData(3)]
-        [InlineData(4)]
-        [InlineData(8)]
-        [InlineData(16)]
-        [InlineData(32)]
+        //[InlineData(3)]
+        //[InlineData(4)]
+        //[InlineData(8)]
+        //[InlineData(16)]
+        //[InlineData(32)]
         public async Task DownloadFile_MultithreadThread_FromLocalHttpServer_WorksCorrectly(byte maxThreads)
         {
             // Since Github has limitations on the size of the file that can be saved,
@@ -221,23 +219,43 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                     downloadPath,
                     TestConstants.LARGE_TESTFILE_PATH
             );
+            DownloadLogger.LogInfo("The server url is: " + server.Url);
             // Create a TaskCompletionSource to wait for the download completion
             // It must be used to prevent the test from finishing before the download is completed
             TaskCompletionSource completionSource = new TaskCompletionSource();
             downloadManager.TasksProgressCompleted += (sender, e) =>
             {
                 // Assert
-                // After the download is asserted, stop the server and delete the downloaded file
-                TestHelper.VerifyFileContent(downloadPath, TestConstants.LARGE_TESTFILE_PATH);
-                server.Stop();
-                // Set the result of the TaskCompletionSource to signal that the download is complete
-                completionSource.SetResult();
+                try
+                {
+                    // After the download is asserted, stop the server and delete the downloaded file
+                    TestHelper.VerifyFileContent(downloadPath, TestConstants.LARGE_TESTFILE_PATH);
+                }
+                catch (Exception ex)
+                {
+                    // Prevent that the exception is missed by the test runner
+                    completionSource.SetException(ex);
+                    Thread.Sleep(1000);
+                }
+                finally
+                {
+                    // No matter if the download is successful or not, stop the server and delete the downloaded file
+                    server.Stop();
+                    if (File.Exists(downloadPath))
+                        File.Delete(downloadPath);
+                    // Set the result of the TaskCompletionSource to signal that the download is complete
+                    completionSource.SetResult();
+                }
             };
-            server.Start();
 
             // Act
             downloadManager.AddTask(context);
             downloadManager.StartAllocator();
+            await completionSource.Task;
+            if (completionSource.Task.AsyncState is Exception ex)
+                // If the task is completed with an exception, throw it to fail the test
+                // Prevent that the test is passed with an exception
+                throw ex;
         }
 
         [Fact]

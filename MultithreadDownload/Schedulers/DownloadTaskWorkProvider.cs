@@ -29,6 +29,8 @@ namespace MultithreadDownload.Schedulers
             // Then, get the output streams for each thread to write to if the input stream is successfully retrieved.
             // After that, start the threads with the input stream and output streams if the output streams are successfully retrieved.
             // If any of the steps fail, return a failure result with an appropriate error message.
+            // Log the start of the main work execution.
+            DownloadLogger.LogInfo($"Executing main work for download task: {task.DownloadContext.TargetPath}");
             return downloadService
                 .GetStreams(task.DownloadContext)
                 .AndThen(inputStream =>

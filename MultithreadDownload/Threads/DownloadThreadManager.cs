@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using MultithreadDownload.Core.Errors;
+using MultithreadDownload.Logging;
 
 namespace MultithreadDownload.Threading
 {
@@ -94,7 +95,14 @@ namespace MultithreadDownload.Threading
             // Otherwise, split the file paths and create new download threads with the maximum number of threads
             if (File.Exists(_downloadContext.TargetPath))
                 return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.FileAlreadyExists, "The final file already exists."));
+            if (_threads.Count != 0)
+                throw new InvalidOperationException("The download threads already exist. Please dispose of them before creating new ones.");
+            // return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.ThreadCreationFailed, "The download threads already exist. Please dispose of them before creating new ones."));
 
+            // Split the file paths into segments based on the maximum number of threads allowed
+            // Then, create new download threads with the main work delegate
+            // Log that the threads are being created 
+            DownloadLogger.LogInfo($"Creating {MaxParallelThreads} download threads for file segments in {_downloadContext.TargetPath}.");
             return FileSegmentHelper
                 .SplitPaths(MaxParallelThreads, _downloadContext.TargetPath)
                 .AndThen(segmentPaths => CreateThreads(MaxParallelThreads, segmentPaths, mainWork));
@@ -114,6 +122,7 @@ namespace MultithreadDownload.Threading
             if (threadsCount <= 0 || threadsCount != fileSegmentPaths.Length)
                 return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.ArgumentOutOfRange, "The number of threads must be greater than 0 and equal to the number of file segments."));
 
+            DownloadLogger.LogInfo($"Try to Create {threadsCount} download threads for file segments in {_downloadContext.TargetPath}.");
             IEnumerable<Result<bool, DownloadError>> resultEnumertor = fileSegmentPaths
                 .Select(fileSegmentPath => CreateThread(fileSegmentPath, mainWork));
             return Result<bool, DownloadError>.AllSucceeded(resultEnumertor);
@@ -148,6 +157,8 @@ namespace MultithreadDownload.Threading
                 _factory.Create(this._threads.Count, _downloadContext, fileSegmentPath, mainWork);
             this.SetThreadProgresser(downloadThread);
             _threads.Add(downloadThread);
+            // Log that the thread is created successfully
+            DownloadLogger.LogInfo($"Download thread {downloadThread.ID} created successfully for file segment {fileSegmentPath}.");
             return Result<bool, DownloadError>.Success(true);
         }
 

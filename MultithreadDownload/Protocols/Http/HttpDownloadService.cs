@@ -45,6 +45,8 @@ namespace MultithreadDownload.Protocols.Http
         /// <returns>The streams for each of the download threads of the download task</returns>
         public Result<Stream[], DownloadError> GetStreams(IDownloadContext downloadContext)
         {
+            // Log the start of getting streams for the download task
+            DownloadLogger.LogInfo($"Getting streams for download task: {downloadContext.TargetPath}");
             // Set the enumerator for the range positions of the download context
             // to get the streams for each of the download threads of the download task.
             IEnumerable<Result<Stream, DownloadError>> resultEnumerator = 
@@ -53,6 +55,8 @@ namespace MultithreadDownload.Protocols.Http
                 {
                     long start = downloadContext.RangePositions[i, 0];
                     long end = downloadContext.RangePositions[i, 1];
+                    // Log the start and end positions for the download thread
+                    DownloadLogger.LogInfo($"Getting stream for download thread {i}: Start = {start}, End = {end}");
                     return GetStreamSafe(downloadContext, start, end);
                 });
             // Using the TryAll method to get the result of streams for each of the download threads of the download task.
@@ -111,7 +115,8 @@ namespace MultithreadDownload.Protocols.Http
                 startPosition,
                 endPosition
                 );
-
+            // Log the request message for debugging purposes
+            DownloadLogger.LogInfo($"Request message created for URL: {requestMessage.RequestUri.AbsoluteUri} with Range: {requestMessage.Headers.Range?.ToString()}");
             // If the request is successful, return the response stream.
             // Otherwise, return a failure result with the same error message.
             return SendRequestWithRetry(client, requestMessage).Map(response => response.Content.ReadAsStream());
@@ -188,6 +193,7 @@ namespace MultithreadDownload.Protocols.Http
         /// <returns>The result of sending the request and getting the response</returns>
         private async Task<Result<HttpResponseMessage, DownloadError>> SendRequest(HttpClient client, HttpRequestMessage requestMessage)
         {
+            DownloadLogger.LogInfo($"Sending request to {requestMessage.RequestUri.AbsoluteUri} with Range: {requestMessage.Headers.Range?.ToString()}");
             // Set the timeout for the request
             using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(WAIT_TIME)))
             {
@@ -198,6 +204,7 @@ namespace MultithreadDownload.Protocols.Http
                 {
                     HttpResponseMessage responseMessage = await client
                         .SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead);
+                    DownloadLogger.LogInfo($"Response received from {requestMessage.RequestUri.AbsoluteUri} with status code {responseMessage.StatusCode}.");
                     responseMessage.EnsureSuccessStatusCode();
                     return Result<HttpResponseMessage, DownloadError>.Success(responseMessage);
                 }
