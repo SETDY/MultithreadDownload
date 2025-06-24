@@ -310,14 +310,14 @@ namespace MultithreadDownload.Tasks
         /// </summary>
         /// <param name="url"></param>
         /// <param name="path"></param>
-        public static DownloadTask Create(Guid taskID, byte maxThreads, IDownloadContext downloadContext)
+        public static DownloadTask Create(Guid taskID, IDownloadContext downloadContext)
         {
             // If the download context is valid, create a new download task with the given parameters.
             // Otherwise, throw an exception.
             if (downloadContext.IsPropertiesVaild().IsSuccess)
             {
                 DownloadLogger.LogInfo($"The task with id: {taskID} is created.");
-                return new DownloadTask(taskID, maxThreads, new DownloadThreadManagerFactory(), downloadContext);
+                return new DownloadTask(taskID, downloadContext.ThreadCount, new DownloadThreadManagerFactory(), downloadContext);
             }
             else
             {

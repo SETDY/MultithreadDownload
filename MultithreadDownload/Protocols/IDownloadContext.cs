@@ -14,6 +14,11 @@ namespace MultithreadDownload.Protocols
         public string TargetPath { get; }
 
         /// <summary>
+        /// The number of threads required for the download.
+        /// </summary>
+        public byte ThreadCount { get;}
+
+        /// <summary>
         /// The download range for each download thread.
         /// </summary>
         /// <remarks>
@@ -21,6 +26,9 @@ namespace MultithreadDownload.Protocols
         /// </remarks>
         public long[,] RangePositions { get; }
 
+        /// <summary>
+        /// The size of the file has been downloaded.
+        /// </summary>
         public Result<bool> IsPropertiesVaild();
     }
 }

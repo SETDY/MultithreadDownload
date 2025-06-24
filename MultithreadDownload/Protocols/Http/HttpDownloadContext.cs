@@ -16,6 +16,11 @@ namespace MultithreadDownload.Protocols.Http
         public string TargetPath { get; set; }
 
         /// <summary>
+        /// The number of threads required for the download.
+        /// </summary>
+        public byte ThreadCount { get; set; }
+
+        /// <summary>
         /// The download range for each download thread.
         /// </summary>
         /// <remarks>
@@ -33,10 +38,11 @@ namespace MultithreadDownload.Protocols.Http
         /// </summary>
         public string Url { get; set; }
 
-        public HttpDownloadContext(string targetPath, string url, long[,] rangePositions)
+        public HttpDownloadContext(string targetPath, byte threadCount, string url, long[,] rangePositions)
         {
             // Initialize the properties
             TargetPath = targetPath;
+            ThreadCount = threadCount;
             RangePositions = rangePositions;
             Url = url;
             CompletedSize = 0;
@@ -102,7 +108,7 @@ namespace MultithreadDownload.Protocols.Http
             if (fileSize.Value == 0)
             {
                 return Result<HttpDownloadContext>.Success(
-                    new HttpDownloadContext(targetPath, link, new long[,] { { 0, 0 } }));
+                    new HttpDownloadContext(targetPath, maxParallelThreads, link, new long[,] { { 0, 0 } }));
             }
             // Get download size for each download thread
             Result<long[,]> segmentRanges = FileSegmentHelper.CalculateFileSegmentRanges(fileSize.Value, maxParallelThreads);
@@ -111,7 +117,7 @@ namespace MultithreadDownload.Protocols.Http
                 Result<HttpDownloadContext>.Failure($"Failed to get file segments. Message:{segmentRanges.ErrorMessage}");
             }
             return Result<HttpDownloadContext>.Success(
-                new HttpDownloadContext(targetPath, link, segmentRanges.Value));
+                new HttpDownloadContext(targetPath, maxParallelThreads, link, segmentRanges.Value));
         }
     }
 }

@@ -193,11 +193,11 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
 
         [Theory]
         [InlineData(2)]
-        //[InlineData(3)]
-        //[InlineData(4)]
-        //[InlineData(8)]
-        //[InlineData(16)]
-        //[InlineData(32)]
+        [InlineData(3)]
+        [InlineData(4)]
+        [InlineData(8)]
+        [InlineData(16)]
+        [InlineData(32)]
         public async Task DownloadFile_MultithreadThread_FromLocalHttpServer_WorksCorrectly(byte maxThreads)
         {
             // Since Github has limitations on the size of the file that can be saved,

@@ -164,7 +164,7 @@ namespace MultithreadDownload.Schedulers
         {
             // Create a new task with the given download context and maximum number of threads
             // Hook the event such that the queue progress can be invoked when the task is completed.
-            DownloadTask task = DownloadTask.Create(Guid.NewGuid(), this.MaxParallelTasks, downloadContext);
+            DownloadTask task = DownloadTask.Create(Guid.NewGuid(), downloadContext);
 
             // Log the creation of the task
             //DownloadLogger.LogInfo($"A Task is created with id: {task.ID} and path: {downloadContext.TargetPath}");
