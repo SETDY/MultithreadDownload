@@ -98,7 +98,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             if (File.Exists(downloadPath))
                 File.Delete(downloadPath);
             (LocalHttpFileServer server, MultiDownload downloadManager, HttpDownloadContext? context) 
-                = await TestHelper.PrepareDownload(
+                = await TestHelper.PrepareFullHttpDownloadEnvironment(
                 DownloadServiceType.Http,
                 1,
                 1,
@@ -127,6 +127,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                     File.Delete(downloadPath);
                 }
             };
+            server.Create();
             server.Start();
 
             // Act
@@ -151,7 +152,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             // Create a test server that returns a known file size
             // Get context for the download task
             (LocalHttpFileServer server, MultiDownload downloadManager, HttpDownloadContext? context)
-                = await TestHelper.PrepareDownload(
+                = await TestHelper.PrepareFullHttpDownloadEnvironment(
                 DownloadServiceType.Http,
                 1,
                 1,
@@ -212,7 +213,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             // Get context for the download task
             string downloadPath = PathHelper.GetUniqueFileName(Path.GetTempPath(), "largeFile.test");
             (LocalHttpFileServer server, MultiDownload downloadManager, HttpDownloadContext? context)
-                = await TestHelper.PrepareDownload(
+                = await TestHelper.PrepareFullHttpDownloadEnvironment(
                     DownloadServiceType.Http,
                     1,
                     maxThreads,
@@ -247,6 +248,8 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                     completionSource.SetResult();
                 }
             };
+            server.Create();
+            server.Start();
 
             // Act
             downloadManager.AddTask(context);
@@ -258,42 +261,27 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                 throw ex;
         }
 
-        [Fact]
-        public async Task DownloadFile_InvalidUrl_ShouldFailGracefully()
-        {
-            // Arrange
-            string invalidUrl = "http://wrongUrl/nonexistentfile.txt";
-            string outputPath = Path.Combine(Path.GetTempPath(), "invalid_output.txt");
-            // Act
-            MultiDownload downloadManager = new MultiDownload(1, DownloadServiceType.Http);
-            var contextResult = await HttpDownloadContext.GetDownloadContext(4, outputPath, invalidUrl);
-
-            // Assert
-            contextResult.Should().NotBeNull();
-            contextResult.IsSuccess.Should().BeFalse();
-            contextResult.Value.Should().BeNull();
-        }
-
         [Theory]
         [InlineData(1)]
+        [InlineData(2)]
+        [InlineData(3)]
         [InlineData(4)]
         [InlineData(8)]
         [InlineData(16)]
-        public async Task DownloadFile_EmptyFile_WorksCorrectly(byte maxDownloadThreads)
+        [InlineData(32)]
+        public async Task DownloadFile_SingleAndMultithreadThread_EmptyFile_WorksCorrectly(byte maxDownloadThreads)
         {
             // Arrange
             // Create a test server that returns an empty file
             // Get context for the download task
-            string emptyFilePath = Path.Combine("Resources", "emptyfile.txt");
-            File.WriteAllText(emptyFilePath, string.Empty);
             string outputPath = Path.Combine(Path.GetTempPath(), "empty_output.txt");
             (LocalHttpFileServer server, MultiDownload downloadManager, HttpDownloadContext? context)
-                = await TestHelper.PrepareDownload(
+                = await TestHelper.PrepareFullHttpDownloadEnvironment(
                     DownloadServiceType.Http,
                     1,
                     maxDownloadThreads,
                     outputPath,
-                    emptyFilePath
+                    new byte[] { } // Empty byte array to simulate an empty file
             );
             // Create a TaskCompletionSource to wait for the download completion
             // It must be used to prevent the test from finishing before the download is completed
@@ -308,7 +296,6 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                 // Set the result of the TaskCompletionSource to signal that the download asserting is complete
                 completionSource.SetResult();
             };
-            server.Start();
 
             // Assert
             context.Should().NotBeNull();
@@ -318,6 +305,29 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             downloadManager.StartAllocator();
             // Wait for the download to complete
             await completionSource.Task;
+        }
+
+        [Theory]
+        [InlineData(1)]
+        [InlineData(2)]
+        [InlineData(3)]
+        [InlineData(4)]
+        [InlineData(8)]
+        [InlineData(16)]
+        [InlineData(32)]
+        public async Task DownloadFile_SingleAndMultithreadThread_InvalidUrl_ShouldFailGracefully(byte maxDownloadThreads)
+        {
+            // Arrange
+            string invalidUrl = "http://wrongUrl/nonexistentfile.txt";
+            string outputPath = Path.Combine(Path.GetTempPath(), "invalid_output.txt");
+            // Act
+            MultiDownload downloadManager = new MultiDownload(maxDownloadThreads, DownloadServiceType.Http);
+            var contextResult = await HttpDownloadContext.GetDownloadContext(4, outputPath, invalidUrl);
+
+            // Assert
+            contextResult.Should().NotBeNull();
+            contextResult.IsSuccess.Should().BeFalse();
+            contextResult.Value.Should().BeNull();
         }
     }
 }

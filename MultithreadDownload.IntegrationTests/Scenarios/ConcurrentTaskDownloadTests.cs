@@ -33,7 +33,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
 
             // Arrange
             byte completedTasks = 0;
-            (var server, var downloadManager, var url) = TestHelper.PrepareDownload(
+            (var server, var downloadManager, var url) = TestHelper.PreparePartialHttpDownloadEnvironment(
                 DownloadServiceType.Http, 1, TestConstants.LARGE_TESTFILE_PATH);
             // Get download task context (including segment information, etc.)
             List<HttpDownloadContext> contexts = new List<HttpDownloadContext>();

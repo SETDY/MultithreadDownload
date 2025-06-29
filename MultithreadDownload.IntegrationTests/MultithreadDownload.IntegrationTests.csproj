@@ -26,6 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\MultithreadDownload.TestUtilities\MultithreadDownload.TestUtilities.csproj" />
     <ProjectReference Include="..\MultithreadDownload\MultithreadDownload.csproj" />
   </ItemGroup>
 

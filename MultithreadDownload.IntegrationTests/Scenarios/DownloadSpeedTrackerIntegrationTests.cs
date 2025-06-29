@@ -43,7 +43,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             if (File.Exists(downloadPath))
                 File.Delete(downloadPath);
 
-            var (server, downloadManager, context) = await TestHelper.PrepareDownload(
+            var (server, downloadManager, context) = await TestHelper.PrepareFullHttpDownloadEnvironment(
                 DownloadServiceType.Http,
                 1,
                 1,
@@ -142,7 +142,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
 
             // Arrange
             string downloadPath = PathHelper.GetUniqueFileName(Path.GetTempPath(), "speed_test_multi.test");
-            var (server, downloadManager, context) = await TestHelper.PrepareDownload(
+            var (server, downloadManager, context) = await TestHelper.PrepareFullHttpDownloadEnvironment(
                 DownloadServiceType.Http,
                 1,
                 maxThreads,
@@ -248,7 +248,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             if (TestHelper.SkipTestOnCI()) { return; }
 
             // Arrange
-            var (server, downloadManager, url) = TestHelper.PrepareDownload(
+            var (server, downloadManager, url) = TestHelper.PreparePartialHttpDownloadEnvironment(
                 DownloadServiceType.Http, 1, TestConstants.LARGE_TESTFILE_PATH);
 
             var speedTrackers = new List<DownloadSpeedTracker>();
