@@ -127,8 +127,6 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                     File.Delete(downloadPath);
                 }
             };
-            server.Create();
-            server.Start();
 
             // Act
             downloadManager.AddTask(context);
@@ -182,7 +180,6 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                     File.Delete(context.TargetPath);
                 }
             };
-            server.Start();
 
             // Act
             downloadManager.AddTask(context);
@@ -248,8 +245,6 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                     completionSource.SetResult();
                 }
             };
-            server.Create();
-            server.Start();
 
             // Act
             downloadManager.AddTask(context);

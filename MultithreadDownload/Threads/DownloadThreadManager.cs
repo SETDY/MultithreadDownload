@@ -181,7 +181,7 @@ namespace MultithreadDownload.Threading
                     // This if statement checks if the number of completed threads is greater than the maximum number of threads
                     // If it happens, the task may stack and cause a deadlock because the task is waiting for the thread to complete
                     // To prevent that from happening, it throws an exception to break the deadlock
-                    if (_completedThreadsCount >= MaxParallelThreads)
+                    if (_completedThreadsCount > MaxParallelThreads)
                         throw new InvalidDataException("The number of completed threads is greater than the maximum number of threads.");
                     // Increment the completed threads count by using Interlocked to ensure thread safety
                     Interlocked.Increment(ref _completedThreadsCount);
