@@ -107,8 +107,17 @@ namespace MultithreadDownload.Protocols.Http
             // this if case is used to handle the case where the file size is 0
             if (fileSize.Value == 0)
             {
+                // FIXED: If the file size is 0, we cannot download the file with multiple threads.
+                // Here we create an empty range for each thread
+                // which means that each thread will not download any data.
+                long[,] emptyRanges = new long[maxParallelThreads, 2];
+                for (int i = 0; i < maxParallelThreads; i++)
+                {
+                    emptyRanges[i, 0] = 0;
+                    emptyRanges[i, 1] = 0;
+                }
                 return Result<HttpDownloadContext>.Success(
-                    new HttpDownloadContext(targetPath, maxParallelThreads, link, new long[,] { { 0, 0 } }));
+                    new HttpDownloadContext(targetPath, maxParallelThreads, link, emptyRanges));
             }
             // Get download size for each download thread
             Result<long[,]> segmentRanges = FileSegmentHelper.CalculateFileSegmentRanges(fileSize.Value, maxParallelThreads);

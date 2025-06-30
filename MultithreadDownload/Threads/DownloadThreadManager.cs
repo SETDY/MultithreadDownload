@@ -192,18 +192,30 @@ namespace MultithreadDownload.Threading
         }
 
         /// <summary>
-        /// Starts all download threads.
+        /// Starts all download threads that has been created.
         /// </summary>
-        /// <param name="inputStream">The input stream to read from.</param>
+        /// <param name="inputStreams">The input streams to read from.</param>
         /// <param name="outputStreams">The output streams of each of threads to write to.</param>
-        public void Start(Stream[] inputStream, Stream[] outputStreams)
+        public void Start(Stream[] inputStreams, Stream[] outputStreams)
         {
-            // If the length of the output streams is not equal to the number of threads, throw an exception
+            // Validate the input parameters
+            // If the input streams or output streams are null, throw an exception
+            if (inputStreams == null || outputStreams == null)
+                throw new NullReferenceException($"Cannot start download threads with null input or output streams.");
+            // Since a input stream and a output stream is a pair, the number of input streams must be equal to the number of output streams
+            // If the number of input streams is not equal to the number of output streams, throw an exception
+            if (inputStreams.Length != outputStreams.Length)
+                throw new ArgumentException("The number of input streams must be equal to the number of output streams.");
+            // If the number of input streams or output streams is less than or equal to 0, throw an exception
+            if (inputStreams.Length == 0 || outputStreams.Length == 0)
+                throw new ArgumentException("The number of input streams and output streams must be greater than 0.");
+            // If the length of the output and input streams is not equal to the number of threads, throw an exception
+            if (outputStreams.Length != _threads.Count || inputStreams.Length != _threads.Count)
+                    throw new ArgumentException("The number of output streams and input streams must be equal to the number of threads.");
             // Otherwise, start each thread with the input stream and the corresponding output stream
-            if (outputStreams.Length != this._threads.Count) { throw new ArgumentException("The number of output streams must be equal to the number of threads."); }
             for (int i = 0; i < outputStreams.Length; i++)
             {
-                this._threads[i].Start(inputStream[i], outputStreams[i]);
+                _threads[i].Start(inputStreams[i], outputStreams[i]);
             }
         }
 
