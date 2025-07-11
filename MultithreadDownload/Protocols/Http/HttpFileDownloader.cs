@@ -50,7 +50,7 @@ namespace MultithreadDownload.Protocols.Http
         /// <summary>
         /// The buffer used for reading and writing data
         /// </summary>
-        private readonly byte[] _buffer = new byte[BUFFER_SIZE];
+        private byte[] _buffer = new byte[BUFFER_SIZE];
         #endregion
 
         /// <summary>
@@ -72,6 +72,7 @@ namespace MultithreadDownload.Protocols.Http
         /// <returns>Whether the download was successful or not</returns>
         public Result<bool, DownloadError> DownloadFile()
         {
+            DownloadLogger.LogInfo($"Starting download for thread ID: {_thread.ID} with expected range {((HttpDownloadContext)_thread.DownloadContext).RangePositions[_thread.ID, 1] - ((HttpDownloadContext)_thread.DownloadContext).RangePositions[_thread.ID, 0] + 1}");
             // Set the state of the download thread to downloading
             _thread.SetState(DownloadState.Downloading);
             // Initialize the retry count to 0
@@ -110,7 +111,7 @@ namespace MultithreadDownload.Protocols.Http
                     break;
                 }
                 // Log the number of completed bytes for the download thread if needed
-                DownloadLogger.LogInfo($"Set Download Bytes from {_thread.CompletedBytesSizeCount} to {_thread.CompletedBytesSizeCount + bytesRead} at {DateTime.Now}");
+                //DownloadLogger.LogInfo($"Set Download Bytes from {_thread.CompletedBytesSizeCount} to {_thread.CompletedBytesSizeCount + bytesRead} at {DateTime.Now}");
                 if (!SetCompletedByteNumbers(bytesRead))
                 {
                     failedError = DownloadError.Create(DownloadErrorCode.ArgumentOutOfRange, "The completed bytes size count is greater than the range size that should be downloaded.");
@@ -140,14 +141,35 @@ namespace MultithreadDownload.Protocols.Http
         {
             try
             {
-                //Debug.WriteLine("Try to read chunk to input stream");
+                // FIXED: The problem is that the thread will download over the expected range size as there is no check for the remaining bytes to download in the while loop.
+                // Therefore, use the GetRemainingBytesToDownload() method here to check if there are any bytes left to download
+                // If there are no bytes left to download, set the bytesRead to 0 to indicate that the end of the stream has been reached.
+                // Otherwise, read the data from the input stream into the buffer.
+                long remainingBytes = GetRemainingBytesToDownload();
+                if (remainingBytes == 0)
+                {
+                    bytesRead = 0;
+                    return true;
+                }
+
+                // FIXED: The problem is that the buffer size is not adjusted according to the remaining bytes to download when there are less bytes left to download than the buffer size.
+                // Therefore, check if the buffer size is greater than the remaining bytes to download
+                // If so, resize the buffer to the remaining bytes to download
+                // This will ensure that the buffer size is always equal to or less than the remaining bytes to download, to prevent reading more data than needed.
+                // Otherwise, keep the buffer size as it is.
+                if (_buffer.Length > remainingBytes)
+                    _buffer = new byte[remainingBytes];
+                // Read the data from the input stream into the buffer
                 bytesRead = _input.Read(_buffer, 0, _buffer.Length);
+                // Return true to indicate that the read operation was successful
                 return true;
             }
             catch
             {
-                //Debug.WriteLine("Failed to read chunk from input stream, retrying...");
+                // If an exception occurs while reading the data, handle the retry logic
+                // Set bytesRead to 0 to indicate that no data was read
                 bytesRead = 0;
+                // If the retry count exceeds the maximum number of retries, return false to indicate that the read operation failed
                 return HandleRetry(ref retryCount);
             }
         }
@@ -169,6 +191,18 @@ namespace MultithreadDownload.Protocols.Http
             {
                 return HandleRetry(ref retryCount);
             }
+        }
+
+        /// <summary>
+        /// Get the remaining bytes to download for the thread
+        /// </summary>
+        /// <returns>The remaining bytes to download</returns>
+        private long GetRemainingBytesToDownload()
+        {
+            // Get the range positions from the download context
+            long[,] downloadedRange = ((HttpDownloadContext)_thread.DownloadContext).RangePositions;
+            // Calculate the remaining bytes to download for the thread
+            return downloadedRange[_thread.ID, 1] - downloadedRange[_thread.ID, 0] + 1 - _thread.CompletedBytesSizeCount;
         }
 
         /// <summary>
@@ -302,7 +336,7 @@ namespace MultithreadDownload.Protocols.Http
         private Result<bool, DownloadError> FinishFailed(DownloadError error)
         {
             // Clean up the download progress by closing and disposing the output stream
-            DownloadLogger.LogError($"Thread failed after {MAX_TOTAL_RETRIES} retries: {((HttpDownloadContext)_thread.DownloadContext).Url}");
+            DownloadLogger.LogError($"Thread failed to download file from {((HttpDownloadContext)_thread.DownloadContext).Url} due to {error.Message}");
             HttpDownloadService.CleanUpDownloadProcess(_output, new string[] { _thread.FileSegmentPath });
             return Result<bool, DownloadError>.Failure(error);
         }
