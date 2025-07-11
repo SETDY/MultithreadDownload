@@ -24,8 +24,18 @@ namespace MultithreadDownload.Threading
         /// </summary>
         public byte CompletedThreadsCount
         {
-            get => (byte)_completedThreadsCount;
-            private set => _completedThreadsCount = value;
+            get
+            {
+                // FIXED: The non-implment problem.
+                // Select all the threads that their states are Completed or Failed or Cancelled, meaning that they has completed the download process.
+                // Caculate the number of selected threads which is the completed threads count and return it.
+                return (byte)GetThreads()
+                    .Where(thread => thread.State is DownloadState.Completed
+                    || thread.State is DownloadState.Failed
+                    || thread.State is DownloadState.Cancelled)
+                    .ToArray()
+                    .Length;
+            }
         }
 
         /// <summary>
@@ -77,7 +87,6 @@ namespace MultithreadDownload.Threading
             _downloadContext = downloadContext;
             _maxThreads = maxThreads;
             _factory = factory;
-            this.CompletedThreadsCount = 0;
         }
 
         /// <summary>
@@ -172,19 +181,21 @@ namespace MultithreadDownload.Threading
             // If the progress is 100, invoke the ThreadCompleted event
             Progress<sbyte> progresser = new Progress<sbyte>(progress =>
             {
-                // If the progress is 100 and the thread is not completed,
+                // If the progress is 100 and the thread is downloading,
                 // set the state to completed to invoke the event and increment the completed threads count
-                if (progress == 100 && thread.State != DownloadState.Completed)
+                if (progress == 100 && thread.State == DownloadState.Downloading)
                 {
+                    // Log the times that this method is called
                     // Set the state of the thread to completed
                     thread.SetState(DownloadState.Completed);
                     // This if statement checks if the number of completed threads is greater than the maximum number of threads
                     // If it happens, the task may stack and cause a deadlock because the task is waiting for the thread to complete
                     // To prevent that from happening, it throws an exception to break the deadlock
                     if (_completedThreadsCount > MaxParallelThreads)
-                        throw new InvalidDataException("The number of completed threads is greater than the maximum number of threads.");
+                        Cancel();
+                    // Check whether the thread is completed or not before incrementing the completed threads count
+                    // To ensure that the thread does not increase the _completedThreadsCount multiple times
                     // Increment the completed threads count by using Interlocked to ensure thread safety
-                    Interlocked.Increment(ref _completedThreadsCount);
                     ThreadCompleted?.Invoke(thread);
                 }
             });

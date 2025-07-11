@@ -90,7 +90,20 @@ namespace MultithreadDownload.Threading
             IsAlive = true;
             WorkerTask = Task.Run(() =>
             {
-                _work(inputStream, outputStream, this);
+                // Execute the download operation using the provided work function
+                Result<bool, DownloadError> downloadResult = _work(inputStream, outputStream, this);
+                // If the download operation is failed, log the error and set the state to failed
+                // FIXED: This is used to fix when the download operation is failed, the thread will not be completed and the state will not be set to failed.
+                downloadResult.OnFailure(error =>
+                {
+                    // Log the error if the download operation fails
+                    DownloadLogger.LogError($"Download thread {ID} failed with error: {error.Message}");
+                    // Set the state to failed
+                    State = DownloadState.Failed;
+                    // Report the progress as -1 to indicate failure
+                    SetDownloadProgress(-1);
+                });
+                // Set the thread's properties after the download operation is completed
                 IsAlive = false;
                 Completed?.Invoke(this);
             });

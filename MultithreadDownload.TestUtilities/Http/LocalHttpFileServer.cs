@@ -375,6 +375,7 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
                 }
                 catch (Exception ex)
                 {
+                    Debug.WriteLine("ERROR: " + ex.Message);
                     // Log the error and stop the write operation
                     DownloadLogger.LogError("An error occurred while writing to the stream. Stopping write operation.", ex);
                     // Dispose the stream if there is an error

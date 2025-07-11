@@ -188,6 +188,7 @@ namespace MultithreadDownload.Tasks
             {
                 try
                 {
+                    Debug.WriteLine($"Enter ThreadCompleted process when CompletedThreadsCount is {this.ThreadManager.CompletedThreadsCount} and MaxParallelThreads is {this.ThreadManager.MaxParallelThreads}");
                     // If all the threads have not completed, return to wait for the next thread to complete.
                     if (this.ThreadManager.CompletedThreadsCount !=
                             this.ThreadManager.MaxParallelThreads) { return; }

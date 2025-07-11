@@ -92,27 +92,36 @@ namespace MultithreadDownload.Protocols.Http
                     failedError = DownloadError.Create(DownloadErrorCode.HttpError, "Failed to read data from input stream after maximum retries.");
                     break;
                 }
+                //Debug.WriteLine("Completed Bytes Size Count: " + _thread.CompletedBytesSizeCount);
                 // Since the read operation was successful, reset the retry count
                 retryCount = 0;
                 // If the read operation was successful, check if the end of the stream has been reached
                 // If is, finish the download process
                 if (IsEndOfStream(bytesRead))
                     return FinishDownload();
-                // Set the number of completed bytes for the download thread
                 // Write the chunk of data to the output stream
                 // If the write operation failed, check if the maximum number of retries has been reached
                 // If is, break the loop.
-                // Log the number of completed bytes for the download thread if needed
-                //DownloadLogger.LogInfo($"Set Download Bytes from {_thread.CompletedBytesSizeCount} to {_thread.CompletedBytesSizeCount + bytesRead} at {DateTime.Now}");
-                SetCompletedByteNumbers(bytesRead);
+                // Add the number of completed bytes for the download thread
                 if (!TryWriteChunk(bytesRead, ref retryCount))
                 {
                     // Set the failed error to indicate that the write operation failed after maximum retries
                     failedError = DownloadError.Create(DownloadErrorCode.DiskOperationFailed, "Failed to write data to output stream after maximum retries.");
                     break;
                 }
+                // Log the number of completed bytes for the download thread if needed
+                //DownloadLogger.LogInfo($"Set Download Bytes from {_thread.CompletedBytesSizeCount} to {_thread.CompletedBytesSizeCount + bytesRead} at {DateTime.Now}");
+                SetCompletedByteNumbers(bytesRead);
             }
 
+            // FIXED: This is used to fix when the download thread state is completed when the last chunk is written to the output stream,
+            //        but it does not be checked in the while loop by IsEndOfStream(), so the download process is not finished successfully.
+            // If the download thread state is not downloading, it means that the download process has been completed or failed
+            // Check if the failed error is null and the download thread state is completed, which means that the download process was successful
+            // If so, finish the download process successfully
+            // Otherwise, finish the download process with the failed error
+            if (failedError == null && _thread.State == DownloadState.Completed)
+                return FinishDownload();
             return FinishFailed(failedError);
         }
 
@@ -127,11 +136,13 @@ namespace MultithreadDownload.Protocols.Http
         {
             try
             {
+                //Debug.WriteLine("Try to read chunk to input stream");
                 bytesRead = _input.Read(_buffer, 0, _buffer.Length);
                 return true;
             }
             catch
             {
+                //Debug.WriteLine("Failed to read chunk from input stream, retrying...");
                 bytesRead = 0;
                 return HandleRetry(ref retryCount);
             }
