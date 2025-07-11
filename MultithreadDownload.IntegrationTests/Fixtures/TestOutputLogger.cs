@@ -56,7 +56,7 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
         {
             Log("ERROR", message);
             if (exception != null)
-                _output.WriteLine(exception.ToString());
+                Log("ERROR", exception.Message);
         }
 
         private void Log(string level, string message)

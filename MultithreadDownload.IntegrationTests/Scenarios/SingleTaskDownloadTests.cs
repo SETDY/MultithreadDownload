@@ -241,8 +241,9 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                     server.Stop();
                     if (File.Exists(downloadPath))
                         File.Delete(downloadPath);
-                    // Set the result of the TaskCompletionSource to signal that the download is complete
-                    completionSource.SetResult();
+                    // If the task is not completed or faulted, set the result of the TaskCompletionSource to signal that the download is complete
+                    if (!(completionSource.Task.IsCompleted || completionSource.Task.IsFaulted))
+                        completionSource.SetResult();
                 }
             };
 

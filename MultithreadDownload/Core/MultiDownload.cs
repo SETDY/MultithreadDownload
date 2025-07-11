@@ -190,7 +190,7 @@ namespace MultithreadDownload.Core
         private void HookEvents()
         {
             _taskScheduler.TaskQueueProgressChanged += (s, e) => TaskQueueProgressChanged?.Invoke(this, e);
-            _taskScheduler.TasksProgressCompleted += (s, e) => TasksProgressCompleted?.Invoke(this, EventArgs.Empty);
+            _taskScheduler.TasksProgressCompleted += (s, e) => TasksProgressCompleted?.Invoke(this, e);
         }
 
         #endregion Private Methods

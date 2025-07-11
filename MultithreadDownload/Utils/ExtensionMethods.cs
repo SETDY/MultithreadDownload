@@ -112,6 +112,11 @@ namespace MultithreadDownload.Primitives
             DownloadErrorCode.SchedulerUnavailable or
             DownloadErrorCode.TaskAlreadyExists or
             DownloadErrorCode.TaskAlreadyStarted or
+            DownloadErrorCode.TaskNotFound or
+            DownloadErrorCode.TaskNotStarted or
+            DownloadErrorCode.ThreadNotFound or
+            DownloadErrorCode.ThreadCancelled or
+            DownloadErrorCode.TaskNotStarted or
             DownloadErrorCode.TaskContextInvalid =>
                 DownloadErrorCategory.Internal,
 

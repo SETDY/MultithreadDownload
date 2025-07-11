@@ -4,6 +4,7 @@ using MultithreadDownload.Primitives;
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using MultithreadDownload.Core.Errors;
 
 namespace MultithreadDownload.Threads
 {
@@ -64,7 +65,7 @@ namespace MultithreadDownload.Threads
         /// <summary>
         /// Cancel the download thread.
         /// </summary>
-        Result<bool> Cancel();
+        Result<bool, DownloadError> Cancel();
 
         void SetProgresser(IProgress<sbyte> progresser);
 

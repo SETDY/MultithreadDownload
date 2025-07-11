@@ -92,7 +92,7 @@ namespace MultithreadDownload.Protocols.Http
                     failedError = DownloadError.Create(DownloadErrorCode.HttpError, "Failed to read data from input stream after maximum retries.");
                     break;
                 }
-                //Debug.WriteLine("Completed Bytes Size Count: " + _thread.CompletedBytesSizeCount);
+                //Debug.WriteLine("TaskCompleted Bytes Size Count: " + _thread.CompletedBytesSizeCount);
                 // Since the read operation was successful, reset the retry count
                 retryCount = 0;
                 // If the read operation was successful, check if the end of the stream has been reached
@@ -110,8 +110,12 @@ namespace MultithreadDownload.Protocols.Http
                     break;
                 }
                 // Log the number of completed bytes for the download thread if needed
-                //DownloadLogger.LogInfo($"Set Download Bytes from {_thread.CompletedBytesSizeCount} to {_thread.CompletedBytesSizeCount + bytesRead} at {DateTime.Now}");
-                SetCompletedByteNumbers(bytesRead);
+                DownloadLogger.LogInfo($"Set Download Bytes from {_thread.CompletedBytesSizeCount} to {_thread.CompletedBytesSizeCount + bytesRead} at {DateTime.Now}");
+                if (!SetCompletedByteNumbers(bytesRead))
+                {
+                    failedError = DownloadError.Create(DownloadErrorCode.ArgumentOutOfRange, "The completed bytes size count is greater than the range size that should be downloaded.");
+                    break;
+                }
             }
 
             // FIXED: This is used to fix when the download thread state is completed when the last chunk is written to the output stream,
@@ -221,10 +225,22 @@ namespace MultithreadDownload.Protocols.Http
         /// Set the number of completed bytes for the download thread
         /// </summary>
         /// <param name="count">The number of completed bytes</param>
-        private void SetCompletedByteNumbers(int count)
+        private bool SetCompletedByteNumbers(int count)
         {
+            // Add the completed bytes size count to the download thread
             _thread.AddCompletedBytesSizeCount(count);
-            UpdateThreadProgress();
+            try
+            {
+                // Update the progress of the download thread
+                UpdateThreadProgress();
+                return true;
+            }
+            // If updating the progress fails, log the error and return false
+            catch (InvalidOperationException ex)
+            {
+                DownloadLogger.LogError($"Failed to updating thread progress: {ex.Message}");
+                return false;
+            }
         }
 
         /// <summary>
@@ -236,7 +252,15 @@ namespace MultithreadDownload.Protocols.Http
             // Caculate the size that the thread should be downloaded (rangeSize)
             HttpDownloadContext downloadContext = (HttpDownloadContext)_thread.DownloadContext;
             long rangeSize = downloadContext.RangePositions[_thread.ID, 1] -
-                downloadContext.RangePositions[_thread.ID, 0];
+                downloadContext.RangePositions[_thread.ID, 0] + 1;
+
+            // Check if the completed bytes size count is greater than the range size
+            if (_thread.CompletedBytesSizeCount > rangeSize)
+            {
+                // If the completed bytes size count is greater than the range size, log an error and throw an exception
+                DownloadLogger.LogError($"Thread with ID {_thread.ID} has completed bytes size count ({_thread.CompletedBytesSizeCount}) greater than the range size ({rangeSize}). This is unexpected.");
+                throw new InvalidOperationException($"Thread with ID {_thread.ID} has completed bytes size count ({_thread.CompletedBytesSizeCount}) greater than the range size ({rangeSize}). This is unexpected.");
+            }    
 
             // Calculate the progress of the thread
             // If the rangeSize is zero that means that the thread does not need to download any thing,
@@ -245,6 +269,9 @@ namespace MultithreadDownload.Protocols.Http
             sbyte progress = rangeSize > 0
                 ? (sbyte)(_thread.CompletedBytesSizeCount / (decimal)rangeSize * 100)
                 : (sbyte)100;
+
+            if (_thread.CompletedBytesSizeCount / rangeSize == 1)
+                Debug.WriteLine($"Thread with ID {_thread.ID} completed with progress: {progress}%");
 
             // Set the progress of the thread if the thread state is not completed
             if (_thread.State != DownloadState.Completed)

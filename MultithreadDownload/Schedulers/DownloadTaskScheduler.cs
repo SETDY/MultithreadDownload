@@ -169,7 +169,7 @@ namespace MultithreadDownload.Schedulers
             // Log the creation of the task
             //DownloadLogger.LogInfo($"A Task is created with id: {task.ID} and path: {downloadContext.TargetPath}");
 
-            task.Completed += delegate
+            task.TaskCompleted += delegate
             {
                 // The download slots +1
                 // Invoke the event when the task is completed
@@ -202,7 +202,7 @@ namespace MultithreadDownload.Schedulers
         public void AddTask(DownloadTask task)
         {
             // Hook the event such that the queue progress can be invoked when the task is completed.
-            task.Completed += delegate
+            task.TaskCompleted += delegate
             {
                 try
                 {

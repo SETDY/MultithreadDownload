@@ -14,10 +14,6 @@ namespace MultithreadDownload.Threading
 {
     public class DownloadThreadManager : IDownloadThreadManager
     {
-        /// <summary>
-        /// Backing field for the CompletedThreadsCount property.
-        /// </summary>
-        private int _completedThreadsCount;
 
         /// <summary>
         /// The number of completed threads.
@@ -27,7 +23,7 @@ namespace MultithreadDownload.Threading
             get
             {
                 // FIXED: The non-implment problem.
-                // Select all the threads that their states are Completed or Failed or Cancelled, meaning that they has completed the download process.
+                // Select all the threads that their states are TaskCompleted or Failed or Cancelled, meaning that they has completed the download process.
                 // Caculate the number of selected threads which is the completed threads count and return it.
                 return (byte)GetThreads()
                     .Where(thread => thread.State is DownloadState.Completed
@@ -191,11 +187,21 @@ namespace MultithreadDownload.Threading
                     // This if statement checks if the number of completed threads is greater than the maximum number of threads
                     // If it happens, the task may stack and cause a deadlock because the task is waiting for the thread to complete
                     // To prevent that from happening, it throws an exception to break the deadlock
-                    if (_completedThreadsCount > MaxParallelThreads)
+                    if (CompletedThreadsCount > MaxParallelThreads)
                         Cancel();
                     // Check whether the thread is completed or not before incrementing the completed threads count
                     // To ensure that the thread does not increase the _completedThreadsCount multiple times
                     // Increment the completed threads count by using Interlocked to ensure thread safety
+                    ThreadCompleted?.Invoke(thread);
+                }
+                // If the progress is -1, it indicates that the download has been cancelled or failed.
+                else if (progress == -1)
+                {
+                    // If the progress is -1, it indicates that the download has been cancelled or failed.
+                    // In this case, since setting the state of the thread to cancelled or failed has been done in the thread's main work,
+                    // we just cancel all the threads and invoke the ThreadCompleted event to notify that the thread has completed its work. 
+                    DownloadLogger.LogError($"The thread manager has been notified that the thread {thread.ID} has been cancelled or failed.");
+                    Cancel();
                     ThreadCompleted?.Invoke(thread);
                 }
             });

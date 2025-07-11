@@ -37,9 +37,13 @@ namespace MultithreadDownload.Core.Errors
         SchedulerUnavailable,
         TaskAlreadyExists,
         TaskAlreadyStarted,
+        TaskNotFound,
+        TaskNotStarted,
         TaskContextInvalid,
         ThreadMaxExceeded,
         ThreadCreationFailed,
+        ThreadNotFound,
+        ThreadCancelled,
         OutputStreamCountMismatch,
 
         // Protocol-related errors that can occur during the download process.

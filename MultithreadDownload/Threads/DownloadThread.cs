@@ -126,10 +126,8 @@ namespace MultithreadDownload.Threading
 
         public void Dispose()
         {
-            // Cancel the download operation => _task will be cancelled
-            _cancellation.Cancel();
-            // Dispose of the cancellation token source
-            _cancellation.Dispose();
+            // Cancel the download operation and clean up resources
+            Cancel();
         }
 
         // TODO: This method should not be public in term of constructional design, but it is needed for download working perfectly now.
@@ -148,7 +146,7 @@ namespace MultithreadDownload.Threading
             // Set the completed bytes size count for this thread
             CompletedBytesSizeCount += size;
             // Log the completed bytes size count
-            // DownloadLogger.LogInfo($"Thread ID: {ID}, Completed Bytes Size Count: {CompletedBytesSizeCount} and add {size} in this round");
+            // DownloadLogger.LogInfo($"Thread ID: {ID}, TaskCompleted Bytes Size Count: {CompletedBytesSizeCount} and add {size} in this round");
         }
 
         public void SetProgresser(IProgress<sbyte> progresser)
@@ -171,7 +169,8 @@ namespace MultithreadDownload.Threading
             {
                 // If the progress is -1, it indicates that the download has been cancelled.
                 // If the progress is 100, it indicates that the download is complete
-                _cancellation.Cancel();
+                if (!_cancellation.IsCancellationRequested)
+                    _cancellation?.Cancel();
             }
             // Report the download progress
             Progresser.Report(progress);
@@ -191,15 +190,22 @@ namespace MultithreadDownload.Threading
         /// Cancels the download operation.
         /// </summary>
         /// <returns>Whether the cancellation was successful.</returns>
-        public Result<bool> Cancel()
+        public Result<bool, DownloadError> Cancel()
         {
             // If the thread is null or not alive, return failure result.
             // Otherwise, cancel the thread and wait for it to finish
-            if (_work == null) { return Result<bool>.Failure("Thread is not exist so it cannot be cancelled"); }
-            if (IsAlive == false) { return Result<bool>.Failure("Thread is not alive so it cannot be cancelled"); }
-            this.Dispose();
+            if (_work == null)
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.NullReference, "Thread is not exist so it cannot be cancelled"));
+            if (_cancellation == null)
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.NullReference, "Thread cancellation token source is not exist so it cannot be cancelled"));
+            if (IsAlive == false)
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.ThreadNotFound, "Thread is not alive so it cannot be cancelled"));
+            if (_cancellation.IsCancellationRequested)
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.ThreadCancelled, "Thread is already cancelled"));
             _cancellation.Cancel();
-            return Result<bool>.Success(true);
+            _cancellation.Dispose();
+            Dispose();
+            return Result<bool, DownloadError>.Success(true);
         }
     }
 }

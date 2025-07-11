@@ -274,7 +274,7 @@ namespace MultithreadDownload.Protocols.Http
                 // because the process has a major bug and cannot recover it easily.
                 (_, false) => CleanUpTaskWithLogging(task, outputStream,
                     $"Task {task.ID} has not been completed but it enters wrongly to PostDownloadProcessing method. " +
-                    $"Completed threads count: {task.ThreadManager.CompletedThreadsCount}, Max parallel threads: {task.ThreadManager.MaxParallelThreads}"),
+                    $"TaskCompleted threads count: {task.ThreadManager.CompletedThreadsCount}, Max parallel threads: {task.ThreadManager.MaxParallelThreads}"),
 
                 _ => Result<bool, DownloadError>.Success(true)
             };
@@ -327,7 +327,7 @@ namespace MultithreadDownload.Protocols.Http
             else
             {
                 DownloadLogger.LogInfo($"Task {task.ID} cleanup: {reason}. " +
-                    $"Completed threads: {task.ThreadManager.CompletedThreadsCount}, " +
+                    $"TaskCompleted threads: {task.ThreadManager.CompletedThreadsCount}, " +
                     $"Max threads: {task.ThreadManager.MaxParallelThreads}");
             }
 
