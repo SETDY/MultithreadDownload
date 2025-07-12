@@ -1,5 +1,6 @@
 ﻿using FluentAssertions;
 using Moq;
+using MultithreadDownload.Core.Errors;
 using MultithreadDownload.Downloads;
 using MultithreadDownload.Protocols;
 using MultithreadDownload.Schedulers;
@@ -26,7 +27,7 @@ namespace MultithreadDownload.UnitTests.Schedulers
             // Arrange
             // Setup a mock download context that is valid
             Mock<IDownloadContext> mockDownloadContext = new Mock<IDownloadContext>();
-            mockDownloadContext.Setup(m => m.IsPropertiesVaild()).Returns(Result<bool>.Success(true));
+            mockDownloadContext.Setup(m => m.IsPropertiesVaild()).Returns(Result<bool, DownloadError>.Success(true));
 
             // Act
             scheduler.AddTask(mockDownloadContext.Object);
@@ -41,7 +42,7 @@ namespace MultithreadDownload.UnitTests.Schedulers
             // Arrange
             // Setup a mock download context that is valid
             Mock<IDownloadContext> mockDownloadContext = new Mock<IDownloadContext>();
-            mockDownloadContext.Setup(m => m.IsPropertiesVaild()).Returns(Result<bool>.Success(true));
+            mockDownloadContext.Setup(m => m.IsPropertiesVaild()).Returns(Result<bool, DownloadError>.Success(true));
             scheduler.AddTask(mockDownloadContext.Object);
             Guid taskId = scheduler.GetTasks()[0].ID;
 
@@ -60,7 +61,7 @@ namespace MultithreadDownload.UnitTests.Schedulers
             // Arrange
             // Setup a mock download context that is valid
             Mock<IDownloadContext> mockDownloadContext = new Mock<IDownloadContext>();
-            mockDownloadContext.Setup(m => m.IsPropertiesVaild()).Returns(Result<bool>.Success(true));
+            mockDownloadContext.Setup(m => m.IsPropertiesVaild()).Returns(Result<bool, DownloadError>.Success(true));
             scheduler.AddTask(mockDownloadContext.Object);
             scheduler.AddTask(mockDownloadContext.Object);
 
@@ -89,7 +90,7 @@ namespace MultithreadDownload.UnitTests.Schedulers
             // Arrange
             // Setup a mock download context that is valid
             Mock<IDownloadContext> mockDownloadContext = new Mock<IDownloadContext>();
-            mockDownloadContext.Setup(m => m.IsPropertiesVaild()).Returns(Result<bool>.Success(true));
+            mockDownloadContext.Setup(m => m.IsPropertiesVaild()).Returns(Result<bool, DownloadError>.Success(true));
             scheduler.AddTask(mockDownloadContext.Object);
             Guid taskId = scheduler.GetTasks()[0].ID;
 

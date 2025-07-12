@@ -50,7 +50,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             // The context should not be null and should be successful
             downloadContext.Value.Should().NotBeNull();
             downloadContext.IsSuccess.Should().BeTrue();
-            downloadContext.ErrorMessage.Should().BeNull();
+            downloadContext.ErrorState.Should().BeNull();
 
             // Create a download manager with a single parallel task
             MultiDownload downloadManager = new MultiDownload(1, DownloadServiceType.Http);
@@ -62,10 +62,10 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             {
                 // Assert
                 // Check if the file exists and its content is correct
-                File.Exists(downloadContext.Value.TargetPath).Should().BeTrue();
-                TestHelper.VerifyFileSHA512(downloadContext.Value.TargetPath, "5d58e5b1b40ffbd87d99eabaa30ff55baafb0318e35f38e0e220ac3630974a652428284e3ceb8841bf1a2c90aff0f6e7dfd631ca36f1b65ee1efd638fc68b0c8");
+                File.Exists(downloadContext.Value.Value.TargetPath).Should().BeTrue();
+                TestHelper.VerifyFileSHA512(downloadContext.Value.Value.TargetPath, "5d58e5b1b40ffbd87d99eabaa30ff55baafb0318e35f38e0e220ac3630974a652428284e3ceb8841bf1a2c90aff0f6e7dfd631ca36f1b65ee1efd638fc68b0c8");
                 // After the download is complete, delete the downloaded file
-                File.Delete(downloadContext.Value.TargetPath);
+                File.Delete(downloadContext.Value.Value.TargetPath);
                 // Set the result of the TaskCompletionSource to signal , meaning that the download is complete
                 completionSource.SetResult();
             };
@@ -73,7 +73,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
 
             // Act
             // Add the download task that is created by the download context to the download manager
-            downloadManager.AddTask(downloadContext.Value);
+            downloadManager.AddTask(downloadContext.ValueOrNull());
 
             // Assert
             // The download manager should have one task

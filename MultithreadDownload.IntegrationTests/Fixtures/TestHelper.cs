@@ -11,6 +11,7 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using MultithreadDownload.Core.Errors;
 
 namespace MultithreadDownload.IntegrationTests.Fixtures
 {
@@ -99,12 +100,12 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
         /// <returns>The HTTP download context containing information about the download task.</returns>
         public static async Task<HttpDownloadContext> GetHttpDownloadContext(byte maxDownloadThreads,string url, string outputPath)
         {
-            Result<HttpDownloadContext> contextResult =
+            Result<HttpDownloadContext, DownloadError> contextResult =
                 await HttpDownloadContext.GetDownloadContext(maxDownloadThreads, outputPath, url);
             contextResult.Should().NotBeNull();
             contextResult.IsSuccess.Should().BeTrue();
             contextResult.Value.Should().NotBeNull();
-            return contextResult.Value;
+            return contextResult.Value.Value;
         }
         #endregion
 

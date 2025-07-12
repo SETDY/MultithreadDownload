@@ -16,13 +16,13 @@ namespace MultithreadDownload.UnitTests.Utils
             int segmentCount = 4;
 
             // Act
-            Result<long[,]> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
+            Result<long[,], DownloadError> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
 
             // Assert => Whether the processing is successful.
             result.IsSuccess.Should().BeTrue();
 
             // Assert => Whether the result is correct.
-            result.Value.Should().BeEquivalentTo(new long[,]
+            result.Value.Value.Should().BeEquivalentTo(new long[,]
             {
                 {0,  24},
                 {25, 49},
@@ -39,13 +39,13 @@ namespace MultithreadDownload.UnitTests.Utils
             int segmentCount = 4;
 
             // Act
-            Result<long[,]> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
+            Result<long[,], DownloadError> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
 
             // Assert => Whether the processing is successful.
             result.IsSuccess.Should().BeTrue();
 
             // Assert => Whether the result is correct.
-            result.Value.Should().BeEquivalentTo(new long[,]
+            result.Value.Value.Should().BeEquivalentTo(new long[,]
             {
                 {0, 24},
                 {25, 49},
@@ -57,62 +57,80 @@ namespace MultithreadDownload.UnitTests.Utils
         [Theory]
         [InlineData(0)]
         [InlineData(-54)]
-        public void GetFileSegments_ShouldThrowException_WhenFileSizeIsZeroOrNegative(long fileSize)
+        public void GetFileSegments_ShouldReturnError_WhenFileSizeIsZeroOrNegative(long fileSize)
         {
             // Arrange
             int segmentCount = 4;
 
             // Act
-            Result<long[,]> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
+            Result<long[,], DownloadError> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
 
             // Assert => Whether the processing is failed.
             result.IsSuccess.Should().BeFalse();
 
             // Assert => Whether the result is correct.
-            result.Value.Should().BeNull();
+            result.Value.HasValue.Should().BeFalse();
 
-            // Assert => Whether the error message is correct.
-            result.ErrorMessage.Should().Be("File size and segment count must be greater than zero.");
+            // Assert => Whether the error state is correct.
+            result.ErrorState.Should().NotBeNull();
+
+            // Assert => Whether the error category is correct.
+            result.ErrorState.Category.Should().Be(DownloadErrorCategory.Unexpected);
+
+            // Assert => Whether the error code is correct.
+            result.ErrorState.Code.Should().Be(DownloadErrorCode.ArgumentOutOfRange);
         }
 
         [Fact]
-        public void GetFileSegments_ShouldThrowException_WhenSegmentCountIsZero()
+        public void GetFileSegments_ShouldReturnError_WhenSegmentCountIsZero()
         {
             // Arrange
             long fileSize = 100;
             int segmentCount = 0;
 
             // Act
-            Result<long[,]> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
+            Result<long[,], DownloadError> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
 
             // Assert => Whether the processing is failed.
             result.IsSuccess.Should().BeFalse();
 
-            // Assert => Whether the result is correct.
-            result.Value.Should().BeNull();
+            // Assert => Whether the result's value is correct.
+            result.Value.HasValue.Should().BeFalse();
 
-            // Assert => Whether the error message is correct.
-            result.ErrorMessage.Should().Be("File size and segment count must be greater than zero.");
+            // Assert => Whether the error state is correct.
+            result.ErrorState.Should().NotBeNull();
+
+            // Assert => Whether the error category is correct.
+            result.ErrorState.Category.Should().Be(DownloadErrorCategory.Unexpected);
+
+            // Assert => Whether the error code is correct.
+            result.ErrorState.Code.Should().Be(DownloadErrorCode.ArgumentOutOfRange);
         }
 
         [Fact]
-        public void GetFileSegments_ShouldThrowException_WhenSegmentCountIsNegative()
+        public void GetFileSegments_ShouldReturnError_WhenSegmentCountIsNegative()
         {
             // Arrange
             long fileSize = 100;
             int segmentCount = -54;
 
             // Act
-            Result<long[,]> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
+            Result<long[,], DownloadError> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
 
             // Assert => Whether the processing is failed.
             result.IsSuccess.Should().BeFalse();
 
-            // Assert => Whether the result is correct.
-            result.Value.Should().BeNull();
+            // Assert => Whether the result's vaule is correct.
+            result.Value.HasValue.Should().BeFalse();
 
-            // Assert => Whether the error message is correct.
-            result.ErrorMessage.Should().Be("File size and segment count must be greater than zero.");
+            // Assert => Whether the error state is correct.
+            result.ErrorState.Should().NotBeNull();
+
+            // Assert => Whether the error category is correct.
+            result.ErrorState.Category.Should().Be(DownloadErrorCategory.Unexpected);
+
+            // Assert => Whether the error code is correct.
+            result.ErrorState.Code.Should().Be(DownloadErrorCode.ArgumentOutOfRange);
         }
 
         #endregion GetFileSegments()
@@ -142,7 +160,7 @@ namespace MultithreadDownload.UnitTests.Utils
             try
             {
                 // Act
-                var result = FileSegmentHelper.CombineSegmentsSafe(segments, ref finalFileStream);
+                var result = FileSegmentHelper.CombineSegmentsSafe(segments, finalFileStream);
 
                 // Assert => Whether the processing is successful.
                 result.IsSuccess.Should().BeTrue("because the segments should combine successfully");
@@ -175,11 +193,11 @@ namespace MultithreadDownload.UnitTests.Utils
             FileStream finalFileStream = new FileStream(finalFilePath, FileMode.CreateNew);
 
             // Act
-            Result<bool> result = FileSegmentHelper.CombineSegmentsSafe(Array.Empty<string>(), ref finalFileStream);
+            Result<bool, DownloadError> result = FileSegmentHelper.CombineSegmentsSafe(Array.Empty<string>(), finalFileStream);
 
             // Assert => Whether the processing is failed.
             result.IsSuccess.Should().BeFalse("because no segments were provided");
-            result.ErrorMessage.Should().NotBeNullOrWhiteSpace();
+            result.ErrorState.Should().NotBeNull();
 
             // Cleanup testing files
             if (finalFileStream != null)

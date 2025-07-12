@@ -1,4 +1,6 @@
-﻿using System;
+﻿using MultithreadDownload.Core.Errors;
+using MultithreadDownload.Logging;
+using System;
 using System.Net;
 using System.Net.Http;
 using System.Runtime.InteropServices;
@@ -146,27 +148,42 @@ namespace MultithreadDownload.Primitives
         /// </summary>
         /// <param name="link">The link you want to get the file size</param>
         /// <returns>The file size of the link as bytes</returns>
-        public static async Task<Result<long>> GetLinkFileSizeAsync(string link)
+        public static async Task<Result<long, DownloadError>> GetLinkFileSizeAsync(string link)
         {
             // If the link is null or empty, return 0.
             // Otherwise, send a HEAD request to the URL to get the file size and return its file size.
             // If the request takes longer than 2 seconds, cancel it.
             // If the request fails, return Failure.
-            if (string.IsNullOrEmpty(link)) { return Result<long>.Failure($"{link} cannot be null or emprt."); }
+            if (string.IsNullOrEmpty(link))
+                return Result<long, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.InvalidUrl, $"{link} cannot be null or emprt."));
             try
             {
-                using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(60)))
+                using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(120)))
                 {
-                    long fileSize = (await _client.SendAsync(new HttpRequestMessage(HttpMethod.Head, link), cts.Token))
-                        .Content.Headers.ContentLength ?? 0;
-
-                    if (fileSize < 0) { return Result<long>.Failure("Failed to get the file size."); }
-                    return Result<long>.Success(fileSize);
+                    HttpResponseMessage response = await _client.SendAsync(new HttpRequestMessage(HttpMethod.Head, link), cts.Token);
+                    // FIXED: The problem that the file size is not -1 when the link is not exist.
+                    // Therefore, we check the status code of the response.
+                    // If the status code is not OK, return Failure.
+                    // Otherwise, return the file size.
+                    if (response.StatusCode != HttpStatusCode.OK)
+                        return Result<long, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.InvalidUrl, $"{link} does not exist or cannot be connected."));
+                    return Result<long, DownloadError>.Success((long)response.Content.Headers.ContentLength);
                 }
             }
-            catch (Exception)
+            catch (TimeoutException tex)
             {
-                return Result<long>.Failure("Failed to get the file size.");
+                DownloadLogger.LogError($"The request to get the file size of {link} has timed out.", tex);
+                return Result<long, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.Timeout, $"The request to get the file size of {link} has timed out."));
+            }
+            catch (HttpRequestException hex)
+            {
+                DownloadLogger.LogError($"An HTTP request exception has been caught when getting the file size of {link}.", hex);
+                return Result<long, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.HttpError, $"An HTTP request exception has been caught when getting the file size of {link}."));
+            }
+            catch (Exception ex)
+            {
+                DownloadLogger.LogError($"Unexpected or unknown exception has been caught when getting the file size of {link}.", ex);
+                return Result<long, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.UnexpectedOrUnknownException, $"Unexpected or unknown exception has been caught when getting the file size of {link}."));
             }
         }
     }

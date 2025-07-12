@@ -12,10 +12,8 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
-using static System.Net.WebRequestMethods;
 using MultithreadDownload.Utils;
 using System.Collections.Generic;
-using System.Collections;
 
 namespace MultithreadDownload.Protocols.Http
 {
@@ -148,7 +146,7 @@ namespace MultithreadDownload.Protocols.Http
         private Result<HttpResponseMessage, DownloadError> SendRequestWithRetry(HttpClient client, HttpRequestMessage requestMessage)
         {
             // FIXED: Modify the lambda expression to ensure proper handling of async methods
-            return RetryHelper.Retry<HttpResponseMessage, DownloadError>(
+            return RetryHelper.Retry(
                 (int)MAX_RETRY,
                 WAIT_TIME,
                 () => SendRequestSafe(client, requestMessage).Result, // Here use .Result to unwrap the Task and return the Result
@@ -289,18 +287,19 @@ namespace MultithreadDownload.Protocols.Http
         private Result<bool, DownloadError> CombineSegments(DownloadTask task, Stream outputStream)
         {
             // Combine the segments of the file to a single file
-            // This line is used to use ref keyword to pass the outputStream to the CombineSegmentsSafe method
+            // Check if the output stream is a FileStream
+            if (outputStream is not FileStream)
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.ArgumentOutOfRange, "The output stream is not a FileStream. Cannot combine segments."));
+            // If the operation is failed, delete the final file if it exists and return a failure result.
+            // Otherwise, return a success result.
             FileStream finalFileStream = outputStream as FileStream;
-            Result<bool> result = FileSegmentHelper.CombineSegmentsSafe(
-                task.ThreadManager.GetThreads().Select(x => x.FileSegmentPath).ToArray(),
-                ref finalFileStream
-            );
-            if (!result.IsSuccess)
-            {
-                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.UnexpectedOrUnknownException,
-                    $"Failed to combine segments: {result.ErrorMessage}"));
-            }
-            return Result<bool, DownloadError>.Success(true);
+            return FileSegmentHelper
+                .CombineSegmentsSafe(task.ThreadManager.GetThreads().Select(x => x.FileSegmentPath).ToArray(), finalFileStream)
+                .OnFailure(x =>
+                {
+                    if (File.Exists(finalFileStream.Name))
+                        File.Delete(finalFileStream.Name);
+                });
         }
         #endregion
 

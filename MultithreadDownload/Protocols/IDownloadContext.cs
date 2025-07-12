@@ -1,4 +1,5 @@
-﻿using MultithreadDownload.Primitives;
+﻿using MultithreadDownload.Core.Errors;
+using MultithreadDownload.Primitives;
 
 namespace MultithreadDownload.Protocols
 {
@@ -29,6 +30,6 @@ namespace MultithreadDownload.Protocols
         /// <summary>
         /// The size of the file has been downloaded.
         /// </summary>
-        public Result<bool> IsPropertiesVaild();
+        public Result<bool, DownloadError> IsPropertiesVaild();
     }
 }
