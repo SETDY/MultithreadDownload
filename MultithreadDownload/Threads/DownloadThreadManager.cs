@@ -86,14 +86,14 @@ namespace MultithreadDownload.Threading
         }
 
         /// <summary>
-        /// Creates a new download thread with the maximum number of threads and the given file segment paths.
+        /// Creates a new download thread with the maximum number of threads and the given download context.
         /// </summary>
         /// <returns>Whether the thread was created successfully or not.</returns>
         /// <remarks>
         /// The work delegate is the main download work that will be executed by the download thread.
         /// The main download work is IDownloadSerivce.DownloadFile()
         /// </remarks>
-        public Result<bool, DownloadError> CreateThreads(Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork)
+        public Result<bool, DownloadError> CreateThreads(Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork, IDownloadLogger logger)
         {
             // Check if the target file already exists
             // If it does, return a failure result
@@ -121,7 +121,7 @@ namespace MultithreadDownload.Threading
         /// The work delegate is the main download work that will be executed by the download thread.
         /// The main download work is IDownloadSerivce.DownloadFile()
         /// </remarks>
-        private Result<bool, DownloadError> CreateThreads(byte threadsCount, string[] fileSegmentPaths, Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork)
+        private Result<bool, DownloadError> CreateThreads(byte threadsCount, string[] fileSegmentPaths, Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork, IDownloadLogger logger)
         {
             // Creates new download threads with the given number of threads.
             if (threadsCount <= 0 || threadsCount != fileSegmentPaths.Length)
@@ -141,11 +141,11 @@ namespace MultithreadDownload.Threading
         /// The work delegate is the main download work that will be executed by the download thread.
         /// The main download work is IDownloadSerivce.DownloadFile()
         /// </remarks>
-        public Result<bool, DownloadError> CreateThread(string fileSegmentPath, Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork)
+        public Result<bool, DownloadError> CreateThread(string fileSegmentPath, Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork, IDownloadLogger logger)
         {
             // Check if the number of threads is greater than the maximum number of threads allowed
             // If it is, return a failure result
-            if (this._threads.Count > this._maxThreads)
+            if (this._threads.Count >= this._maxThreads)
                 Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.ThreadMaxExceeded, "The number of download threads is at the maximum postition."));
             // Validate the input parameters
             //  - The file segment path cannot be null or empty
@@ -213,7 +213,7 @@ namespace MultithreadDownload.Threading
         /// </summary>
         /// <param name="inputStreams">The input streams to read from.</param>
         /// <param name="outputStreams">The output streams of each of threads to write to.</param>
-        public void Start(Stream[] inputStreams, Stream[] outputStreams)
+        public void Start(Stream[] inputStreams, Stream[] outputStreams, DownloadLogger downloadLogger)
         {
             // Validate the input parameters
             // If the input streams or output streams are null, throw an exception
