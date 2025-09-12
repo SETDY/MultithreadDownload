@@ -11,7 +11,7 @@ using MultithreadDownload.Core.Errors;
 
 namespace MultithreadDownload.Threading
 {
-    public class DownloadThread : IDownloadThread, IDisposable
+    public sealed class DownloadThread : IDownloadThread, IDisposable
     {
         /// <summary>
         /// The ID of the download thread. This is used to identify the thread in the download task.
@@ -57,6 +57,11 @@ namespace MultithreadDownload.Threading
         /// The event that is triggered when the download thread is completed.
         /// </summary>
         public event Action<IDownloadThread> Completed;
+
+        /// <summary>
+        /// The logger instance for logging messages related to the download thread.
+        /// </summary>
+        public DownloadScopedLogger Logger { get; private set; }
 
         /// <summary>
         /// The cancellation token source for cancelling the download operation.
@@ -128,6 +133,15 @@ namespace MultithreadDownload.Threading
         {
             // Cancel the download operation and clean up resources
             Cancel();
+        }
+
+        /// <summary>
+        /// Sets the logger instance to be used for download-related operations.
+        /// </summary>
+        /// <param name="logger">The logger to associate with download operations. Cannot be null.</param>
+        public void SetLogger(DownloadScopedLogger logger)
+        {
+            Logger = logger;
         }
 
         // TODO: This method should not be public in term of constructional design, but it is needed for download working perfectly now.

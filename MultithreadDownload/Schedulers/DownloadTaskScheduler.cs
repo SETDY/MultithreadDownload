@@ -85,6 +85,7 @@ namespace MultithreadDownload.Schedulers
             {
                 foreach (DownloadTask task in _taskQueue.GetConsumingEnumerable(_allocatorTokenSource.Token))
                 {
+                    // TODO: Here will enter in a deadlock if some exceptions happen during the creating of download task. Should be fix.
                     // The download slots -1 if there is available solt and force start the task
                     // Otherwise, block the task to wait
                     this._downloadSlots.Wait(_allocatorTokenSource.Token);

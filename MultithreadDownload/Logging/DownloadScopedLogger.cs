@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MultithreadDownload.Primitives;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -15,17 +16,26 @@ namespace MultithreadDownload.Logging
         /// <summary>
         /// The task ID associated with the download operation, if any.
         /// </summary>
-        private readonly string? _taskId;
+        private readonly Option<string> _taskId;
 
         /// <summary>
         /// The thread ID associated with the download operation, if any.
         /// </summary>
-        private readonly int? _threadId;
+        private readonly Option<byte> _threadId;
 
-        public DownloadScopedLogger(string? taskId, int? threadId)
+        public DownloadScopedLogger(Option<string> taskId, Option<byte> threadId)
         {
             _taskId = taskId;
             _threadId = threadId;
+        }
+
+        /// <summary>
+        /// Retrieves information about the context this logger.
+        /// </summary>
+        public (string, byte) GetContext()
+        {
+            // Return the context by unwrapping the options, providing default values if not set.
+            return (_taskId.UnwrapOr("Undefined"), _threadId.UnwrapOr(255));
         }
 
         /// <summary>
@@ -34,7 +44,7 @@ namespace MultithreadDownload.Logging
         /// <param name="message">The information message to log.</param>
         public void LogInfo(string message)
         {
-            string prefix = (_taskId != null ? $"[Task: {_taskId}]" : "") + (_threadId != null ? $" [Thread: {_threadId}]" : "");
+            string prefix = (this._taskId.HasValue ? $"[Task: {_taskId.Value}]" : "") + (this._threadId.HasValue ? $" [Thread: {_threadId.Value}]" : "");
             DownloadLogger.Current.LogInfo($"{prefix} {message}".Trim());
         }
 
@@ -44,7 +54,7 @@ namespace MultithreadDownload.Logging
         /// <param name="message">The warning message to log.</param>
         public void LogWarning(string message)
         {
-            string prefix = (_taskId != null ? $"[Task: {_taskId}]" : "") + (_threadId != null ? $" [Thread: {_threadId}]" : "");
+            string prefix = (this._taskId.HasValue ? $"[Task: {_taskId.Value}]" : "") + (this._threadId.HasValue ? $" [Thread: {_threadId.Value}]" : "");
             DownloadLogger.Current.LogWarning($"{prefix} {message}".Trim());
         }
 
@@ -55,7 +65,7 @@ namespace MultithreadDownload.Logging
         /// <param name="exception">The exception associated with the error, if any.</param>
         public void LogError(string message, Exception? exception = null)
         {
-            string prefix = (_taskId != null ? $"[Task: {_taskId}]" : "") + (_threadId != null ? $" [Thread: {_threadId}]" : "");
+            string prefix = (this._taskId.HasValue ? $"[Task: {_taskId.Value}]" : "") + (this._threadId.HasValue ? $" [Thread: {_threadId.Value}]" : "");
             DownloadLogger.Current.LogError($"{prefix} {message}".Trim(), exception);
         }
     }

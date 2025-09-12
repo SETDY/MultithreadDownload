@@ -1,10 +1,11 @@
-﻿using MultithreadDownload.Downloads;
-using MultithreadDownload.Protocols;
+﻿using MultithreadDownload.Core.Errors;
+using MultithreadDownload.Downloads;
+using MultithreadDownload.Logging;
 using MultithreadDownload.Primitives;
+using MultithreadDownload.Protocols;
 using System;
 using System.IO;
 using System.Threading.Tasks;
-using MultithreadDownload.Core.Errors;
 
 namespace MultithreadDownload.Threads
 {
@@ -48,6 +49,11 @@ namespace MultithreadDownload.Threads
         IProgress<sbyte> Progresser { get; }
 
         /// <summary>
+        /// The logger instance for logging messages related to the download thread.
+        /// </summary>
+        public DownloadScopedLogger Logger { get; }
+
+        /// <summary>
         /// Start newly the download thread.
         /// </summary>
         void Start(Stream inputStream, Stream outputStream);
@@ -66,6 +72,8 @@ namespace MultithreadDownload.Threads
         /// Cancel the download thread.
         /// </summary>
         Result<bool, DownloadError> Cancel();
+
+        void SetLogger(DownloadScopedLogger logger);
 
         void SetProgresser(IProgress<sbyte> progresser);
 

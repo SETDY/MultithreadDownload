@@ -88,12 +88,14 @@ namespace MultithreadDownload.Threading
         /// <summary>
         /// Creates a new download thread with the maximum number of threads and the given download context.
         /// </summary>
+        /// <param name="mainWork">The method which the task will excecute to download the file.</param>
+        /// <param name="logger">The logger to log the infomation about this DownloadThreadManagement.</param>
         /// <returns>Whether the thread was created successfully or not.</returns>
         /// <remarks>
         /// The work delegate is the main download work that will be executed by the download thread.
         /// The main download work is IDownloadSerivce.DownloadFile()
         /// </remarks>
-        public Result<bool, DownloadError> CreateThreads(Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork, IDownloadLogger logger)
+        public Result<bool, DownloadError> CreateThreads(Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork, DownloadScopedLogger logger)
         {
             // Check if the target file already exists
             // If it does, return a failure result
@@ -107,29 +109,35 @@ namespace MultithreadDownload.Threading
             // Split the file paths into segments based on the maximum number of threads allowed
             // Then, create new download threads with the main work delegate
             // Log that the threads are being created 
-            DownloadLogger.LogInfo($"Creating {MaxParallelThreads} download threads for file segments in {_downloadContext.TargetPath}.");
+            logger.LogInfo($"Strart the process of creating {MaxParallelThreads} download threads for file segments in {_downloadContext.TargetPath}.");
             return FileSegmentHelper
                 .SplitPaths(MaxParallelThreads, _downloadContext.TargetPath)
-                .AndThen(segmentPaths => CreateThreads(MaxParallelThreads, segmentPaths, mainWork));
+                .AndThen(segmentPaths => CreateThreads(MaxParallelThreads, segmentPaths, mainWork, logger));
         }
 
         /// <summary>
         /// Creates new download threads.
         /// </summary>
         /// <returns>Whether the threads was created successfully or not.</returns>
+        /// <param name="maxParallelThreads">The maximum number of the parallel-running threads.</param>
+        /// <param name="fileSegmentPaths">The paths for each of the file segment to be saved.</param>
+        /// <param name="logger">The logger to log the infomation about this DownloadThreadManagement.</param>
         /// <remarks>
         /// The work delegate is the main download work that will be executed by the download thread.
         /// The main download work is IDownloadSerivce.DownloadFile()
         /// </remarks>
-        private Result<bool, DownloadError> CreateThreads(byte threadsCount, string[] fileSegmentPaths, Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork, IDownloadLogger logger)
+        private Result<bool, DownloadError> CreateThreads(byte maxParallelThreads, string[] fileSegmentPaths, Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork, DownloadScopedLogger logger)
         {
             // Creates new download threads with the given number of threads.
-            if (threadsCount <= 0 || threadsCount != fileSegmentPaths.Length)
+            // Check whether the number of threads is greater than 0 and equal to the number of file segments.
+            // TODO: Partial Create Threads
+            if (maxParallelThreads <= 0 || maxParallelThreads != fileSegmentPaths.Length)
                 return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.ArgumentOutOfRange, "The number of threads must be greater than 0 and equal to the number of file segments."));
 
-            DownloadLogger.LogInfo($"Try to Create {threadsCount} download threads for file segments in {_downloadContext.TargetPath}.");
+            logger.LogInfo($"Succese to get the file segment paths. Continue to create the threads.");
+            logger.LogInfo($"Try to Create {maxParallelThreads} download threads for file segments in {_downloadContext.TargetPath}.");
             IEnumerable<Result<bool, DownloadError>> resultEnumertor = fileSegmentPaths
-                .Select(fileSegmentPath => CreateThread(fileSegmentPath, mainWork));
+                .Select(fileSegmentPath => CreateThread(fileSegmentPath, mainWork, logger));
             return Result<bool, DownloadError>.AllSucceeded(resultEnumertor);
         }
 
@@ -137,11 +145,14 @@ namespace MultithreadDownload.Threading
         /// Creates a new download thread.
         /// </summary>
         /// <returns>Whether the thread was created successfully or not.</returns>
+        /// <param name="fileSegmentPath">The path for the file segment to be saved.</param>
+        /// <param name="mainWork">The method which the task will excecute to download the file.</param>
+        /// <param name="logger">The logger to log the infomation about the thread which will be created.</param>
         /// <remarks>
         /// The work delegate is the main download work that will be executed by the download thread.
         /// The main download work is IDownloadSerivce.DownloadFile()
         /// </remarks>
-        public Result<bool, DownloadError> CreateThread(string fileSegmentPath, Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork, IDownloadLogger logger)
+        public Result<bool, DownloadError> CreateThread(string fileSegmentPath, Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork, DownloadScopedLogger logger)
         {
             // Check if the number of threads is greater than the maximum number of threads allowed
             // If it is, return a failure result
@@ -156,15 +167,24 @@ namespace MultithreadDownload.Threading
                 return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.NullReference, "The main work delegate cannot be null."));
 
             // Firstly, Create a new thread with the factory
-            // Then, Set the progresser for the thread
+            // Then, Set the progresser and the logger for the thread
             // Finally, Add the thread to the list of threads
             IDownloadThread downloadThread = 
-                _factory.Create(this._threads.Count, _downloadContext, fileSegmentPath, mainWork);
+                this._factory.Create(_threads.Count, _downloadContext, fileSegmentPath, mainWork);
             this.SetThreadProgresser(downloadThread);
+            downloadThread.SetLogger(this.GetThreadLogger(logger, downloadThread));
             _threads.Add(downloadThread);
             // Log that the thread is created successfully
-            DownloadLogger.LogInfo($"Download thread {downloadThread.ID} created successfully for file segment {fileSegmentPath}.");
+            logger.LogInfo($"Download thread {downloadThread.ID} is created successfully for file segment {fileSegmentPath}.");
             return Result<bool, DownloadError>.Success(true);
+        }
+
+        /// Get the download logger for the download thread
+        private DownloadScopedLogger GetThreadLogger(DownloadScopedLogger threadManagementLogger, IDownloadThread targetThread)
+        {
+            // Fristly, get the task id from the thread management logger
+            // Then, return a new logger that wraps the current logger with the scoped logger
+            return DownloadLogger.For(Option<string>.Some(threadManagementLogger.GetContext().Item1), Option<byte>.Some((byte)targetThread.ID));
         }
 
         /// <summary>
@@ -213,7 +233,7 @@ namespace MultithreadDownload.Threading
         /// </summary>
         /// <param name="inputStreams">The input streams to read from.</param>
         /// <param name="outputStreams">The output streams of each of threads to write to.</param>
-        public void Start(Stream[] inputStreams, Stream[] outputStreams, DownloadLogger downloadLogger)
+        public void Start(Stream[] inputStreams, Stream[] outputStreams)
         {
             // Validate the input parameters
             // If the input streams or output streams are null, throw an exception

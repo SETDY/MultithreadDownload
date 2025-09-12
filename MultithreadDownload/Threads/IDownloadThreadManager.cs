@@ -59,7 +59,7 @@ namespace MultithreadDownload.Threading
         /// The work delegate is the main download work that will be executed by the download thread.
         /// The main download work is IDownloadSerivce.DownloadFile()
         /// </remarks>
-        Result<bool, DownloadError> CreateThreads(Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork, IDownloadLogger logger);
+        Result<bool, DownloadError> CreateThreads(Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork, DownloadScopedLogger logger);
 
         /// <summary>
         /// Creates a new download thread.
@@ -69,7 +69,7 @@ namespace MultithreadDownload.Threading
         /// The work delegate is the main download work that will be executed by the download thread.
         /// The main download work is IDownloadSerivce.DownloadFile()
         /// </remarks>
-        Result<bool, DownloadError> CreateThread(string fileSegmentPath, Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork, IDownloadLogger logger);
+        Result<bool, DownloadError> CreateThread(string fileSegmentPath, Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork, DownloadScopedLogger logger);
         // TODO: Refactor all context structure
 
         /// <summary>

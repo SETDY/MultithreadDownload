@@ -170,7 +170,7 @@ namespace MultithreadDownload.Tasks
             // when the task is completed.
             // Log the creation of the threads and start the download task.
             DownloadLogger.LogInfo($"The task with id: {ID} is starting to create threads.");
-            ThreadManager.CreateThreads(downloadService.DownloadFile);
+            ThreadManager.CreateThreads(downloadService.DownloadFile, DownloadLogger.For(Option<string>.Some(this.ID.ToString()), Option<byte>.None()));
             SetThreadCompletedEventHandler(workProvider, downloadService);
             // Log the creation of the threads.
             DownloadLogger.LogInfo($"The threads of the task with id: {ID} have been created.");

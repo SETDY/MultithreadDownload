@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MultithreadDownload.Primitives;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -89,7 +90,7 @@ namespace MultithreadDownload.Logging
         /// <summary>
         /// Creates a context-aware logger for a specific task and thread.
         /// </summary>
-        public static DownloadScopedLogger For(string? taskId = null, int? threadId = null) => new DownloadScopedLogger(taskId, threadId);
+        public static DownloadScopedLogger For(Option<string> taskId, Option<byte> threadId) => new DownloadScopedLogger(taskId, threadId);
 
         /// <summary>
         /// Represents a logger scope

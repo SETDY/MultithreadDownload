@@ -33,11 +33,6 @@ namespace MultithreadDownload.Protocols.Http
         private const int WAIT_MS = 2000;
 
         /// <summary>
-        /// The logger used for logging download events
-        /// </summary>
-        private readonly DownloadScopedLogger _logger;
-
-        /// <summary>
         /// The download thread that is responsible for downloading the file
         /// </summary>
         private readonly IDownloadThread _thread;
@@ -78,7 +73,7 @@ namespace MultithreadDownload.Protocols.Http
         public Result<bool, DownloadError> DownloadFile()
         {
             // Log the start of the download process with the expected range size
-            _logger.LogInfo($"Starting download with expected range {((HttpDownloadContext)_thread.DownloadContext).RangePositions[_thread.ID, 1] - ((HttpDownloadContext)_thread.DownloadContext).RangePositions[_thread.ID, 0] + 1}");
+            this._thread.Logger.LogInfo($"Starting download with expected range {((HttpDownloadContext)_thread.DownloadContext).RangePositions[_thread.ID, 1] - ((HttpDownloadContext)_thread.DownloadContext).RangePositions[_thread.ID, 0] + 1}");
             // Set the state of the download thread to downloading
             _thread.SetState(DownloadState.Downloading);
             // Initialize the retry count to 0
@@ -117,7 +112,7 @@ namespace MultithreadDownload.Protocols.Http
                     break;
                 }
                 // Log the number of completed bytes for the download thread if needed
-                //_logger.LogInfo($"Set Download Bytes from {_thread.CompletedBytesSizeCount} to {_thread.CompletedBytesSizeCount + bytesRead} at {DateTime.Now}");
+                //this._thread.Logger.LogInfo($"Set Download Bytes from {_thread.CompletedBytesSizeCount} to {_thread.CompletedBytesSizeCount + bytesRead} at {DateTime.Now}");
                 if (!SetCompletedByteNumbers(bytesRead))
                 {
                     failedError = DownloadError.Create(DownloadErrorCode.ArgumentOutOfRange, "The completed bytes size count is greater than the range size that should be downloaded.");
@@ -279,7 +274,7 @@ namespace MultithreadDownload.Protocols.Http
             catch (InvalidOperationException ex)
             {
                 // Log the failure and the exception when trying to update the download progress
-                _logger.LogError("Failed to updating the download progress of the thread", ex);
+                this._thread.Logger.LogError("Failed to updating the download progress of the thread", ex);
                 return false;
             }
         }
@@ -299,7 +294,7 @@ namespace MultithreadDownload.Protocols.Http
             if (_thread.CompletedBytesSizeCount > rangeSize)
             {
                 // If the completed bytes size count is greater than the range size, log an error and throw an exception
-                _logger.LogError($"Thread has completed bytes size count ({_thread.CompletedBytesSizeCount}) " +
+                this._thread.Logger.LogError($"Thread has completed bytes size count ({_thread.CompletedBytesSizeCount}) " +
                     $"which is unexpectly greater than the range size ({rangeSize}), causing the download is failed.");
                 throw new InvalidOperationException($"Thread with ID {_thread.ID} has completed bytes size count ({_thread.CompletedBytesSizeCount}) greater than the range size ({rangeSize}).");
             }    
@@ -326,7 +321,7 @@ namespace MultithreadDownload.Protocols.Http
         {
             // Clean up the download progress by closing and disposing the output stream
             // This will also ensure that the output stream is flushed and all data is written
-            _logger.LogInfo($"The file segment from {((HttpDownloadContext)_thread.DownloadContext).Url} has been downloaded successfully.");
+            this._thread.Logger.LogInfo($"The file segment from {((HttpDownloadContext)_thread.DownloadContext).Url} has been downloaded successfully.");
             HttpDownloadService.CleanUpDownloadProcess(output, Array.Empty<string>());
             return Result<bool, DownloadError>.Success(true);
         }
@@ -341,7 +336,7 @@ namespace MultithreadDownload.Protocols.Http
         private Result<bool, DownloadError> FinishFailed(DownloadError error)
         {
             // Clean up the download progress by closing and disposing the output stream
-            _logger.LogError($"The download process of the file segment from {((HttpDownloadContext)_thread.DownloadContext).Url}" +
+            this._thread.Logger.LogError($"The download process of the file segment from {((HttpDownloadContext)_thread.DownloadContext).Url}" +
                 $"has been failed due to {error.Message}");
             HttpDownloadService.CleanUpDownloadProcess(_output, new string[] { _thread.FileSegmentPath });
             return Result<bool, DownloadError>.Failure(error);
