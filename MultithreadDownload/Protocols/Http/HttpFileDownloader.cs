@@ -17,6 +17,7 @@ namespace MultithreadDownload.Protocols.Http
     internal class HttpFileDownloader
     {
         #region Private Fields
+        // TODO: Make these constant fields configurable by the user
         /// <summary>
         /// The size of the buffer used for reading and writing data
         /// </summary>

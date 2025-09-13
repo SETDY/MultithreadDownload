@@ -10,6 +10,8 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using MultithreadDownload.Core.Errors;
+using MultithreadDownload.Utils;
 
 namespace MultithreadDownload.Schedulers
 {
@@ -36,10 +38,26 @@ namespace MultithreadDownload.Schedulers
         /// <summary>
         /// The task that allocates the download slots.
         /// </summary>
-        private readonly Task _allocator;
+        private Task _allocator;
 
+        /// <summary>
+        /// The lock that is used to synchronize access to the allocator.
+        /// </summary>
+        private readonly object _allocatorLock = new object();
+
+        /// <summary>
+        /// Whether the allocator is running.
+        /// </summary>
+        private bool isAllocatorRunning = false;
+
+        /// <summary>
+        /// The cancellation token source that is used to cancel the allocator task.
+        /// </summary>
         private readonly CancellationTokenSource _allocatorTokenSource = new CancellationTokenSource();
 
+        /// <summary>
+        /// The download service that is used to download the files.
+        /// </summary>
         private readonly IDownloadService _downloadService;
 
         /// <summary>
@@ -66,6 +84,18 @@ namespace MultithreadDownload.Schedulers
         /// </remarks>
         public event EventHandler<DownloadDataEventArgs> TasksProgressCompleted;
 
+        /// <summary>
+        /// Initializes a new instance of the DownloadTaskScheduler class with the specified maximum number of parallel
+        /// download tasks, download service, and work provider.
+        /// </summary>
+        /// <remarks>
+        /// The scheduler begins allocating and executing download tasks when the <see cref="DownloadTaskScheduler.Start"/> method is invoked. 
+        /// Tasks are managed according to the specified parallelism limit and are obtained from theprovided work provider. To stop the scheduler, invoke the <see cref="DownloadTaskScheduler.Stop"/> method.
+        /// </remarks>
+        /// <param name="maxDownloadingTasks">The maximum number of download tasks that can run in parallel. Must be greater than 0.</param>
+        /// <param name="downloadService">The service used to perform download operations for each scheduled task.</param>
+        /// <param name="workProvider">The provider that supplies download tasks to be scheduled and executed.</param>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxDownloadingTasks"/> is less than or equal to 0.</exception>
         public DownloadTaskScheduler(byte maxDownloadingTasks, IDownloadService downloadService, IDownloadTaskWorkProvider workProvider)
         {
             // Check the parameters
@@ -81,19 +111,58 @@ namespace MultithreadDownload.Schedulers
             // If there are no tasks in the queue, the allocator task will wait for a task to be added.
             // If there are enough slots available, the allocator task will start the task.
             // The process will continue until the software is stopped or the client invokes the Stop method.
-            this._allocator = new Task(() =>
+            this.Reset();
+        }
+
+        /// <summary>
+        /// Allocate tasks from the queue to start downloading.
+        /// </summary>
+        private void AllocateTasks()
+        {
+            // Continuously allocate tasks from the queue
+            // If there are no tasks in the queue, the method will block until a task is added.
+            // If there are enough slots available, the method will start the task.
+            // If it is failed to allocate a task, it will retry 5 times with a delay of 1.5 seconds between each retry.
+            foreach (DownloadTask task in _taskQueue.GetConsumingEnumerable(_allocatorTokenSource.Token))
             {
-                foreach (DownloadTask task in _taskQueue.GetConsumingEnumerable(_allocatorTokenSource.Token))
-                {
-                    // TODO: Here will enter in a deadlock if some exceptions happen during the creating of download task. Should be fix.
-                    // The download slots -1 if there is available solt and force start the task
-                    // Otherwise, block the task to wait
-                    this._downloadSlots.Wait(_allocatorTokenSource.Token);
-                    // Log the start of the task
-                    //DownloadLogger.LogInfo($"The Task with id: {task.ID} and path: {task.DownloadContext.TargetPath} has been started.");
-                    task.ExecuteDownloadTask(_workProvider, _downloadService);
-                }
-            }, TaskCreationOptions.LongRunning);
+                RetryHelper.Retry(
+                    5, 
+                    1500, 
+                    () => AllocateTask(task), 
+                    () => DownloadError.Create(DownloadErrorCode.UnexpectedOrUnknownException, $"Unexpected error when allocating the task with ID {task.ID}.")
+                );
+            }
+        }
+
+        /// <summary>
+        /// Allocates a download slot and initiates execution of the specified download task.
+        /// </summary>
+        /// <param name="task">The download task to be started. Cannot be null.</param>
+        private Result<bool, DownloadError> AllocateTask(DownloadTask task)
+        {
+            // Check if the task is null
+            // If it is null, return failure result
+            // Otherwise, allocate a download slot and start the task
+            if (task == null)
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.NullReference, "The task cannot be null."));
+            try
+            {
+                // The download slots -1 if there is available solt and force start the task
+                // Otherwise, block the task to wait
+                this._downloadSlots.Wait(_allocatorTokenSource.Token);
+                // Log the start of the task
+                //DownloadLogger.LogInfo($"The Task with id: {task.ID} and path: {task.DownloadContext.TargetPath} has been started.");
+                task.ExecuteDownloadTask(_workProvider, _downloadService);
+                // Return success result
+                return Result<bool, DownloadError>.Success(true);
+            }
+            catch (Exception)
+            {
+                // If there is an exception, log the error and continue to the next task
+                DownloadLogger.For(Option<string>.Some(task.ID.ToString()), Option<byte>.None()).LogError($"Unexpected error when starting the task with path: {task.DownloadContext.TargetPath}.");
+                // Return failure result
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.UnexpectedOrUnknownException, $"Unexpected error when starting the task with ID {task.ID.ToString()}."));
+            }
         }
 
         /// <summary>
@@ -106,16 +175,9 @@ namespace MultithreadDownload.Schedulers
         public void Dispose()
         {
             // Cancel all tasks in the queue
-            // Stop and dispose the allocator, the task queue and the download slots
+            // Stop and dispose the task queue and the download slots
             this.GetTasks().ToList().ForEach(task => task.Cancel());
             Stop();
-            // Since the allocator cannot be cancel by the token when it has not been started,
-            // skip the dispose if the allocator is not started.
-            // For the allocator task which does not start, it will be recycled by the GC.
-            if (_allocator.Status != TaskStatus.Created)
-            {
-                _allocator.Dispose();
-            }
             _taskQueue?.Dispose();
             _downloadSlots?.Dispose();
         }
@@ -123,33 +185,80 @@ namespace MultithreadDownload.Schedulers
         #region Methods of task allocator
 
         /// <summary>
-        /// Start the queue process of the tasks(allocator).
+        /// Reset the allocator.
         /// </summary>
-        /// <returns>Whether the allocator are paused successfully.</returns>
-        /// <remarks>
-        /// It will only start the allocator task but not the tasks in the queue.
-        /// </remarks>
-        public Result<bool> Start()
+        public void Reset()
         {
-            //TODO: There is a problem which is the if statement cannot prevent the task from starting again.
-            if (_allocator.Status == TaskStatus.Running) { Result<bool>.Failure("The allocator is already started."); }
-            _allocator.Start();
-            return Result<bool>.Success(true);
+            this._allocator = new Task(() => this.AllocateTasks(), TaskCreationOptions.LongRunning);
         }
 
         /// <summary>
-        /// Stop(Cancel) the queue process of the tasks.
+        /// Start the allocator.
         /// </summary>
-        /// <returns>Whether the allocator are paused successfully.</returns>
         /// <remarks>
-        /// It will cancel the allocator task but not all tasks in the queue.
+        /// It will only start the allocator but not the tasks in the queue.
         /// </remarks>
-        public Result<bool> Stop()
+        public void Start()
         {
-            // Cancel the allocator task
-            if (_allocator.Status != TaskStatus.Canceled) { Result<bool>.Failure("The allocator is already stop."); }
-            _allocatorTokenSource.Cancel();
-            return Result<bool>.Success(true);
+            // Check the status of the allocator task
+            // If it is already running, throw an exception
+            // Otherwise, start the allocator task
+            if (this.isAllocatorRunning)
+                throw new InvalidOperationException("The allocator is already started.");
+            if (this._allocator.IsCanceled)
+                throw new InvalidOperationException("The allocator has been cancelled and cannot be restarted. Please create a new instance of the scheduler.");
+            // Start the allocator task
+            this._allocator.Start();
+        }
+
+        /// <summary>
+        /// Stop the allocator.
+        /// </summary>
+        /// <remarks>
+        /// It will stop the allocator but not all tasks in the queue.
+        /// </remarks>
+        public void Stop()
+        {
+            // Cancel the allocator task 
+            // Using lock to prevent multiple threads from stopping the allocator at the same time
+            // In particular, there is no race condition when checking and setting isAllocatorRunning due to the design of the method.
+            // However, to ensure thread safety and prevent potential issues in future modifications, a lock is used here.
+            lock (this._allocatorLock)
+            {
+                if (!this.isAllocatorRunning)
+                    throw new InvalidOperationException("The allocator is already stopped.");
+                this.isAllocatorRunning = false;
+            }
+            // Cancel the allocator token
+            this._allocatorTokenSource.Cancel();
+            // Wait for the allocator task to complete
+            try
+            {
+                // Wait for a maximum of 5 seconds for the allocator to finish
+                bool finished = _allocator.Wait(TimeSpan.FromMilliseconds(5000));
+                // If the allocator did not finish within the timeout, throw a timeout exception
+                if (!finished)
+                    throw new TimeoutException("The allocator did not stop within timeout.");
+            }
+            catch (AggregateException ex)
+            {
+                // Task.Wait throws AggregateException; typically contains OperationCanceledException
+                ex.Handle(inner => inner is OperationCanceledException);
+            }
+            finally
+            {
+                try 
+                {
+                    // Dispose the allocator if it is completed
+                    if (_allocator != null && _allocator.IsCompleted) 
+                        _allocator.Dispose(); 
+                } 
+                catch 
+                {
+                    // Log the error if there is an exception when disposing the allocator
+                    DownloadLogger.LogError("Unexpected error when disposing the allocator task.");
+                }
+            }
         }
 
         #endregion Methods of task allocator

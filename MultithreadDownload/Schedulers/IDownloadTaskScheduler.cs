@@ -30,7 +30,7 @@ namespace MultithreadDownload.Schedulers
         /// <remarks>
         /// It will only start the allocator task but not the tasks in the queue.
         /// </remarks>
-        public Result<bool> Start();
+        public void Start();
 
         /// <summary>
         /// Stop(Cancel) the queue process of the tasks.
@@ -39,7 +39,7 @@ namespace MultithreadDownload.Schedulers
         /// <remarks>
         /// It will cancel the allocator task but not all tasks in the queue.
         /// </remarks>
-        public Result<bool> Stop();
+        public void Stop();
 
         /// <summary>
         /// Add a task to the queue.
