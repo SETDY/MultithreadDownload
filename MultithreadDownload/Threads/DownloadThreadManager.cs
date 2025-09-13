@@ -170,7 +170,7 @@ namespace MultithreadDownload.Threading
             // Then, Set the progresser and the logger for the thread
             // Finally, Add the thread to the list of threads
             IDownloadThread downloadThread = 
-                this._factory.Create(_threads.Count, _downloadContext, fileSegmentPath, mainWork);
+                this._factory.Create((byte)_threads.Count, _downloadContext, fileSegmentPath, mainWork);
             this.SetThreadProgresser(downloadThread);
             downloadThread.SetLogger(this.GetThreadLogger(logger, downloadThread));
             _threads.Add(downloadThread);
@@ -281,12 +281,11 @@ namespace MultithreadDownload.Threading
         /// <summary>
         /// Stops all download threads.
         /// </summary>
-        public void Cancel()
+        public bool Cancel()
         {
-            foreach (IDownloadThread thread in _threads)
-            {
-                thread.Cancel();
-            }
+            // Cancel each thread and return true if all threads are cancelled successfully
+            return Result<bool, DownloadError>.TryAll(_threads.Select(thread => thread.Cancel())).
+                Map(flags => flags.All(flag => flag)).UnwrapOr(false);
         }
 
         public void Dispose()

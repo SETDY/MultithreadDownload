@@ -65,8 +65,8 @@ namespace MultithreadDownload.Tasks
                         // Therefore, log the error and throw an exception has to be excuted.
                         // Otherwise, the task will not be funtionally completed but into a dead loop and the user will not know why the task is not userly completed.
                         DownloadLogger.LogError($"An error occurred when the TaskCompleted event was invoked for the task with id: {ID}.", ex);
-                        throw new InvalidOperationException(
-                            $"An error occurred when the TaskCompleted event was invoked for the task with id: {ID}.", ex);
+                        throw new AggregateException(
+                            $"An exception occurred when the TaskCompleted event was invoked for the task with id: {ID}.", ex);
                     }
                 }
             }
@@ -76,6 +76,11 @@ namespace MultithreadDownload.Tasks
         /// The field of the property State.
         /// </summary>
         private DownloadState _state;
+
+        /// <summary>
+        /// The logger instance for logging messages related to the download task.
+        /// </summary>
+        public DownloadScopedLogger Logger { get; private set; }
 
         /// <summary>
         /// The thread manager of the task which contain all the threads.
@@ -123,6 +128,8 @@ namespace MultithreadDownload.Tasks
             this.ThreadManager = factory.Create(new DownloadThreadFactory(),
                 this.DownloadContext, maxThreads);
             this.SpeedTracker = new DownloadSpeedTracker();
+            this.Logger = DownloadLogger.For(Option<string>.Some(this.ID.ToString()), Option<byte>.None());
+
         }
 
         /// <summary>
@@ -145,6 +152,7 @@ namespace MultithreadDownload.Tasks
             this.ThreadManager = factory.Create(new DownloadThreadFactory(),
                 this.DownloadContext, maxThreads);
             this.SpeedTracker = speedTracker;
+            this.Logger = DownloadLogger.For(Option<string>.Some(this.ID.ToString()), Option<byte>.None());
         }
         #endregion Constructors
 
@@ -169,14 +177,13 @@ namespace MultithreadDownload.Tasks
             // Hook the event such that a execution of finalize work can be invoke (e.g. Combine the file segments)
             // when the task is completed.
             // Log the creation of the threads and start the download task.
-            DownloadLogger.LogInfo($"The task with id: {ID} is starting to create threads.");
+            this.Logger.LogInfo($"The task with id: {ID} is starting to execute the download task.");
             ThreadManager.CreateThreads(downloadService.DownloadFile, DownloadLogger.For(Option<string>.Some(this.ID.ToString()), Option<byte>.None()));
             SetThreadCompletedEventHandler(workProvider, downloadService);
-            // Log the creation of the threads.
-            DownloadLogger.LogInfo($"The threads of the task with id: {ID} have been created.");
             // Start the download task.
             this.State = DownloadState.Downloading;
-            DownloadLogger.LogInfo($"Downloading {this.ID}");
+            // Log the start of the download
+            this.Logger.LogInfo($"The task with id: {ID} have started the download process.");
             return workProvider.Execute_MainWork(downloadService, this);
         }
 
@@ -224,19 +231,47 @@ namespace MultithreadDownload.Tasks
                         Match(
                             success =>
                             {
-                                // If the finalization is successful, set the state to TaskCompleted.
+                                // If the finalization is successful, set the state to Completed.
                                 // At the same time, the event will be invoked to notify that the download task is completed.
+                                // Otherwise, the state of the task sets to Failed.
                                 // PS: Never use _state = DownloadState.TaskCompleted; here, because it will not invoke the event.
-                                // TODO: There is a bug here, the task will not be completed if the event throws an exception.
-                                State = DownloadState.Completed;
-                                DownloadLogger.LogInfo($"The task with id: {ID} have been finalized successfully.");
-                                return true;
+                                // FIXED: Add a try-catch block to catch the exception and log it to prevent the task from entering a dead loop.
+                                try
+                                {
+                                    // Set the state to Completed.
+                                    State = DownloadState.Completed;
+                                    // Log the completion of the task.
+                                    this.Logger.LogInfo("The task have been finalized successfully.");
+                                    // Since the finalization is successful, return true.
+                                    return true;
+                                }
+                                catch (AggregateException ex)
+                                {
+                                    // Log the exception.
+                                    this.Logger.LogInfo($"When change the state of the task to Completed, an exception is thrown which the message is \'{ex.Message}\'.");
+                                    // Since the finalization is failed, return false.
+                                    return false;
+                                }
                             },
                             error =>
                             {
                                 // If the finalization fails, set the state to Failed.
-                                State = DownloadState.Failed;
-                                DownloadLogger.LogError($"The task with id: {ID} have been failed to finalize. Error: {error}");
+                                // At the same time, the event will be invoked to notify that the download task is failed.
+                                // PS: Never use _state = DownloadState.TaskCompleted; here, because it will not invoke the event.
+                                // FIXED: Add a try-catch block to catch the exception and log it to prevent the task from entering a dead loop.
+                                try
+                                {
+                                    // Set the state to Failed.
+                                    State = DownloadState.Failed;
+                                    // Log the error message.
+                                    this.Logger.LogInfo($"The task with id: {ID} have been failed to finalize due to {error.Message}");
+                                }
+                                catch (AggregateException ex)
+                                {
+                                    // Log the exception.
+                                    this.Logger.LogInfo($"When change the state of the task to Failed, an exception is thrown which the message is \'{ex.Message}\'.");
+                                }
+                                // Since the finalization is failed, return false.
                                 return false;
                             }
                         );
@@ -268,14 +303,16 @@ namespace MultithreadDownload.Tasks
             throw new NotImplementedException();
         }
 
-        public void Cancel()
+        public bool Cancel()
         {
             // If the download task is already cancelled or failed, just return.
-            // Otherwise, cancel the download task and it will invoke the state change event.
+            // Otherwise, set the state of download task to Cancelled and it will invoke the state change event.
             if (this.State is DownloadState.Cancelled or DownloadState.Failed)
-                return;
+                return false;
+            // Set the state to Cancelled.
             State = DownloadState.Cancelled;
-            ThreadManager.Cancel();
+            // Cancel all the threads in the thread manager and return the result.
+            return ThreadManager.Cancel();
         }
 
         public void Dispose()
@@ -290,31 +327,30 @@ namespace MultithreadDownload.Tasks
         /// Get the completed size of the file that is being downloaded by this task.
         /// </summary>
         /// <returns></returns>
-        public Result<long> GetCompletedDownloadSize()
+        public Result<long, DownloadError> GetCompletedDownloadSize()
         {
-            if (this.ThreadManager == null) { return Result<long>.Failure("The thread manager is null."); }
-            long size = 0;
+            // Check if the thread manager is null.
+            if (this.ThreadManager == null)
+                return Result<long, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.NullReference, "The thread manager is null."));
+            // If not, get the completed size of the file by summing up the completed size of each thread.
+            long totalSize = 0;
             foreach (IDownloadThread thread in this.ThreadManager.GetThreads())
             {
-                size += thread.CompletedBytesSizeCount;
+                totalSize += thread.CompletedBytesSizeCount;
             }
-            return Result<long>.Success(size);
+            return Result<long, DownloadError>.Success(totalSize);
         }
 
         /// <summary>
         /// Get the number of threads that have been completed download.
         /// </summary>
         /// <returns>The number of thread that have been completed download.</returns>
-        public Result<byte> GetCompletedThreadCount()
+        public Result<byte, DownloadError> GetCompletedThreadCount()
         {
-            if (this.ThreadManager != null)
-            {
-                return Result<byte>.Success((byte)this.ThreadManager.CompletedThreadsCount);
-            }
-            else
-            {
-                return Result<byte>.Failure("The download thread list is null.");
-            }
+            // Check if the thread manager is null.
+            if (this.ThreadManager == null)
+                return Result<byte, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.NullReference, "The thread manager is null."));
+            return Result<byte, DownloadError>.Success(this.ThreadManager.CompletedThreadsCount);
         }
 
         /// <summary>

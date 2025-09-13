@@ -20,18 +20,10 @@ namespace MultithreadDownload.UnitTests.Utils
         public void IsVaildHttpLink_ShouldReturnCorrectResult(string link, bool expected)
         {
             // Act => Call the method to check the link
-            Result<bool> result = HttpNetworkHelper.IsVaildHttpLink(link);
+            bool result = HttpNetworkHelper.IsVaildHttpLink(link);
 
             // Assert => Check if the result is successful and the value is as expected
-            if (string.IsNullOrEmpty(link))
-            {
-                result.IsSuccess.Should().BeFalse();
-            }
-            else
-            {
-                result.IsSuccess.Should().BeTrue();
-                result.Value.Should().Be(expected);
-            }
+            result.Should().Be(expected);
         }
 
         #endregion IsVaildHttpLink()

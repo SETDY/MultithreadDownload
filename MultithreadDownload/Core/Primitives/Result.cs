@@ -46,14 +46,14 @@ namespace MultithreadDownload.Primitives
         /// Creates a successful result.
         /// </summary>
         /// <param name="value">The value to return if the operation is successful.</param>
-        /// <returns>A <see cref="Result{T}"/> instance indicating success.</returns>
+        /// <returns>A <see cref="Result{T, ErrorCode}"/> instance indicating success.</returns>
         public static Result<T, ErrorCode> Success(T value) => new Result<T, ErrorCode>(value);
 
         /// <summary>
         /// Creates a failed result.
         /// </summary>
         /// <param name="errorMessage">The error message describing why the operation failed.</param>
-        /// <returns>A <see cref="Result{T}"/> instance indicating failure.</returns>
+        /// <returns>A <see cref="Result{T, ErrorCode}"/> instance indicating failure.</returns>
         public static Result<T, ErrorCode> Failure(ErrorCode errorCode) => new Result<T, ErrorCode>(errorCode);
         #endregion
 

@@ -23,7 +23,7 @@ namespace MultithreadDownload.Protocols
         /// The download range for each download thread.
         /// </summary>
         /// <remarks>
-        /// rangePosition[n][0] = startPostion; rangePosition[n][1] = endPosition
+        /// rangePosition[n,0] = startPostion; rangePosition[n,1] = endPosition
         /// </remarks>
         public long[,] RangePositions { get; }
 
@@ -31,5 +31,11 @@ namespace MultithreadDownload.Protocols
         /// The size of the file has been downloaded.
         /// </summary>
         public Result<bool, DownloadError> IsPropertiesVaild();
+
+        /// <summary>
+        /// Gets the range size of the file for a thread to downloaded.
+        /// </summary>
+        /// <returns>The range size of the file in bytes.</returns>
+        public long GetRangeSize(byte threadID);
     }
 }

@@ -74,7 +74,7 @@ namespace MultithreadDownload.Protocols.Http
         public Result<bool, DownloadError> DownloadFile()
         {
             // Log the start of the download process with the expected range size
-            this._thread.Logger.LogInfo($"Starting download with expected range {((HttpDownloadContext)_thread.DownloadContext).RangePositions[_thread.ID, 1] - ((HttpDownloadContext)_thread.DownloadContext).RangePositions[_thread.ID, 0] + 1}");
+            this._thread.Logger.LogInfo($"Starting download with expected range {((HttpDownloadContext)_thread.DownloadContext).GetRangeSize(_thread.ID)}");
             // Set the state of the download thread to downloading
             _thread.SetState(DownloadState.Downloading);
             // Initialize the retry count to 0
@@ -286,10 +286,9 @@ namespace MultithreadDownload.Protocols.Http
         private void UpdateThreadProgress()
         {
             // Get the download context of the thread
-            // Caculate the size that the thread should be downloaded (rangeSize)
+            // Get the size that the thread should be downloaded (rangeSize)
             HttpDownloadContext downloadContext = (HttpDownloadContext)_thread.DownloadContext;
-            long rangeSize = downloadContext.RangePositions[_thread.ID, 1] -
-                downloadContext.RangePositions[_thread.ID, 0] + 1;
+            long rangeSize = downloadContext.GetRangeSize(_thread.ID);
 
             // Check if the completed bytes size count is greater than the range size
             if (_thread.CompletedBytesSizeCount > rangeSize)

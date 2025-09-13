@@ -88,14 +88,14 @@ namespace MultithreadDownload.Primitives
         /// Checks if the given URL is valid and can be connected.
         /// </summary>
         /// <returns>Whether the http link can be connected</returns>
-        public static Result<bool> IsVaildHttpLink(string link)
+        public static bool IsVaildHttpLink(string link)
         {
             // If the link is null or empty, return a failure result.
             // Otherwise, use Regex to check if the link is valid.
             if (string.IsNullOrEmpty(link))
-                return Result<bool>.Failure("The link is null or empty.");
+                return false;
             Regex regex = new Regex("https?://");
-            return Result<bool>.Success(regex.IsMatch(link));
+            return regex.IsMatch(link);
         }
 
         /// <summary>
@@ -133,13 +133,16 @@ namespace MultithreadDownload.Primitives
         /// <returns>Whether the link can be connected</returns>
         public static async Task<bool> LinkCanConnectionAsync(string link)
         {
-            Result<bool> primaryResult = IsVaildHttpLink(link);
-            // Note: There should be use primaryResult.Value instead of primaryResult.IsSuccess
-            //       because the IsSuccess only check if IsVaildHttpLink() is success,
-            //       but not check if the link is valid.
-            if (!primaryResult.Value) { return false; }
-            if (!IsConnectedInternet()) { return false; }
-            if (await GetWebStatusCodeAsync(link) != HttpStatusCode.OK) { return false; }
+            // First, check if the link is valid.
+            // Then, check if the system is connected to the Internet.
+            // Finally, send a HEAD request to the URL to check if it can be connected.
+            bool primaryResult = IsVaildHttpLink(link);
+            if (!primaryResult) 
+                return false;
+            if (!IsConnectedInternet())
+                return false;
+            if (await GetWebStatusCodeAsync(link) != HttpStatusCode.OK)
+                return false;
             return true;
         }
 

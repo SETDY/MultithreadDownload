@@ -47,11 +47,11 @@ namespace MultithreadDownload.UnitTests.Schedulers
             Guid taskId = scheduler.GetTasks()[0].ID;
 
             // Act
-            Result<bool> result = scheduler.CancelTask(taskId);
+            bool result = scheduler.CancelTask(taskId);
 
             // Assert
-            result.IsSuccess.Should().BeTrue();
-            result.Value.Should().BeTrue();
+            result.Should().BeTrue();
+            result.Should().BeTrue();
             scheduler.GetTasks()[0].State.Should().Be(DownloadState.Cancelled);
         }
 
@@ -66,11 +66,11 @@ namespace MultithreadDownload.UnitTests.Schedulers
             scheduler.AddTask(mockDownloadContext.Object);
 
             // Act
-            Result<bool> result = scheduler.CancelTasks();
+            bool result = scheduler.CancelTasks();
 
             // Assert
-            result.IsSuccess.Should().BeTrue();
-            result.Value.Should().BeTrue();
+            result.Should().BeTrue();
+            result.Should().BeTrue();
             scheduler.GetTasks().ToList().ForEach(t => t.State.Should().Be(DownloadState.Cancelled));
         }
 
@@ -108,10 +108,9 @@ namespace MultithreadDownload.UnitTests.Schedulers
         public void Start_ShouldStartAllocatorTask()
         {
             // Act
-            var result = scheduler.Start();
+            scheduler.Start();
 
             // Assert
-            result.IsSuccess.Should().BeTrue();
             // The allocator task status should be running
             FieldInfo allocator = scheduler.GetType().GetField("_allocator", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
                 ?? throw new InvalidOperationException("Field '_allocator' not found.");

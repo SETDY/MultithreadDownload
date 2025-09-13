@@ -14,7 +14,7 @@ namespace MultithreadDownload.Threads
         /// <summary>
         /// The ID of the download thread. This is used to identify the thread in the download task.
         /// </summary>
-        public int ID { get; }
+        public byte ID { get; }
 
         /// <summary>
         /// The size of the file that has been downloaded by this thread.

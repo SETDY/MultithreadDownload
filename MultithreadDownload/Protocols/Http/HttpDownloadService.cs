@@ -41,10 +41,10 @@ namespace MultithreadDownload.Protocols.Http
         /// <param name="downloadContext"></param>
         /// <param name="rangePostions"></param>
         /// <returns>The streams for each of the download threads of the download task</returns>
-        public Result<Stream[], DownloadError> GetStreams(IDownloadContext downloadContext)
+        public Result<Stream[], DownloadError> GetStreams(IDownloadContext downloadContext, DownloadScopedLogger logger)
         {
             // Log the start of getting streams for the download task
-            DownloadLogger.LogInfo($"Getting streams for download task: {downloadContext.TargetPath}");
+            logger.LogInfo($"Getting streams for download task: {downloadContext.TargetPath}");
             // Set the enumerator for the range positions of the download context
             // to get the streams for each of the download threads of the download task.
             IEnumerable<Result<Stream, DownloadError>> resultEnumerator = 
@@ -54,7 +54,7 @@ namespace MultithreadDownload.Protocols.Http
                     long start = downloadContext.RangePositions[i, 0];
                     long end = downloadContext.RangePositions[i, 1];
                     // Log the start and end positions for the download thread
-                    DownloadLogger.LogInfo($"Getting stream for download thread {i}: Start = {start}, End = {end}");
+                    logger.LogInfo($"Getting stream for download thread {i}: Start = {start}, End = {end}");
                     return GetStreamSafe(downloadContext, start, end);
                 });
             // Using the TryAll method to get the result of streams for each of the download threads of the download task.
@@ -113,8 +113,6 @@ namespace MultithreadDownload.Protocols.Http
                 startPosition,
                 endPosition
                 );
-            // Log the request message for debugging purposes
-            DownloadLogger.LogInfo($"Request message created for URL: {requestMessage.RequestUri.AbsoluteUri} with Range: {requestMessage.Headers.Range?.ToString()}");
             // If the request is successful, return the response stream.
             // Otherwise, return a failure result with the same error message.
             return SendRequestWithRetry(client, requestMessage).Map(response => response.Content.ReadAsStream());
@@ -191,7 +189,6 @@ namespace MultithreadDownload.Protocols.Http
         /// <returns>The result of sending the request and getting the response</returns>
         private async Task<Result<HttpResponseMessage, DownloadError>> SendRequest(HttpClient client, HttpRequestMessage requestMessage)
         {
-            DownloadLogger.LogInfo($"Sending request to {requestMessage.RequestUri.AbsoluteUri} with Range: {requestMessage.Headers.Range?.ToString()}");
             // Set the timeout for the request
             using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(WAIT_TIME)))
             {
@@ -202,7 +199,6 @@ namespace MultithreadDownload.Protocols.Http
                 {
                     HttpResponseMessage responseMessage = await client
                         .SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead);
-                    DownloadLogger.LogInfo($"Response received from {requestMessage.RequestUri.AbsoluteUri} with status code {responseMessage.StatusCode}.");
                     responseMessage.EnsureSuccessStatusCode();
                     return Result<HttpResponseMessage, DownloadError>.Success(responseMessage);
                 }
@@ -244,7 +240,7 @@ namespace MultithreadDownload.Protocols.Http
                    .AndThen((isSuccess) => CombineSegments(task, outputStream))
                    .AndThen((isSuccess) => CleanUpTaskWithLogging(task, outputStream, "The download task has been completed successfully. " +
                         "Cleaning up the download progress and combining the segments."))
-                   .OnFailure(errorCode => DownloadLogger.LogError($"PostDownloadProcessing failed: {errorCode}"));
+                   .OnFailure(errorCode => task.Logger.LogWarning($"PostDownloadProcessing failed: {errorCode}"));
         }
 
         /// <summary>
@@ -320,12 +316,11 @@ namespace MultithreadDownload.Protocols.Http
             // According to different reasons, log different levels of logs
             if (task.State == DownloadState.Cancelled)
             {
-                DownloadLogger.LogInfo($"Task {task.ID} cleanup: {reason}");
-                Debug.WriteLine($"Task {task.ID} has been cancelled. Cleaning up download progress.");
+                task.Logger.LogInfo($"Task is going to cleanup due to {reason}");
             }
             else
             {
-                DownloadLogger.LogInfo($"Task {task.ID} cleanup: {reason}. " +
+                task.Logger.LogInfo($"Task is going to cleanup forcely due to {reason}. " +
                     $"TaskCompleted threads: {task.ThreadManager.CompletedThreadsCount}, " +
                     $"Max threads: {task.ThreadManager.MaxParallelThreads}");
             }
@@ -352,15 +347,11 @@ namespace MultithreadDownload.Protocols.Http
                 // Match the result of deleting segments
                 onSuccess: _ =>
                 {
-                    // Log the success message if necessary and clean up the target stream
-                    DownloadLogger.LogInfo("Successfully deleted segments after download task/thread is cancelled or completed.");
                     // Clean up the target stream by closing and disposing it
                     return targetStream.CleanUp();
                 },
                 onFailure: errorCode =>
                 {
-                    // Log the error message if necessary
-                    DownloadLogger.LogError($"When cleaning up the download progress for deleting segments, an error occurred: {errorCode}");
                     // If the deletion of segments failed, we still need to clean up the target stream to minimize the resource leak
                     return targetStream.CleanUp();
                 }
@@ -368,8 +359,6 @@ namespace MultithreadDownload.Protocols.Http
                 // Match the result of cleaning up the target stream
                 onSuccess: _ =>
                 {
-                    // Log the success message if necessary
-                    DownloadLogger.LogInfo("Successfully cleaned up the output stream");
                     return Result<bool, DownloadError>.Success(true);
                 },
                 onFailure: errorCode =>

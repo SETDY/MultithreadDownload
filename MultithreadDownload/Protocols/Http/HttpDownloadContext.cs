@@ -86,6 +86,24 @@ namespace MultithreadDownload.Protocols.Http
         }
 
         /// <summary>
+        /// Gets the range size of the file for a thread to downloaded.
+        /// </summary>
+        /// <returns>The range size of the file in bytes.</returns>
+        public long GetRangeSize(byte threadID)
+        {
+            // Get the range size for the specified thread
+            // Get the start and end positions for the thread
+            long startPosition = RangePositions[threadID, 0];
+            long endPosition = RangePositions[threadID, 1];
+            // Calculate and return the range size
+            // If the start and end positions are both 0, return 0
+            // Otherwise, return the range size
+            return startPosition == 0 && endPosition == 0 
+                   ? 0 
+                   : endPosition - startPosition + 1;
+        }
+
+        /// <summary>
         /// Creates a new instance of the HttpDownloadContext class.
         /// </summary>
         /// <param name="maxParallelThreads">The maximum number of parallel threads for downloading.</param>

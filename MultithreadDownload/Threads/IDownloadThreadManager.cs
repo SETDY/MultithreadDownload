@@ -49,7 +49,7 @@ namespace MultithreadDownload.Threading
         /// <summary>
         /// Cancels the download threads.
         /// </summary>
-        void Cancel();
+        bool Cancel();
 
         /// <summary>
         /// Creates new download threads with the maximum number of threads.

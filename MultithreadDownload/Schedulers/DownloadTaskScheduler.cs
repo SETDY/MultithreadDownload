@@ -15,7 +15,7 @@ using MultithreadDownload.Utils;
 
 namespace MultithreadDownload.Schedulers
 {
-    public class DownloadTaskScheduler : IDownloadTaskScheduler, IDisposable
+    public sealed class DownloadTaskScheduler : IDownloadTaskScheduler, IDisposable
     {
         /// <summary>
         /// The map of all the tasks including the tasks that are not in the queue. e.g. the tasks that are completed or cancelled.
@@ -175,11 +175,13 @@ namespace MultithreadDownload.Schedulers
         public void Dispose()
         {
             // Cancel all tasks in the queue
+            // If the allocator is running, stop the allocator
             // Stop and dispose the task queue and the download slots
             this.GetTasks().ToList().ForEach(task => task.Cancel());
-            Stop();
-            _taskQueue?.Dispose();
-            _downloadSlots?.Dispose();
+            if (this.isAllocatorRunning)
+                this.Stop();
+            this._taskQueue?.Dispose();
+            this._downloadSlots?.Dispose();
         }
 
         #region Methods of task allocator
@@ -355,7 +357,7 @@ namespace MultithreadDownload.Schedulers
         /// Pause a task that is in the queue.
         /// </summary>
         /// <param name="taskId">The id of the task to pause.</param>
-        public Result<bool> PauseTask(Guid taskID)
+        public bool PauseTask(Guid taskID)
         {
             // If the task is downloading, pause the task that satisfies taskID
             // Otherwise, return failure result.
@@ -364,17 +366,17 @@ namespace MultithreadDownload.Schedulers
                 if (task.ID == taskID && task.State != DownloadState.Cancelled && task.State != DownloadState.Completed)
                 {
                     task?.Pause();
-                    return Result<bool>.Success(true);
+                    return true;
                 }
             }
-            return Result<bool>.Failure($"The task with id {taskID} cannot be paused");
+            return false;
         }
 
         /// <summary>
         /// Resume a task that is already paused
         /// </summary>
         /// <param name="taskId"></param>
-        public Result<bool> ResumeTask(Guid taskID)
+        public bool ResumeTask(Guid taskID)
         {
             // If the task is downloading, resume the task that satisfies taskID
             // Otherwise, return failure result.
@@ -383,17 +385,17 @@ namespace MultithreadDownload.Schedulers
                 if (task.ID == taskID && task.State == DownloadState.Paused)
                 {
                     task?.Pause();
-                    return Result<bool>.Success(true);
+                    return true;
                 }
             }
-            return Result<bool>.Failure($"The task with id {taskID} cannot be resumed");
+            return false;
         }
 
         /// <summary>
         /// Resume a task that is in the queue.
         /// </summary>
         /// <param name="taskId">The id of the task to resume.</param>
-        public Result<bool> CancelTask(Guid taskID)
+        public bool CancelTask(Guid taskID)
         {
             // If the task is downloading, cancel the task that satisfies taskID
             // Otherwise, return failure result.
@@ -402,33 +404,35 @@ namespace MultithreadDownload.Schedulers
                 if (task.ID == taskID)
                 {
                     task?.Cancel();
-                    return Result<bool>.Success(true);
+                    return true;
                 }
             }
-            return Result<bool>.Failure($"The task with id {taskID} cannot be cancelled");
+            return false;
         }
 
         /// <summary>
         /// Cancel all tasks that is in the queue.
         /// </summary>
-        /// <returns>Whether the tasks are cancelled successfully.</returns>
-        public Result<bool> CancelTasks()
+        /// <returns>Whether all the tasks are cancelled successfully.</returns>
+        public bool CancelTasks()
         {
-            try
+            // isAllCancelled is used to check whether the tasks are cancelled successfully.
+            bool isAllCancelled = true;
+            // Enumerate all tasks and cancel them one by one.
+            foreach (DownloadTask task in this.GetTasks())
             {
-                // isCancelled is used to check whether the tasks are cancelled successfully.
-                bool isCancelled = false;
-                foreach (DownloadTask task in this.GetTasks())
+                try
                 {
-                    task.Cancel();
-                    isCancelled = true;
+                    // Cancel the task and update isAllCancelled.
+                    isAllCancelled = task.Cancel();
                 }
-                return Result<bool>.Success(isCancelled);
+                catch (Exception ex)
+                {
+                    // Log the error if there is an exception when cancelling the tasks
+                    DownloadLogger.LogError("Unexpected error when cancelling all tasks.", ex);
+                }
             }
-            catch (Exception ex)
-            {
-                return Result<bool>.Failure("Cannot cancel all tasks, error message: " + ex);
-            }
+            return isAllCancelled;
         }
 
         #endregion Mothods about download task

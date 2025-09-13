@@ -323,7 +323,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             // Assert
             contextResult.Should().NotBeNull();
             contextResult.IsSuccess.Should().BeFalse();
-            contextResult.Value.Should().BeNull();
+            contextResult.Value.HasValue.Should().BeFalse();
         }
     }
 }

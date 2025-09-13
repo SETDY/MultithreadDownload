@@ -16,7 +16,7 @@ namespace MultithreadDownload.Threading
         /// <summary>
         /// The ID of the download thread. This is used to identify the thread in the download task.
         /// </summary>
-        public int ID { get; private set; }
+        public byte ID { get; private set; }
 
         /// <summary>
         /// The state of the download thread. This indicates whether the thread is running, paused, or stopped.
@@ -77,7 +77,7 @@ namespace MultithreadDownload.Threading
         /// </remarks>
         private readonly Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> _work;
 
-        public DownloadThread(int id, IDownloadContext downloadContext, string fileSegmentPath, Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> work)
+        public DownloadThread(byte id, IDownloadContext downloadContext, string fileSegmentPath, Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> work)
         {
             // Initialize the properties
             ID = id;

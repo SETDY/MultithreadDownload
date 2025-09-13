@@ -22,17 +22,21 @@ namespace MultithreadDownload.Schedulers
         public Result<bool, DownloadError> Execute_MainWork(IDownloadService downloadService, DownloadTask task)
         {
             // Check if the download service and task are not null and if the task state is Waiting.
-            if (downloadService is null) { return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.NullReference, "Parameter downloadService is null.")); }
-            if (task is null) { return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.NullReference, "Parameter task is null.")); }
-            if (task.State is not DownloadState.Downloading) { return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.NullReference, "The state of download task is not Waiting, causing main work cannot be excecuted.")); }
+            if (downloadService is null)
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.NullReference, "Parameter downloadService is null."));
+            if (task is null)
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.NullReference, "Parameter task is null."));
+            if (task.State is not DownloadState.Downloading)
+                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.NullReference, "The state of download task is not Waiting, causing main work cannot be excecuted."));
+
             // First, Get the input stream from the download service.
             // Then, get the output streams for each thread to write to if the input stream is successfully retrieved.
             // After that, start the threads with the input stream and output streams if the output streams are successfully retrieved.
             // If any of the steps fail, return a failure result with an appropriate error message.
             // Log the start of the main work execution.
-            DownloadLogger.LogInfo($"Executing main work for download task: {task.DownloadContext.TargetPath}");
+            task.Logger.LogInfo($"Executing main work for download task: {task.DownloadContext.TargetPath}");
             return downloadService
-                .GetStreams(task.DownloadContext)
+                .GetStreams(task.DownloadContext, task.Logger)
                 .AndThen(inputStream =>
                     GetTaskStreams(task.ThreadManager.MaxParallelThreads, task.DownloadContext)
                     .Map(outputStreams =>
