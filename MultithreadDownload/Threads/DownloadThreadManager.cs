@@ -79,10 +79,10 @@ namespace MultithreadDownload.Threading
         public DownloadThreadManager(IDownloadThreadFactory factory, byte maxThreads, IDownloadContext downloadContext)
         {
             // Initialize the properties
-            _threads = new List<IDownloadThread>(maxThreads);
-            _downloadContext = downloadContext;
-            _maxThreads = maxThreads;
-            _factory = factory;
+            this._threads = new List<IDownloadThread>(maxThreads);
+            this._downloadContext = downloadContext;
+            this._maxThreads = maxThreads;
+            this._factory = factory;
         }
 
         /// <summary>
@@ -100,19 +100,19 @@ namespace MultithreadDownload.Threading
             // Check if the target file already exists
             // If it does, return a failure result
             // Otherwise, split the file paths and create new download threads with the maximum number of threads
-            if (File.Exists(_downloadContext.TargetPath))
+            if (File.Exists(this._downloadContext.TargetPath))
                 return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.FileAlreadyExists, "The final file already exists."));
-            if (_threads.Count != 0)
+            if (this._threads.Count != 0)
                 throw new InvalidOperationException("The download threads already exist. Please dispose of them before creating new ones.");
             // return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.ThreadCreationFailed, "The download threads already exist. Please dispose of them before creating new ones."));
 
             // Split the file paths into segments based on the maximum number of threads allowed
             // Then, create new download threads with the main work delegate
             // Log that the threads are being created 
-            logger.LogInfo($"Strart the process of creating {MaxParallelThreads} download threads for file segments in {_downloadContext.TargetPath}.");
+            logger.LogInfo($"Strart the process of creating {this.MaxParallelThreads} download threads for file segments in {this._downloadContext.TargetPath}.");
             return FileSegmentHelper
-                .SplitPaths(MaxParallelThreads, _downloadContext.TargetPath)
-                .AndThen(segmentPaths => CreateThreads(MaxParallelThreads, segmentPaths, mainWork, logger));
+                .SplitPaths(this.MaxParallelThreads, this._downloadContext.TargetPath)
+                .AndThen(segmentPaths => CreateThreads(this.MaxParallelThreads, segmentPaths, mainWork, logger));
         }
 
         /// <summary>
@@ -135,7 +135,7 @@ namespace MultithreadDownload.Threading
                 return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.ArgumentOutOfRange, "The number of threads must be greater than 0 and equal to the number of file segments."));
 
             logger.LogInfo($"Succese to get the file segment paths. Continue to create the threads.");
-            logger.LogInfo($"Try to Create {maxParallelThreads} download threads for file segments in {_downloadContext.TargetPath}.");
+            logger.LogInfo($"Try to Create {maxParallelThreads} download threads for file segments in {this._downloadContext.TargetPath}.");
             IEnumerable<Result<bool, DownloadError>> resultEnumertor = fileSegmentPaths
                 .Select(fileSegmentPath => CreateThread(fileSegmentPath, mainWork, logger));
             return Result<bool, DownloadError>.AllSucceeded(resultEnumertor);
@@ -170,10 +170,10 @@ namespace MultithreadDownload.Threading
             // Then, Set the progresser and the logger for the thread
             // Finally, Add the thread to the list of threads
             IDownloadThread downloadThread = 
-                this._factory.Create((byte)_threads.Count, _downloadContext, fileSegmentPath, mainWork);
+                this._factory.Create((byte)this._threads.Count, this._downloadContext, fileSegmentPath, mainWork);
             this.SetThreadProgresser(downloadThread);
             downloadThread.SetLogger(this.GetThreadLogger(logger, downloadThread));
-            _threads.Add(downloadThread);
+            this._threads.Add(downloadThread);
             // Log that the thread is created successfully
             logger.LogInfo($"Download thread {downloadThread.ID} is created successfully for file segment {fileSegmentPath}.");
             return Result<bool, DownloadError>.Success(true);
@@ -207,12 +207,12 @@ namespace MultithreadDownload.Threading
                     // This if statement checks if the number of completed threads is greater than the maximum number of threads
                     // If it happens, the task may stack and cause a deadlock because the task is waiting for the thread to complete
                     // To prevent that from happening, it throws an exception to break the deadlock
-                    if (CompletedThreadsCount > MaxParallelThreads)
-                        Cancel();
+                    if (this.CompletedThreadsCount > this.MaxParallelThreads)
+                        this.Cancel();
                     // Check whether the thread is completed or not before incrementing the completed threads count
                     // To ensure that the thread does not increase the _completedThreadsCount multiple times
                     // Increment the completed threads count by using Interlocked to ensure thread safety
-                    ThreadCompleted?.Invoke(thread);
+                    this.ThreadCompleted?.Invoke(thread);
                 }
                 // If the progress is -1, it indicates that the download has been cancelled or failed.
                 else if (progress == -1)
@@ -220,9 +220,10 @@ namespace MultithreadDownload.Threading
                     // If the progress is -1, it indicates that the download has been cancelled or failed.
                     // In this case, since setting the state of the thread to cancelled or failed has been done in the thread's main work,
                     // we just cancel all the threads and invoke the ThreadCompleted event to notify that the thread has completed its work. 
-                    DownloadLogger.LogError($"The thread manager has been notified that the thread {thread.ID} has been cancelled or failed.");
-                    Cancel();
-                    ThreadCompleted?.Invoke(thread);
+                    // Log the error that the thread has been cancelled or failed
+                    DownloadLogger.For(Option<string>.Some(thread.Logger.GetContext().Item1), Option<byte>.None()).LogError($"The thread manager has been notified that the thread {thread.ID} has been cancelled or failed.");
+                    this.Cancel();
+                    this.ThreadCompleted?.Invoke(thread);
                 }
             });
             thread.SetProgresser(progresser);
@@ -247,12 +248,12 @@ namespace MultithreadDownload.Threading
             if (inputStreams.Length == 0 || outputStreams.Length == 0)
                 throw new ArgumentException("The number of input streams and output streams must be greater than 0.");
             // If the length of the output and input streams is not equal to the number of threads, throw an exception
-            if (outputStreams.Length != _threads.Count || inputStreams.Length != _threads.Count)
+            if (outputStreams.Length != this._threads.Count || inputStreams.Length != this._threads.Count)
                     throw new ArgumentException("The number of output streams and input streams must be equal to the number of threads.");
             // Otherwise, start each thread with the input stream and the corresponding output stream
             for (int i = 0; i < outputStreams.Length; i++)
             {
-                _threads[i].Start(inputStreams[i], outputStreams[i]);
+                this._threads[i].Start(inputStreams[i], outputStreams[i]);
             }
         }
 
@@ -261,7 +262,7 @@ namespace MultithreadDownload.Threading
         /// </summary>
         public void Pause()
         {
-            foreach (IDownloadThread thread in _threads)
+            foreach (IDownloadThread thread in this._threads)
             {
                 thread.Pause();
             }
@@ -272,7 +273,7 @@ namespace MultithreadDownload.Threading
         /// </summary>
         public void Resume()
         {
-            foreach (IDownloadThread thread in _threads)
+            foreach (IDownloadThread thread in this._threads)
             {
                 thread.Resume();
             }
@@ -284,7 +285,7 @@ namespace MultithreadDownload.Threading
         public bool Cancel()
         {
             // Cancel each thread and return true if all threads are cancelled successfully
-            return Result<bool, DownloadError>.TryAll(_threads.Select(thread => thread.Cancel())).
+            return Result<bool, DownloadError>.TryAll(this._threads.Select(thread => thread.Cancel())).
                 Map(flags => flags.All(flag => flag)).UnwrapOr(false);
         }
 
@@ -295,7 +296,7 @@ namespace MultithreadDownload.Threading
             {
                 thread.Dispose();
             }
-            _threads.Clear();
+            this._threads.Clear();
         }
 
         /// <summary>

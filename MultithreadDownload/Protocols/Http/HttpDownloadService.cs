@@ -299,6 +299,19 @@ namespace MultithreadDownload.Protocols.Http
         }
         #endregion
 
+        /// <summary>
+        /// Determines whether the specified download context is supported by the implementation.
+        /// </summary>
+        /// <param name="downloadContext">The download context to evaluate for support. Cannot be null.</param>
+        /// <returns>true if the specified download context is supported; otherwise, false.</returns>
+        public bool IsSupportedDownloadContext(IDownloadContext downloadContext)
+        {
+            // Check if the download context is null
+            ArgumentNullException.ThrowIfNull(downloadContext, "Download context cannot be null.");
+            // Check if the download context is of type HttpDownloadContext
+            return downloadContext is HttpDownloadContext;
+        }
+
         #region Internal static methods for cleaning up the download progress
 
         /// <summary>

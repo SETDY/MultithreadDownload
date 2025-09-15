@@ -117,6 +117,10 @@ namespace MultithreadDownload.Protocols.Http
         /// </remarks>
         public static async Task<Result<HttpDownloadContext, DownloadError>> GetDownloadContext(byte maxParallelThreads, string savedPath, string link)
         {
+            // Check the input parameters
+            if (maxParallelThreads == 0 || string.IsNullOrEmpty(savedPath) || string.IsNullOrEmpty(link))
+                return Result<HttpDownloadContext, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.TaskContextInvalid, "One or more input parameters are invalid."));
+
             // Get the file size from the link
             Result<long, DownloadError> fileSize = await HttpNetworkHelper.GetLinkFileSizeAsync(link);
             // If the file size is not successfully retrieved, return result with error message

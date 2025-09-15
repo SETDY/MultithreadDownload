@@ -36,5 +36,12 @@ namespace MultithreadDownload.Protocols
         /// <param name="threadInfo">Information about the current download thread.</param>
         /// <returns>A <see cref="Result{bool,DownloadError}"/> indicating success or failure.</returns>
         Result<bool, DownloadError> PostDownloadProcessing(Stream outputStream, DownloadTask task);
+
+        /// <summary>
+        /// Determines whether the specified download context is supported by the implementation.
+        /// </summary>
+        /// <param name="downloadContext">The download context to evaluate for support. Cannot be null.</param>
+        /// <returns>true if the specified download context is supported; otherwise, false.</returns>
+        bool IsSupportedDownloadContext(IDownloadContext downloadContext);
     }
 }

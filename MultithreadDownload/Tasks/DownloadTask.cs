@@ -54,7 +54,7 @@ namespace MultithreadDownload.Tasks
                 if (_state is DownloadState.Completed or DownloadState.Failed or DownloadState.Cancelled)
                 {
                     // Log the completion of the task.
-                    DownloadLogger.LogInfo($"The task with id: {ID} have been completed the download process with state: {_state}.");
+                    this.Logger.LogInfo($"The task with id: {ID} have been completed the download process with state: {_state}.");
                     try
                     {
                         this.TaskCompleted?.Invoke();
@@ -64,7 +64,7 @@ namespace MultithreadDownload.Tasks
                         // If the progarmme enter here, that means some methods that scribe to the TaskCompleted event have thrown an exception.
                         // Therefore, log the error and throw an exception has to be excuted.
                         // Otherwise, the task will not be funtionally completed but into a dead loop and the user will not know why the task is not userly completed.
-                        DownloadLogger.LogError($"An error occurred when the TaskCompleted event was invoked for the task with id: {ID}.", ex);
+                        this.Logger.LogError($"An error occurred when the TaskCompleted event was invoked for the task with id: {ID}.", ex);
                         throw new AggregateException(
                             $"An exception occurred when the TaskCompleted event was invoked for the task with id: {ID}.", ex);
                     }
@@ -190,13 +190,11 @@ namespace MultithreadDownload.Tasks
         private void SetThreadCompletedEventHandler(IDownloadTaskWorkProvider workProvider, IDownloadService downloadService)
         {
             // Log to Set the event handler for when a thread is completed.
-            DownloadLogger.LogInfo($"Setting the event handler for when a thread is completed for the task with id: {ID}.");
+            this.Logger.LogInfo($"Setting the event handler for when a thread is completed for the task with id: {ID}.");
             this.ThreadManager.ThreadCompleted += (t) =>
             {
                 try
                 {
-                    Debug.WriteLine($"Enter ThreadCompleted process when CompletedThreadsCount is {this.ThreadManager.CompletedThreadsCount} and MaxParallelThreads is {this.ThreadManager.MaxParallelThreads}");
-
                     // Below code is used to handle that the thread is failed or cancelled.
                     // If the task is cancelled, return to prevent the task from being finalized.
                     if (State is DownloadState.Failed or DownloadState.Cancelled)
@@ -278,7 +276,7 @@ namespace MultithreadDownload.Tasks
                 }
                 catch(InvalidOperationException iex)
                 {
-                    DownloadLogger.LogError($"An error occurred when the thread completed for the task with id: {ID}.\n" +
+                    this.Logger.LogError($"An error occurred when the thread completed for the task with id: {ID}.\n" +
                         $"This may be happen when a method subscribe the task completed event but it throws a exception\n" +
                         $"The message is {iex.Message}", iex);
                     // This exception has to be thrown to prevent the programme from entering a dead loop.
@@ -286,7 +284,7 @@ namespace MultithreadDownload.Tasks
                 }
                 catch (Exception ex)
                 {
-                    DownloadLogger.LogError($"Unexpected error occurred when a thread are completed.\nThe message is {ex.Message}", ex);
+                    this.Logger.LogError($"Unexpected error occurred when a thread are completed.\nThe message is {ex.Message}", ex);
                     throw;
                 }
             };
