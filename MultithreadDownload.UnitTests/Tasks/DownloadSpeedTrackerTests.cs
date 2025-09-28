@@ -119,25 +119,23 @@ namespace MultithreadDownload.UnitTests.Tasks
         public async Task StartMonitoring_ShouldTriggerSpeedReportEvents()
         {
             // Arrange
-            bool eventTriggered = false;
-            string? reportedSpeed = null;
+            TaskCompletionSource<string?> tcs = new TaskCompletionSource<string?>();
             TimeSpan interval = TimeSpan.FromMilliseconds(100);
 
             _tracker.SpeedReportGenerated += speed =>
             {
-                eventTriggered = true;
-                reportedSpeed = speed;
+                tcs.TrySetResult(speed); // Set the result when event is triggered
             };
 
             // Act
             _tracker.StartMonitoring(interval);
             _tracker.ReportBytes(1024);
 
-            // Wait for at least one event to be triggered
-            await Task.Delay(200);
+            // Wait for event to be triggered, with timeout to avoid hanging
+            var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(1000));
+            string? reportedSpeed = completedTask == tcs.Task ? tcs.Task.Result : null;
 
             // Assert
-            Assert.True(eventTriggered, "SpeedReportGenerated event should be triggered");
             Assert.NotNull(reportedSpeed);
         }
 
@@ -176,22 +174,31 @@ namespace MultithreadDownload.UnitTests.Tasks
         {
             // Arrange
             int eventCount = 0;
-            TimeSpan interval = TimeSpan.FromMilliseconds(50);
+            TimeSpan interval = TimeSpan.FromMilliseconds(100);
+            TaskCompletionSource<bool> tcsFirstEvent = new TaskCompletionSource<bool>();
 
-            _tracker.SpeedReportGenerated += _ => Interlocked.Increment(ref eventCount);
+            _tracker.SpeedReportGenerated += _ =>
+            {
+                Interlocked.Increment(ref eventCount);
+                tcsFirstEvent.TrySetResult(true);
+            };
+
             _tracker.StartMonitoring(interval);
+            _tracker.ReportBytes(1024);
 
-            // Wait for some events
-            await Task.Delay(120);
+            // Wait for first event to ensure monitoring started
+            Task completedTask = await Task.WhenAny(tcsFirstEvent.Task, Task.Delay(1000));
+            Assert.True(completedTask == tcsFirstEvent.Task, "No event triggered before stopping");
+
             int countAfterStart = eventCount;
 
             // Act
             _tracker.StopMonitoring();
-            await Task.Delay(120); // Wait same amount of time
+            await Task.Delay(300); // Wait some time to check no more events are generated
+
             int countAfterStop = eventCount;
 
             // Assert
-            Assert.True(countAfterStart > 0, "Events should have been generated before stopping");
             Assert.Equal(countAfterStart, countAfterStop); // No new events after stopping
         }
 
