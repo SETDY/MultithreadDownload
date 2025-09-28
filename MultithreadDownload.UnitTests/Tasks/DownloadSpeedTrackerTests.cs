@@ -277,25 +277,34 @@ namespace MultithreadDownload.UnitTests.Tasks
         public async Task Dispose_ShouldCleanupResourcesAndStopMonitoring()
         {
             // Arrange
-            var eventCount = 0;
-            var interval = TimeSpan.FromMilliseconds(50);
+            int eventCount = 0;
+            TimeSpan interval = TimeSpan.FromMilliseconds(100); // 稳定的 timer 间隔
+            TaskCompletionSource<bool> tcsFirstEvent = new TaskCompletionSource<bool>();
 
-            _tracker.SpeedReportGenerated += _ => Interlocked.Increment(ref eventCount);
+            _tracker.SpeedReportGenerated += _ =>
+            {
+                Interlocked.Increment(ref eventCount);
+                tcsFirstEvent.TrySetResult(true); // 确保至少触发一次事件
+            };
+
             _tracker.StartMonitoring(interval);
+            _tracker.ReportBytes(1024);
 
-            // Let some events fire
-            await Task.Delay(120); 
+            // Wait for first event to ensure monitoring started
+            Task completedTask = await Task.WhenAny(tcsFirstEvent.Task, Task.Delay(1000));
+            Assert.True(completedTask == tcsFirstEvent.Task, "No event triggered before Dispose");
+
+            int countAtDispose = eventCount;
 
             // Act
             _tracker.Dispose();
-            var countAtDispose = eventCount;
 
-            // Wait to see if more events fire
-            await Task.Delay(120);
+            // Wait a bit to confirm no more events are fired after Dispose
+            await Task.Delay(300);
 
             // Assert
-            // No events should fire after dispose
-            Assert.Equal(countAtDispose, eventCount); 
+            // After Dispose, event count should not increase
+            Assert.Equal(countAtDispose, eventCount);
         }
 
         /// <summary>
