@@ -2,9 +2,9 @@ name: .NET Build & Test
 
 on:
   push:
-    branches: [ "main", "feature/v3.1.0-docs-and-tests" ]
+    branches: "*"
   pull_request:
-    branches: [ "main", "feature/v3.1.0-docs-and-tests" ]
+    branches: "master"
 
 jobs:
   build:
