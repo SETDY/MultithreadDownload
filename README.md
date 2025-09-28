@@ -58,8 +58,9 @@ dotnet add package MultithreadDownloadLib
 
 ```csharp
 using MultithreadDownload.Core;
-using MultithreadDownload.Tasks;
 using MultithreadDownload.Protocols;
+using MultithreadDownload.Protocols.Http;
+using MultithreadDownload.Tasks;
 
 byte MAX_PARALLEL_THREADS = 8;
 byte MAX_PARALLEL_TASKS = 3;
@@ -68,11 +69,10 @@ byte MAX_PARALLEL_TASKS = 3;
 var downloadManager = new MultiDownload(MAX_PARALLEL_TASKS, DownloadServiceType.Http);
 
 // 获取下载任务上下文（包括分段信息等）
-var context = await HttpDownloadContext.GetDownloadContext(MAX_PARALLEL_THREADS, 
-                                        "D:\\", "https://example.com/file.zip");
+var context = await HttpDownloadContext.GetDownloadContext(MAX_PARALLEL_THREADS, Path.GetTempPath(), "https://example.com/file.zip");
 
 // 添加下载任务到管理器
-downloadManager.AddTask(context.Value);
+downloadManager.AddTask(context.Value.UnwrapOrThrow("Cannot get the context."));
 
 // 启动任务分配器，自动管理任务并启动下载
 downloadManager.StartAllocator();
@@ -84,7 +84,7 @@ downloadManager.TasksProgressCompleted += (sender, e) =>
 };
 
 // （可选）监听下载速度变化
-downloadManager.GetDownloadTasks()[0].SpeedMonitor.SpeedUpdated += (e) =>
+downloadManager.GetDownloadTasks()[0].SpeedTracker.SpeedReportGenerated += (e) =>
 {
     Console.WriteLine($"Current speed: {e}");
 };
@@ -100,7 +100,7 @@ downloadManager.GetDownloadTasks()[0].SpeedMonitor.SpeedUpdated += (e) =>
 | FTP 支持         | 🔧 开发中 |
 | BitTorrent 支持  | 🔧 开发中 |
 | 断点续传         | 🔧 规划中 |
-| 错误重试和处理   | 🔧 规划中 |
+| 错误重试和处理   | ✅ 已完成  |
 | 还有更多...      | ...      |
 
 在提供正确的 HTTP 链接、有效的参数及稳定的网络环境下，**当前版本能够稳定运行，不存在已知运行时异常。**
