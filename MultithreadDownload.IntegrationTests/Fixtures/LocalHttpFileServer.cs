@@ -1,153 +1,204 @@
-using System.Diagnostics;
-using System.Net;
-using System.Text.RegularExpressions;
+﻿//using Microsoft.AspNetCore.Builder;
+//using Microsoft.AspNetCore.Hosting;
+//using Microsoft.AspNetCore.Http;
+//using Microsoft.AspNetCore.TestHost;
+//using Microsoft.Extensions.Hosting;
+//using System.Text.RegularExpressions;
+//using System.Diagnostics;
+//using System.Net.Http;
+//using System.Net.Sockets;
+//using System.Net;
+//using MultithreadDownload.Logging;
 
-namespace MultithreadDownload.IntegrationTests.Fixtures
-{
-    public class LocalHttpFileServer
-    {
-        private readonly HttpListener _listener = new();
-        private readonly string _baseFilePath;
-        private readonly string _url;
-        private readonly bool _noRange;
+//namespace MultithreadDownload.IntegrationTests.Fixtures
+//{
+//    /// <summary>
+//    /// LocalHttpFileServer is a simple HTTP server that serves files from a local byte array.
+//    /// </summary>
+//    public class LocalHttpFileServer
+//    {
+//        #region Fields
+//        /// <summary>
+//        /// Represents the HTTP server instance used to serve files locally.
+//        /// </summary>
+//        private IHost? _host;
 
-        /// <summary>
-        /// The initialization of the local HTTP file server.
-        /// </summary>
-        /// <param name="prefixUrl">The url prefix for the HTTP server.</param>
-        /// <param name="filePath">The file path to be served.</param>
-        /// <remarks>
-        /// The example of <paramref name="prefixUrl"/> is http://localhost:8080/ and
-        /// the example of <paramref name="filePath"/> is C:\testfile.txt
-        /// </remarks>
-        public LocalHttpFileServer(string prefixUrl, string filePath)
-        {
-            _url = prefixUrl;
-            _baseFilePath = filePath;
-            _listener.Prefixes.Add(prefixUrl);
-        }
+//        /// <summary>
+//        /// The port on which the HTTP server is running.
+//        /// </summary>
+//        private int _port;
 
-        /// <summary>
-        /// The initialization of the local HTTP file server.
-        /// </summary>
-        /// <param name="prefixUrl">The url prefix for the HTTP server.</param>
-        /// <param name="filePath">The file path to be served.</param>
-        /// <param name="noRange">The flag to disable range requests.</param>
-        /// <remarks>
-        /// The example of <paramref name="prefixUrl"/> is http://localhost:8080/ and
-        /// the example of <paramref name="filePath"/> is C:\testfile.txt
-        /// </remarks>
-        public LocalHttpFileServer(string prefixUrl, string filePath, bool noRange)
-        {
-            _url = prefixUrl;
-            _baseFilePath = filePath;
-            _listener.Prefixes.Add(prefixUrl);
-            _noRange = noRange;
-        }
+//        /// <summary>
+//        /// The buffer containing the file content to be served by the HTTP server.
+//        /// </summary>
+//        private readonly byte[] _testDataBuffer;
 
-        /// <summary>
-        /// Start the local HTTP file server.
-        /// </summary>
-        public void Start()
-        {
-            _listener.Start();
-            Task.Run(() => HandleRequests());
-        }
+//        /// <summary>
+//        /// Indicates whether the server should handle range requests.
+//        /// </summary>
+//        private readonly bool _noRange;
 
-        /// <summary>
-        /// Stop the local HTTP file server.
-        /// </summary>
-        public void Stop() => _listener.Stop();
+//        /// <summary>
+//        /// Gets the URL of the local HTTP server.
+//        /// </summary>
+//        public string Url => $"http://localhost:{_port}/";
+//        #endregion
 
-        /// <summary>
-        /// Handle the requests from the HTTP server.
-        /// </summary>
-        /// <returns>The asynchronous operation.</returns>
-        private async Task HandleRequests()
-        {
-            while (_listener.IsListening)
-            {
-                try
-                {
-                    HttpListenerContext context = await _listener.GetContextAsync();
-                    HttpListenerRequest request = context.Request;
-                    HttpListenerResponse response = context.Response;
+//        #region Constructors
+//        public LocalHttpFileServer(string _, string filePath, bool noRange = false)
+//            : this(_, File.ReadAllBytes(filePath), noRange) 
+//        { }
 
-                    if (response == null) { continue; }
+//        public LocalHttpFileServer(string _, byte[] testData, bool noRange = false)
+//        {
+//            _testDataBuffer = testData;
+//            _noRange = noRange;
+//        }
+//        #endregion
 
-                    var buffer = File.ReadAllBytes(_baseFilePath);
-                    response.AddHeader("Accept-Ranges", "bytes");
+//        public void Start()
+//        {
+//            if (_host != null)
+//                throw new InvalidOperationException("Server is already running.");
+//            // Pick a random free port
+//            var listener = new TcpListener(IPAddress.Loopback, 0);
+//            listener.Start();
+//            _port = ((IPEndPoint)listener.LocalEndpoint).Port;
+//            listener.Stop();
+//            // Log the server is starting if needed
+//            DownloadLogger.LogInfo($"Starting LocalHttpFileServer at {Url} with file size {_fileContentBuffer.Length} bytes. No Range: {_noRange}");
 
-                    if (HandleRequest_HEAD(request, response, buffer)) { continue; }
+//            _host = Host.CreateDefaultBuilder()
+//                .ConfigureWebHostDefaults(webBuilder =>
+//                {
+//                    webBuilder.UseKestrel()
+//                        .UseUrls(Url)
+//                        .Configure(app =>
+//                        {
+//                            app.Use(async (context, next) =>
+//                            {
+//                                try
+//                                {
+//                                    await next();
+//                                }
+//                                catch (Exception ex)
+//                                {
+//                                    DownloadLogger.LogError("Unhandled exception during request", ex);
+//                                    context.Response.StatusCode = 500;
+//                                }
+//                            });
 
-                    if (await HandleRequest_Range(request, response, buffer)) { continue; }
+//                            app.Run(async context =>
+//                            {
+//                                DownloadLogger.LogInfo($"Received request: {context.Request.Method} {context.Request.Path}");
+//                                var request = context.Request;
+//                                var response = context.Response;
 
-                    HandleRequest_FullGET(request, response, buffer);
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine("An exception occurred while handling the request: " + ex.Message);
-                }
-            }
-        }
+//                                response.Headers.Add("Accept-Ranges", "bytes");
 
-        private async Task<bool> HandleRequest_Range(HttpListenerRequest request, HttpListenerResponse response
-            , byte[] buffer)
-        {
-            var range = request.Headers["Range"];
-            // Handle range requests
-            if (range != null)
-            {
-                var match = Regex.Match(range, @"bytes=(\d+)-(\d*)");
+//                                if (HandleRequest_HEAD(request, response)) return;
+//                                if (!_noRange && await HandleRequest_Range(request, response)) return;
+//                                await HandleRequest_FullGET(response);
+//                            });
+//                        });
+//                })
+//                .Build();
 
-                if (match.Success)
-                {
-                    int from = int.Parse(match.Groups[1].Value);
-                    int to = match.Groups[2].Success ? int.Parse(match.Groups[2].Value) : buffer.Length - 1;
-                    int length = to - from + 1;
-                    // If the length is 0, it means the file is an empty file
-                    // To prevent the OutOfRange exception, we set the length to 0
-                    if (length == 1)
-                        length = 0;
-                    response.StatusCode = 206;
-                    response.ContentType = "application/octet-stream";
-                    response.ContentLength64 = length;
-                    response.AddHeader("Content-Range", $"bytes {from}-{to}/{buffer.Length}");
+//            _host.Start();
+//        }
 
-                    await response.OutputStream.WriteAsync(buffer, from, length);
-                    response.Close();
+//        public void Stop()
+//        {
+//            _host?.StopAsync().GetAwaiter().GetResult();
+//            _host?.Dispose();
+//        }
 
-                    return true;
-                }
-            }
-            return false;
-        }
+//        private bool HandleRequest_HEAD(HttpRequest request, HttpResponse response)
+//        {
+//            if (request.Method == HttpMethods.Head)
+//            {
+//                DownloadLogger.LogInfo($"Handling HEAD request: {request.Method} {request.Path}");
+//                response.ContentType = "application/octet-stream";
+//                response.Headers.ContentLength = _fileContentBuffer.Length;
+//                response.StatusCode = 200;
+//                return true;
+//            }
+//            return false;
+//        }
 
-        private bool HandleRequest_HEAD(HttpListenerRequest request, HttpListenerResponse response
-            , byte[] buffer)
-        {
-            // Handle HEAD request
-            if (request.HttpMethod == "HEAD")
-            {
-                Debug.WriteLine("Processing HEAD request");
-                response.ContentType = "application/octet-stream";
-                response.ContentLength64 = buffer.Length;
-                response.StatusCode = 200;
-                response.KeepAlive = false;
-                response.Close();
-                return true;
-            }
-            return false;
-        }
+//        private async Task<bool> HandleRequest_Range(HttpRequest request, HttpResponse response)
+//        {
+//            // Log the range request details if needed
+//            // DownloadLogger.LogInfo($"Handling Range request: {request.Method} {request.Path} with Range header: {request.Headers["Range"]}");
+//            var range = request.Headers["Range"].ToString();
+//            if (!string.IsNullOrEmpty(range))
+//            {
+//                var match = Regex.Match(range, @"bytes=(\d+)-(\d*)");
+//                if (match.Success)
+//                {
+//                    int from = int.Parse(match.Groups[1].Value);
+//                    int to = match.Groups[2].Success ? int.Parse(match.Groups[2].Value) : _fileContentBuffer.Length - 1;
 
-        private async void HandleRequest_FullGET(HttpListenerRequest request, HttpListenerResponse response
-    , byte[] buffer)
-        {
-            // Normal full GET request
-            response.ContentType = "application/octet-stream";
-            response.ContentLength64 = buffer.Length;
-            await response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-            response.Close();
-        }
-    }
-}
+//                    if (from > to || from < 0 || from >= _fileContentBuffer.Length)
+//                    {
+//                        response.StatusCode = 416;
+//                        response.Headers["Content-Range"] = $"bytes */{_fileContentBuffer.Length}";
+//                        return true;
+//                    }
+
+//                    to = Math.Min(to, _fileContentBuffer.Length - 1);
+//                    int length = to - from + 1;
+
+//                    response.StatusCode = 206;
+//                    response.ContentType = "application/octet-stream";
+//                    response.ContentLength = length;
+//                    response.Headers["Content-Range"] = $"bytes {from}-{to}/{_fileContentBuffer.Length}";
+
+//                    await SafeWriteAsync(response.Body, _fileContentBuffer, from, length);
+//                    // Log the successful range request processing if needed
+//                    //DownloadLogger.LogInfo($"Range request processed: {from}-{to} of {_fileContentBuffer.Length} bytes.");
+//                    return true;
+//                }
+//            }
+//            return false;
+//        }
+
+//        private async Task HandleRequest_FullGET(HttpResponse response)
+//        {
+//            response.StatusCode = 200;
+//            response.ContentType = "application/octet-stream";
+//            response.ContentLength = _fileContentBuffer.Length;
+//            await SafeWriteAsync(response.Body, _fileContentBuffer, 0, _fileContentBuffer.Length);
+//        }
+
+//        private async Task SafeWriteAsync(Stream stream, byte[] buffer, int offset, int count, int chunkSize = 81920)
+//        {
+//            int remaining = count;
+//            long totalWritten = 0;
+//            while (remaining > 0)
+//            {
+//                try
+//                {
+//                    int writeSize = Math.Min(chunkSize, remaining);
+//                    await stream.WriteAsync(buffer, offset, writeSize);
+//                    await stream.FlushAsync();
+//                    totalWritten += writeSize;
+//                    offset += writeSize;
+//                    remaining -= writeSize;
+//                }
+//                catch (Exception ex)
+//                {
+//                    // Log the error and stop the write operation
+//                    DownloadLogger.LogError("An error occurred while writing to the stream. Stopping write operation.");
+//                    DownloadLogger.LogError(ex.Message, ex);
+//                }
+//            }
+//            await stream.FlushAsync();
+//            if (totalWritten != count)
+//            {
+//                DownloadLogger.LogError($"[Mismatch] Content-Length = {count}, but only wrote {totalWritten} bytes.");
+//                throw new InvalidOperationException($"Content-Length mismatch: expected {count} bytes, but wrote {totalWritten} bytes.");
+//            }
+//        }
+//    }
+//}

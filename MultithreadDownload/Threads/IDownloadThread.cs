@@ -1,6 +1,8 @@
-﻿using MultithreadDownload.Downloads;
+﻿using MultithreadDownload.Core.Errors;
+using MultithreadDownload.Downloads;
+using MultithreadDownload.Logging;
+using MultithreadDownload.Primitives;
 using MultithreadDownload.Protocols;
-using MultithreadDownload.Utils;
 using System;
 using System.IO;
 using System.Threading.Tasks;
@@ -12,7 +14,7 @@ namespace MultithreadDownload.Threads
         /// <summary>
         /// The ID of the download thread. This is used to identify the thread in the download task.
         /// </summary>
-        public int ID { get; }
+        public byte ID { get; }
 
         /// <summary>
         /// The size of the file that has been downloaded by this thread.
@@ -47,6 +49,11 @@ namespace MultithreadDownload.Threads
         IProgress<sbyte> Progresser { get; }
 
         /// <summary>
+        /// The logger instance for logging messages related to the download thread.
+        /// </summary>
+        public DownloadScopedLogger Logger { get; }
+
+        /// <summary>
         /// Start newly the download thread.
         /// </summary>
         void Start(Stream inputStream, Stream outputStream);
@@ -64,7 +71,9 @@ namespace MultithreadDownload.Threads
         /// <summary>
         /// Cancel the download thread.
         /// </summary>
-        Result<bool> Cancel();
+        Result<bool, DownloadError> Cancel();
+
+        void SetLogger(DownloadScopedLogger logger);
 
         void SetProgresser(IProgress<sbyte> progresser);
 

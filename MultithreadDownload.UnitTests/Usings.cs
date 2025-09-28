@@ -1,2 +1,2 @@
-global using MultithreadDownload.Utils;
+global using MultithreadDownload.Primitives;
 global using Xunit;

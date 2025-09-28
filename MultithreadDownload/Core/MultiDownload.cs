@@ -11,7 +11,7 @@ namespace MultithreadDownload.Core
     /// <summary>
     /// The MultiDownload class is responsible for managing multiple download tasks by using a single type of download service etc.
     /// </summary>
-    public class MultiDownload : IDisposable
+    public sealed class MultiDownload : IDisposable
     {
         #region Private Fields
         /// <summary>
@@ -35,7 +35,7 @@ namespace MultithreadDownload.Core
         private readonly IDownloadTaskWorkProvider _workProvider;
         #endregion
 
-        #region Properties
+        #region Events
         /// <summary>
         /// Event raised when the progress of the task queue changes.
         /// </summary>
@@ -62,14 +62,15 @@ namespace MultithreadDownload.Core
             ValidateParameters(downloadService, workProvider);
 
             // Initialize the properties
-            _downloadService = downloadService;
-            _maxParallelTasks = maxParallelTasks;
-            _workProvider = workProvider;
-            _taskScheduler = new DownloadTaskScheduler(_maxParallelTasks, _downloadService, _workProvider);
+            this._downloadService = downloadService;
+            this._maxParallelTasks = maxParallelTasks;
+            this._workProvider = workProvider;
+            this._taskScheduler = new DownloadTaskScheduler(_maxParallelTasks, _downloadService, _workProvider);
 
             // Log the initialization
-            //DownloadLogger.LogInfo($"MultiDownload initialized with {downloadService.GetType().Name} and maxParallelTasks = {_maxParallelTasks}");
+            DownloadLogger.LogInfo($"MultiDownload initialized with {downloadService.GetType().Name} and maxParallelTasks = {_maxParallelTasks}");
 
+            // Hook up the events
             HookEvents();
         }
 
@@ -81,59 +82,20 @@ namespace MultithreadDownload.Core
         /// <remarks>
         /// This type of initialization is used when the user wants to use the default download settings (e.g. default service and work provider)
         /// </remarks>
-        public MultiDownload(byte maxParallelTasks, DownloadServiceType serviceType)
-        {
-            // Initialize the properties
-            _downloadService = DownloadServiceFactory.CreateService(serviceType);
-            _maxParallelTasks = maxParallelTasks;
-            _workProvider = new DownloadTaskWorkProvider();
-            _taskScheduler = new DownloadTaskScheduler(_maxParallelTasks, _downloadService, _workProvider);
-
-            // Log the initialization
-            //DownloadLogger.LogInfo($"MultiDownload initialized with {serviceType} and maxParallelTasks = {_maxParallelTasks}");
-
-            HookEvents();
-        }
-
-        #region Private Methods
-
-        /// <summary>
-        /// Validates the parameters passed to the constructor.
-        /// </summary>
-        /// <param name="parameters">The parameters to validate.</param>
-        private void ValidateParameters(params object[] parameters)
-        {
-            foreach (object parameter in parameters)
-            {
-                ArgumentNullException.ThrowIfNull(parameter);
-            }
-        }
-
-        private void HookEvents()
-        {
-            _taskScheduler.TaskQueueProgressChanged += (s, e) => TaskQueueProgressChanged?.Invoke(this, e);
-            _taskScheduler.TasksProgressCompleted += (s, e) => TasksProgressCompleted?.Invoke(this, EventArgs.Empty);
-        }
-
-        #endregion Private Methods
+        public MultiDownload(byte maxParallelTasks, DownloadServiceType serviceType) : this(maxParallelTasks, DownloadServiceFactory.CreateService(serviceType), new DownloadTaskWorkProvider())
+        { }
 
         #region Allocator Methods
 
         /// <summary>
         /// Starts the download task scheduler.
         /// </summary>
-        public void StartAllocator()
-        {
-            _taskScheduler.Start();
-        }
+        public void StartAllocator() => this._taskScheduler.Start();
 
         /// <summary>
         /// Stops the download task scheduler.
         /// </summary>
-        public void StopAllocator()
-        {
-            _taskScheduler.Stop();
-        }
+        public void StopAllocator() => this._taskScheduler.Stop();
 
         #endregion Allocator Methods
 
@@ -142,10 +104,7 @@ namespace MultithreadDownload.Core
         /// Gets all download tasks managed by the scheduler.
         /// </summary>
         /// <returns>The array of all download tasks.</returns>
-        public DownloadTask[] GetDownloadTasks()
-        {
-            return _taskScheduler.GetTasks();
-        }
+        public DownloadTask[] GetDownloadTasks() => this._taskScheduler.GetTasks();
 
         /// <summary>
         /// Gets download tasks that match the specified predicate.
@@ -164,14 +123,20 @@ namespace MultithreadDownload.Core
         public DownloadTask AddTask(IDownloadContext downloadContext)
         {
             // Validate the download context
-            if (downloadContext == null)
-                throw new ArgumentNullException(nameof(downloadContext));
-            // TODO: Validate the download context whether it matches the download service
+            // First, check if the download context is null
+            // Then, check if the properties of the download context are valid
+            // Finally, check if the download context matches the download service
+            ArgumentNullException.ThrowIfNull(downloadContext, "The download context cannot be null.");
+            if (!downloadContext.IsPropertiesVaild().Value.UnwrapOr(false))
+                throw new ArgumentException("The download context is not valid.");
+            if (!_downloadService.IsSupportedDownloadContext(downloadContext))
+                throw new ArgumentException("The download context is not supported by the download service.");
+
+            // Add the task to the scheduler
             DownloadTask addedTask = _taskScheduler.AddTask(downloadContext);
-
             // Log the addition of the task
-            //DownloadLogger.LogInfo($"The Task is added with id: {addedTask.ID} and path: {downloadContext.TargetPath}");
-
+            DownloadLogger.LogInfo($"The Task is added with id: {addedTask.ID} and path: {downloadContext.TargetPath}");
+            // Return the added task
             return addedTask;
         }
 
@@ -179,19 +144,19 @@ namespace MultithreadDownload.Core
         /// Pause a download tasks.
         /// </summary>
         /// <param name="taskId">The ID of the task to pause.</param>
-        public void PauseTask(Guid taskId) => _taskScheduler.PauseTask(taskId);
+        public void PauseTask(Guid taskId) => this._taskScheduler.PauseTask(taskId);
 
         /// <summary>
         /// Resume a download tasks.
         /// </summary>
         /// <param name="taskId">The ID of the task to resume.</param>
-        public void ResumeTask(Guid taskId) => _taskScheduler.ResumeTask(taskId);
+        public void ResumeTask(Guid taskId) => this._taskScheduler.ResumeTask(taskId);
 
         /// <summary>
         /// Cancel a download tasks.
         /// </summary>
         /// <param name="taskId">The ID of the task to cancel.</param>
-        public void Cancel(Guid taskId) => _taskScheduler.CancelTask(taskId);
+        public void Cancel(Guid taskId) => this._taskScheduler.CancelTask(taskId);
 
         #endregion Task Management Methods
 
@@ -200,9 +165,37 @@ namespace MultithreadDownload.Core
         /// </summary>
         public void Dispose()
         {
-            //_workProvider.Dispose();
-            //_downloadService.Dispose();
-            _taskScheduler.Dispose();
+            this._taskScheduler.Dispose();
         }
+
+        #region Private Methods
+
+        /// <summary>
+        /// Validates the parameters passed to the constructor.
+        /// </summary>
+        /// <param name="parameters">The parameters to validate.</param>
+        private void ValidateParameters(params object[] parameters)
+        {
+            // Check if any of the parameters are null
+            foreach (object parameter in parameters)
+            {
+                ArgumentNullException.ThrowIfNull(parameter, "The parameter cannot be null.");
+            }
+        }
+
+        /// <summary>
+        /// Subscribes to progress-related events from the internal task scheduler and relays them to external event
+        /// handlers.
+        /// </summary>
+        /// <remarks>This method enables forwarding of task progress notifications by attaching internal
+        /// event handlers. It should be called before external consumers subscribe to related events to ensure
+        /// notifications are received.</remarks>
+        private void HookEvents()
+        {
+            this._taskScheduler.TaskQueueProgressChanged += (s, e) => TaskQueueProgressChanged?.Invoke(this, e);
+            this._taskScheduler.TasksProgressCompleted += (s, e) => TasksProgressCompleted?.Invoke(this, e);
+        }
+
+        #endregion Private Methods
     }
 }

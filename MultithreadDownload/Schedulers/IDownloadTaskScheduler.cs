@@ -2,7 +2,7 @@
 using MultithreadDownload.Events;
 using MultithreadDownload.Protocols;
 using MultithreadDownload.Tasks;
-using MultithreadDownload.Utils;
+using MultithreadDownload.Primitives;
 using System;
 
 namespace MultithreadDownload.Schedulers
@@ -24,22 +24,25 @@ namespace MultithreadDownload.Schedulers
         public event EventHandler<DownloadDataEventArgs> TasksProgressCompleted;
 
         /// <summary>
-        /// Start the queue process of the tasks(allocator).
+        /// Reset the allocator.
         /// </summary>
-        /// <returns>Whether the allocator are paused successfully.</returns>
-        /// <remarks>
-        /// It will only start the allocator task but not the tasks in the queue.
-        /// </remarks>
-        public Result<bool> Start();
+        public void Reset();
 
         /// <summary>
-        /// Stop(Cancel) the queue process of the tasks.
+        /// Start the allocator.
         /// </summary>
-        /// <returns>Whether the allocator are paused successfully.</returns>
         /// <remarks>
-        /// It will cancel the allocator task but not all tasks in the queue.
+        /// It will only start the allocator but not the tasks in the queue.
         /// </remarks>
-        public Result<bool> Stop();
+        public void Start();
+
+        /// <summary>
+        /// Stop the allocator.
+        /// </summary>
+        /// <remarks>
+        /// It will stop the allocator but not all tasks in the queue.
+        /// </remarks>
+        public void Stop();
 
         /// <summary>
         /// Add a task to the queue.
@@ -58,25 +61,25 @@ namespace MultithreadDownload.Schedulers
         /// Pause a task that is in the queue.
         /// </summary>
         /// <param name="taskId">The id of the task to pause.</param>
-        Result<bool> PauseTask(Guid taskId);
+        bool PauseTask(Guid taskId);
 
         /// <summary>
         /// Resume a task that is in the queue.
         /// </summary>
         /// <param name="taskId">The id of the task to resume.</param>
-        Result<bool> ResumeTask(Guid taskId);
+        bool ResumeTask(Guid taskId);
 
         /// <summary>
         /// Cancel a task that is in the queue.
         /// </summary>
         /// <param name="taskId">The id of the task to cancel.</param>
-        Result<bool> CancelTask(Guid taskId);
+        bool CancelTask(Guid taskId);
 
         /// <summary>
         /// Cancel all tasks that is in the queue.
         /// </summary>
         /// <param name="taskId">The id of the task to cancel.</param>
-        Result<bool> CancelTasks();
+        bool CancelTasks();
 
         /// <summary>
         /// Get tasks that are in the queue.

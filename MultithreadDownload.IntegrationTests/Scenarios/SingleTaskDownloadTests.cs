@@ -5,7 +5,7 @@ using MultithreadDownload.IntegrationTests.Fixtures;
 using MultithreadDownload.Logging;
 using MultithreadDownload.Protocols.Http;
 using MultithreadDownload.Tasks;
-using MultithreadDownload.Utils;
+using MultithreadDownload.Primitives;
 using System.Threading.Tasks;
 using Xunit.Abstractions;
 
@@ -23,6 +23,17 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
         {
             _output = output;
             DownloadLogger.Current = new TestOutputLogger(_output); // Activate the logger to output logs to xUnit's output
+
+            // Below code is to handle unhandled exceptions and unobserved task exceptions globally
+            // This part of code should only be used in the most complex suituations where you need to debug the unhandled exceptions or unobserved task exceptions.
+            //AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
+            //{
+            //    DownloadLogger.LogError("!!! UnhandledException: " + args.ExceptionObject?.ToString());
+            //};
+            //TaskScheduler.UnobservedTaskException += (sender, args) =>
+            //{
+            //    DownloadLogger.LogError("!!! UnobservedTaskException: " + args.Exception?.ToString());
+            //};
         }
 
         [Fact]
@@ -39,7 +50,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             // The context should not be null and should be successful
             downloadContext.Value.Should().NotBeNull();
             downloadContext.IsSuccess.Should().BeTrue();
-            downloadContext.ErrorMessage.Should().BeNull();
+            downloadContext.ErrorState.Should().BeNull();
 
             // Create a download manager with a single parallel task
             MultiDownload downloadManager = new MultiDownload(1, DownloadServiceType.Http);
@@ -51,10 +62,10 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             {
                 // Assert
                 // Check if the file exists and its content is correct
-                File.Exists(downloadContext.Value.TargetPath).Should().BeTrue();
-                TestHelper.VerifyFileSHA512(downloadContext.Value.TargetPath, "5d58e5b1b40ffbd87d99eabaa30ff55baafb0318e35f38e0e220ac3630974a652428284e3ceb8841bf1a2c90aff0f6e7dfd631ca36f1b65ee1efd638fc68b0c8");
+                File.Exists(downloadContext.Value.Value.TargetPath).Should().BeTrue();
+                TestHelper.VerifyFileSHA512(downloadContext.Value.Value.TargetPath, "5d58e5b1b40ffbd87d99eabaa30ff55baafb0318e35f38e0e220ac3630974a652428284e3ceb8841bf1a2c90aff0f6e7dfd631ca36f1b65ee1efd638fc68b0c8");
                 // After the download is complete, delete the downloaded file
-                File.Delete(downloadContext.Value.TargetPath);
+                File.Delete(downloadContext.Value.Value.TargetPath);
                 // Set the result of the TaskCompletionSource to signal , meaning that the download is complete
                 completionSource.SetResult();
             };
@@ -62,7 +73,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
 
             // Act
             // Add the download task that is created by the download context to the download manager
-            downloadManager.AddTask(downloadContext.Value);
+            downloadManager.AddTask(downloadContext.ValueOrNull());
 
             // Assert
             // The download manager should have one task
@@ -87,7 +98,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             if (File.Exists(downloadPath))
                 File.Delete(downloadPath);
             (LocalHttpFileServer server, MultiDownload downloadManager, HttpDownloadContext? context) 
-                = await TestHelper.PrepareDownload(
+                = await TestHelper.PrepareFullHttpDownloadEnvironment(
                 DownloadServiceType.Http,
                 1,
                 1,
@@ -116,7 +127,6 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                     File.Delete(downloadPath);
                 }
             };
-            server.Start();
 
             // Act
             downloadManager.AddTask(context);
@@ -140,7 +150,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             // Create a test server that returns a known file size
             // Get context for the download task
             (LocalHttpFileServer server, MultiDownload downloadManager, HttpDownloadContext? context)
-                = await TestHelper.PrepareDownload(
+                = await TestHelper.PrepareFullHttpDownloadEnvironment(
                 DownloadServiceType.Http,
                 1,
                 1,
@@ -170,7 +180,6 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                     File.Delete(context.TargetPath);
                 }
             };
-            server.Start();
 
             // Act
             downloadManager.AddTask(context);
@@ -201,68 +210,74 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             // Get context for the download task
             string downloadPath = PathHelper.GetUniqueFileName(Path.GetTempPath(), "largeFile.test");
             (LocalHttpFileServer server, MultiDownload downloadManager, HttpDownloadContext? context)
-                = await TestHelper.PrepareDownload(
+                = await TestHelper.PrepareFullHttpDownloadEnvironment(
                     DownloadServiceType.Http,
                     1,
                     maxThreads,
                     downloadPath,
                     TestConstants.LARGE_TESTFILE_PATH
             );
+            DownloadLogger.LogInfo("The server url is: " + server.Url);
             // Create a TaskCompletionSource to wait for the download completion
             // It must be used to prevent the test from finishing before the download is completed
             TaskCompletionSource completionSource = new TaskCompletionSource();
             downloadManager.TasksProgressCompleted += (sender, e) =>
             {
                 // Assert
-                // After the download is asserted, stop the server and delete the downloaded file
-                TestHelper.VerifyFileContent(downloadPath, TestConstants.LARGE_TESTFILE_PATH);
-                server.Stop();
-                // Set the result of the TaskCompletionSource to signal that the download is complete
-                completionSource.SetResult();
+                try
+                {
+                    // After the download is asserted, stop the server and delete the downloaded file
+                    TestHelper.VerifyFileContent(downloadPath, TestConstants.LARGE_TESTFILE_PATH);
+                }
+                catch (Exception ex)
+                {
+                    // Prevent that the exception is missed by the test runner
+                    completionSource.SetException(ex);
+                    Thread.Sleep(1000);
+                }
+                finally
+                {
+                    // No matter if the download is successful or not, stop the server and delete the downloaded file
+                    server.Stop();
+                    if (File.Exists(downloadPath))
+                        File.Delete(downloadPath);
+                    // If the task is not completed or faulted, set the result of the TaskCompletionSource to signal that the download is complete
+                    if (!(completionSource.Task.IsCompleted || completionSource.Task.IsFaulted))
+                        completionSource.SetResult();
+                }
             };
-            server.Start();
 
             // Act
             downloadManager.AddTask(context);
             downloadManager.StartAllocator();
-        }
-
-        [Fact]
-        public async Task DownloadFile_InvalidUrl_ShouldFailGracefully()
-        {
-            // Arrange
-            string invalidUrl = "http://wrongUrl/nonexistentfile.txt";
-            string outputPath = Path.Combine(Path.GetTempPath(), "invalid_output.txt");
-            // Act
-            MultiDownload downloadManager = new MultiDownload(1, DownloadServiceType.Http);
-            var contextResult = await HttpDownloadContext.GetDownloadContext(4, outputPath, invalidUrl);
-
-            // Assert
-            contextResult.Should().NotBeNull();
-            contextResult.IsSuccess.Should().BeFalse();
-            contextResult.Value.Should().BeNull();
+            await completionSource.Task;
+            if (completionSource.Task.AsyncState is Exception ex)
+                // If the task is completed with an exception, throw it to fail the test
+                // Prevent that the test is passed with an exception
+                throw ex;
         }
 
         [Theory]
         [InlineData(1)]
+        [InlineData(2)]
+        [InlineData(3)]
         [InlineData(4)]
         [InlineData(8)]
         [InlineData(16)]
-        public async Task DownloadFile_EmptyFile_WorksCorrectly(byte maxDownloadThreads)
+        [InlineData(32)]
+        public async Task DownloadFile_SingleAndMultithreadThread_EmptyFile_WorksCorrectly(byte maxDownloadThreads)
         {
             // Arrange
             // Create a test server that returns an empty file
             // Get context for the download task
-            string emptyFilePath = Path.Combine("Resources", "emptyfile.txt");
-            File.WriteAllText(emptyFilePath, string.Empty);
             string outputPath = Path.Combine(Path.GetTempPath(), "empty_output.txt");
             (LocalHttpFileServer server, MultiDownload downloadManager, HttpDownloadContext? context)
-                = await TestHelper.PrepareDownload(
+                = await TestHelper.PrepareFullHttpDownloadEnvironment(
                     DownloadServiceType.Http,
                     1,
                     maxDownloadThreads,
                     outputPath,
-                    emptyFilePath
+                    new byte[] { } // Empty byte array to simulate an empty file
             );
             // Create a TaskCompletionSource to wait for the download completion
             // It must be used to prevent the test from finishing before the download is completed
@@ -277,7 +292,6 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                 // Set the result of the TaskCompletionSource to signal that the download asserting is complete
                 completionSource.SetResult();
             };
-            server.Start();
 
             // Assert
             context.Should().NotBeNull();
@@ -287,6 +301,29 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             downloadManager.StartAllocator();
             // Wait for the download to complete
             await completionSource.Task;
+        }
+
+        [Theory]
+        [InlineData(1)]
+        [InlineData(2)]
+        [InlineData(3)]
+        [InlineData(4)]
+        [InlineData(8)]
+        [InlineData(16)]
+        [InlineData(32)]
+        public async Task DownloadFile_SingleAndMultithreadThread_InvalidUrl_ShouldFailGracefully(byte maxDownloadThreads)
+        {
+            // Arrange
+            string invalidUrl = "http://wrongUrl/nonexistentfile.txt";
+            string outputPath = Path.Combine(Path.GetTempPath(), "invalid_output.txt");
+            // Act
+            MultiDownload downloadManager = new MultiDownload(maxDownloadThreads, DownloadServiceType.Http);
+            var contextResult = await HttpDownloadContext.GetDownloadContext(4, outputPath, invalidUrl);
+
+            // Assert
+            contextResult.Should().NotBeNull();
+            contextResult.IsSuccess.Should().BeFalse();
+            contextResult.Value.HasValue.Should().BeFalse();
         }
     }
 }

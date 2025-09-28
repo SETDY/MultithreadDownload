@@ -1,5 +1,6 @@
 ﻿using FluentAssertions;
 using Moq;
+using MultithreadDownload.Core.Errors;
 using MultithreadDownload.Downloads;
 using MultithreadDownload.Protocols;
 using MultithreadDownload.Schedulers;
@@ -26,7 +27,7 @@ namespace MultithreadDownload.UnitTests.Schedulers
             // Arrange
             // Setup a mock download context that is valid
             Mock<IDownloadContext> mockDownloadContext = new Mock<IDownloadContext>();
-            mockDownloadContext.Setup(m => m.IsPropertiesVaild()).Returns(Result<bool>.Success(true));
+            mockDownloadContext.Setup(m => m.IsPropertiesVaild()).Returns(Result<bool, DownloadError>.Success(true));
 
             // Act
             scheduler.AddTask(mockDownloadContext.Object);
@@ -41,16 +42,16 @@ namespace MultithreadDownload.UnitTests.Schedulers
             // Arrange
             // Setup a mock download context that is valid
             Mock<IDownloadContext> mockDownloadContext = new Mock<IDownloadContext>();
-            mockDownloadContext.Setup(m => m.IsPropertiesVaild()).Returns(Result<bool>.Success(true));
+            mockDownloadContext.Setup(m => m.IsPropertiesVaild()).Returns(Result<bool, DownloadError>.Success(true));
             scheduler.AddTask(mockDownloadContext.Object);
             Guid taskId = scheduler.GetTasks()[0].ID;
 
             // Act
-            Result<bool> result = scheduler.CancelTask(taskId);
+            bool result = scheduler.CancelTask(taskId);
 
             // Assert
-            result.IsSuccess.Should().BeTrue();
-            result.Value.Should().BeTrue();
+            result.Should().BeTrue();
+            result.Should().BeTrue();
             scheduler.GetTasks()[0].State.Should().Be(DownloadState.Cancelled);
         }
 
@@ -60,16 +61,16 @@ namespace MultithreadDownload.UnitTests.Schedulers
             // Arrange
             // Setup a mock download context that is valid
             Mock<IDownloadContext> mockDownloadContext = new Mock<IDownloadContext>();
-            mockDownloadContext.Setup(m => m.IsPropertiesVaild()).Returns(Result<bool>.Success(true));
+            mockDownloadContext.Setup(m => m.IsPropertiesVaild()).Returns(Result<bool, DownloadError>.Success(true));
             scheduler.AddTask(mockDownloadContext.Object);
             scheduler.AddTask(mockDownloadContext.Object);
 
             // Act
-            Result<bool> result = scheduler.CancelTasks();
+            bool result = scheduler.CancelTasks();
 
             // Assert
-            result.IsSuccess.Should().BeTrue();
-            result.Value.Should().BeTrue();
+            result.Should().BeTrue();
+            result.Should().BeTrue();
             scheduler.GetTasks().ToList().ForEach(t => t.State.Should().Be(DownloadState.Cancelled));
         }
 
@@ -89,7 +90,7 @@ namespace MultithreadDownload.UnitTests.Schedulers
             // Arrange
             // Setup a mock download context that is valid
             Mock<IDownloadContext> mockDownloadContext = new Mock<IDownloadContext>();
-            mockDownloadContext.Setup(m => m.IsPropertiesVaild()).Returns(Result<bool>.Success(true));
+            mockDownloadContext.Setup(m => m.IsPropertiesVaild()).Returns(Result<bool, DownloadError>.Success(true));
             scheduler.AddTask(mockDownloadContext.Object);
             Guid taskId = scheduler.GetTasks()[0].ID;
 
@@ -107,10 +108,9 @@ namespace MultithreadDownload.UnitTests.Schedulers
         public void Start_ShouldStartAllocatorTask()
         {
             // Act
-            var result = scheduler.Start();
+            scheduler.Start();
 
             // Assert
-            result.IsSuccess.Should().BeTrue();
             // The allocator task status should be running
             FieldInfo allocator = scheduler.GetType().GetField("_allocator", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
                 ?? throw new InvalidOperationException("Field '_allocator' not found.");

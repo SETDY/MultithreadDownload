@@ -1,4 +1,4 @@
-﻿using MultithreadDownload.Utils;
+﻿using MultithreadDownload.Primitives;
 using FluentAssertions;
 using System.Runtime.InteropServices;
 

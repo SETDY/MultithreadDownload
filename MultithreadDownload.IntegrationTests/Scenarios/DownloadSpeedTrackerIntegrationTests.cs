@@ -4,7 +4,7 @@ using MultithreadDownload.IntegrationTests.Fixtures;
 using MultithreadDownload.Logging;
 using MultithreadDownload.Protocols.Http;
 using MultithreadDownload.Tasks;
-using MultithreadDownload.Utils;
+using MultithreadDownload.Primitives;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -43,7 +43,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             if (File.Exists(downloadPath))
                 File.Delete(downloadPath);
 
-            var (server, downloadManager, context) = await TestHelper.PrepareDownload(
+            var (server, downloadManager, context) = await TestHelper.PrepareFullHttpDownloadEnvironment(
                 DownloadServiceType.Http,
                 1,
                 1,
@@ -116,7 +116,6 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                 }
             });
 
-            server.Start();
 
             // Act
             downloadManager.AddTask(context);
@@ -142,7 +141,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
 
             // Arrange
             string downloadPath = PathHelper.GetUniqueFileName(Path.GetTempPath(), "speed_test_multi.test");
-            var (server, downloadManager, context) = await TestHelper.PrepareDownload(
+            var (server, downloadManager, context) = await TestHelper.PrepareFullHttpDownloadEnvironment(
                 DownloadServiceType.Http,
                 1,
                 maxThreads,
@@ -222,7 +221,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                 });
             }
 
-            server.Start();
+
 
             // Act
             downloadManager.AddTask(context);
@@ -248,7 +247,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             if (TestHelper.SkipTestOnCI()) { return; }
 
             // Arrange
-            var (server, downloadManager, url) = TestHelper.PrepareDownload(
+            var (server, downloadManager, url) = TestHelper.PreparePartialHttpDownloadEnvironment(
                 DownloadServiceType.Http, 1, TestConstants.LARGE_TESTFILE_PATH);
 
             var speedTrackers = new List<DownloadSpeedTracker>();
@@ -353,7 +352,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                 }));
             }
 
-            server.Start();
+
 
             // Act
             foreach (var context in downloadContexts)
@@ -403,8 +402,8 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                 try
                 {
                     // Verify download integrity
-                    File.Exists(downloadContext.Value.TargetPath).Should().BeTrue("Downloaded file should exist");
-                    TestHelper.VerifyFileSHA512(downloadContext.Value.TargetPath,
+                    File.Exists(downloadContext.Value.Value.TargetPath).Should().BeTrue("Downloaded file should exist");
+                    TestHelper.VerifyFileSHA512(downloadContext.Value.Value.TargetPath,
                         "5d58e5b1b40ffbd87d99eabaa30ff55baafb0318e35f38e0e220ac3630974a652428284e3ceb8841bf1a2c90aff0f6e7dfd631ca36f1b65ee1efd638fc68b0c8");
 
                     // Verify speed tracking under real network conditions
@@ -431,8 +430,8 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                 finally
                 {
                     speedTracker?.Dispose();
-                    if (File.Exists(downloadContext.Value.TargetPath))
-                        File.Delete(downloadContext.Value.TargetPath);
+                    if (File.Exists(downloadContext.Value.Value.TargetPath))
+                        File.Delete(downloadContext.Value.Value.TargetPath);
                 }
             };
 
@@ -462,7 +461,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             });
 
             // Act
-            downloadManager.AddTask(downloadContext.Value);
+            downloadManager.AddTask(downloadContext.ValueOrNull());
             Thread.Sleep(1500);
             downloadManager.StartAllocator();
 
@@ -508,7 +507,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
 
                 // Assert
                 contextResult.IsSuccess.Should().BeFalse("Invalid URL should fail to create context");
-                contextResult.Value.Should().BeNull("Context should be null for invalid URL");
+                contextResult.Value.HasValue.Should().BeFalse("Context should be null for invalid URL");
 
                 // Test tracker behavior with no actual bytes
                 await Task.Delay(1000); // Let tracker run for a bit

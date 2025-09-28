@@ -1,8 +1,10 @@
 ﻿using MultithreadDownload.Threads;
-using MultithreadDownload.Utils;
+using MultithreadDownload.Primitives;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using MultithreadDownload.Core.Errors;
+using MultithreadDownload.Logging;
 
 namespace MultithreadDownload.Threading
 {
@@ -47,7 +49,7 @@ namespace MultithreadDownload.Threading
         /// <summary>
         /// Cancels the download threads.
         /// </summary>
-        void Cancel();
+        bool Cancel();
 
         /// <summary>
         /// Creates new download threads with the maximum number of threads.
@@ -57,7 +59,7 @@ namespace MultithreadDownload.Threading
         /// The work delegate is the main download work that will be executed by the download thread.
         /// The main download work is IDownloadSerivce.DownloadFile()
         /// </remarks>
-        Result<bool> CreateThreads(Func<Stream, Stream, IDownloadThread, Result<bool>> mainWork);
+        Result<bool, DownloadError> CreateThreads(Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork, DownloadScopedLogger logger);
 
         /// <summary>
         /// Creates a new download thread.
@@ -67,7 +69,8 @@ namespace MultithreadDownload.Threading
         /// The work delegate is the main download work that will be executed by the download thread.
         /// The main download work is IDownloadSerivce.DownloadFile()
         /// </remarks>
-        Result<bool> CreateThread(string fileSegmentPath, Func<Stream, Stream, IDownloadThread, Result<bool>> mainWork);
+        Result<bool, DownloadError> CreateThread(string fileSegmentPath, Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> mainWork, DownloadScopedLogger logger);
+        // TODO: Refactor all context structure
 
         /// <summary>
         /// Gets the list of download threads.

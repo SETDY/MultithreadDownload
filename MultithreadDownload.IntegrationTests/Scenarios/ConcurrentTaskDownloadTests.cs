@@ -3,7 +3,9 @@ using MultithreadDownload.Core;
 using MultithreadDownload.IntegrationTests.Fixtures;
 using MultithreadDownload.Protocols.Http;
 using MultithreadDownload.Tasks;
-using MultithreadDownload.Utils;
+using MultithreadDownload.Primitives;
+using Xunit.Abstractions;
+using MultithreadDownload.Logging;
 
 namespace MultithreadDownload.IntegrationTests.Scenarios
 {
@@ -15,12 +17,34 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
     public class ConcurrentTaskDownloadTests
     {
 
+        private readonly ITestOutputHelper _output;
+        public ConcurrentTaskDownloadTests(ITestOutputHelper output)
+        {
+            _output = output;
+            DownloadLogger.Current = new TestOutputLogger(_output); // Activate the logger to output logs to xUnit's output
+
+            // Below code is to handle unhandled exceptions and unobserved task exceptions globally
+            // This part of code should only be used in the most complex suituations where you need to debug the unhandled exceptions or unobserved task exceptions.
+            //AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
+            //{
+            //    DownloadLogger.LogError("!!! UnhandledException: " + args.ExceptionObject?.ToString());
+            //};
+            //TaskScheduler.UnobservedTaskException += (sender, args) =>
+            //{
+            //    DownloadLogger.LogError("!!! UnobservedTaskException: " + args.Exception?.ToString());
+            //};
+        }
+
         [Theory]
-        [InlineData(1, 2)]
-        [InlineData(1, 3)]
-        [InlineData(2, 4)]
+        [InlineData(2, 1)]
+        [InlineData(2, 2)]
+        [InlineData(2, 3)]
+        [InlineData(2, 4)] 
         [InlineData(3, 8)]
+        [InlineData(4, 1)]
+        [InlineData(4, 4)]
         [InlineData(4, 16)]
+        [InlineData(5, 32)]
         public async Task DownloadFile_MultiTask_MultiThread_FromLocalHttpServer_WorksCorrectly
             (byte concurrentTasks, byte maxDownloadThread)
         {
@@ -33,7 +57,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
 
             // Arrange
             byte completedTasks = 0;
-            (var server, var downloadManager, var url) = TestHelper.PrepareDownload(
+            (var server, var downloadManager, var url) = TestHelper.PreparePartialHttpDownloadEnvironment(
                 DownloadServiceType.Http, 1, TestConstants.LARGE_TESTFILE_PATH);
             // Get download task context (including segment information, etc.)
             List<HttpDownloadContext> contexts = new List<HttpDownloadContext>();
@@ -53,7 +77,6 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                     TestHelper.VerifyFileContent(c.TargetPath, TestConstants.LARGE_TESTFILE_PATH);
                 });
             };
-            server.Start();
 
             // Act => Add tasks to the download manager and start the download allocator
             for (int i = 0; i < concurrentTasks; i++)

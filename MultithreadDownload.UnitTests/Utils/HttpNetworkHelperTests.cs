@@ -2,6 +2,7 @@
 using System.Net;
 using System.Text;
 using MultithreadDownload.UnitTests.Fixtures;
+using MultithreadDownload.Core.Errors;
 
 namespace MultithreadDownload.UnitTests.Utils
 {
@@ -19,18 +20,10 @@ namespace MultithreadDownload.UnitTests.Utils
         public void IsVaildHttpLink_ShouldReturnCorrectResult(string link, bool expected)
         {
             // Act => Call the method to check the link
-            Result<bool> result = HttpNetworkHelper.IsVaildHttpLink(link);
+            bool result = HttpNetworkHelper.IsVaildHttpLink(link);
 
             // Assert => Check if the result is successful and the value is as expected
-            if (string.IsNullOrEmpty(link))
-            {
-                result.IsSuccess.Should().BeFalse();
-            }
-            else
-            {
-                result.IsSuccess.Should().BeTrue();
-                result.Value.Should().Be(expected);
-            }
+            result.Should().Be(expected);
         }
 
         #endregion IsVaildHttpLink()
@@ -140,11 +133,11 @@ namespace MultithreadDownload.UnitTests.Utils
             });
 
             // Act => Call the method to get the file size
-            Result<long> result = await HttpNetworkHelper.GetLinkFileSizeAsync("http://localhost:5005/file/");
+            Result<long, DownloadError> result = await HttpNetworkHelper.GetLinkFileSizeAsync("http://localhost:5005/file/");
 
             // Assert => Check if the result is successful and the size is correct
             result.IsSuccess.Should().BeTrue();
-            result.Value.Should().Be(12); // "Hello World!" length
+            result.Value.Value.Should().Be(12); // "Hello World!" length
         }
 
         [Fact]
@@ -165,15 +158,14 @@ namespace MultithreadDownload.UnitTests.Utils
 
             // Assert => Check if the result is successful and the size is 0
             // Note: ContentLength64 = 0 when not set explicitly
-            result.IsSuccess.Should().BeTrue();
-            result.Value.Should().Be(0);
+            result.IsSuccess.Should().BeFalse();
         }
 
         [Fact]
         public async Task GetLinkFileSizeAsync_ShouldReturnFailure_WhenLinkIsNull()
         {
             // Act => Call the method with a null link
-            Result<long> result = await HttpNetworkHelper.GetLinkFileSizeAsync(null);
+            Result<long, DownloadError> result = await HttpNetworkHelper.GetLinkFileSizeAsync(null);
 
             // Assert => Check if the result is a failure
             result.IsSuccess.Should().BeFalse();

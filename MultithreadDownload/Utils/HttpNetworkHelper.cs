@@ -1,4 +1,6 @@
-﻿using System;
+﻿using MultithreadDownload.Core.Errors;
+using MultithreadDownload.Logging;
+using System;
 using System.Net;
 using System.Net.Http;
 using System.Runtime.InteropServices;
@@ -6,7 +8,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace MultithreadDownload.Utils
+namespace MultithreadDownload.Primitives
 {
     /// <summary>
     /// A class that provides http network-related helper methods.
@@ -86,14 +88,14 @@ namespace MultithreadDownload.Utils
         /// Checks if the given URL is valid and can be connected.
         /// </summary>
         /// <returns>Whether the http link can be connected</returns>
-        public static Result<bool> IsVaildHttpLink(string link)
+        public static bool IsVaildHttpLink(string link)
         {
             // If the link is null or empty, return a failure result.
             // Otherwise, use Regex to check if the link is valid.
             if (string.IsNullOrEmpty(link))
-                return Result<bool>.Failure("The link is null or empty.");
+                return false;
             Regex regex = new Regex("https?://");
-            return Result<bool>.Success(regex.IsMatch(link));
+            return regex.IsMatch(link);
         }
 
         /// <summary>
@@ -131,13 +133,16 @@ namespace MultithreadDownload.Utils
         /// <returns>Whether the link can be connected</returns>
         public static async Task<bool> LinkCanConnectionAsync(string link)
         {
-            Result<bool> primaryResult = IsVaildHttpLink(link);
-            // Note: There should be use primaryResult.Value instead of primaryResult.IsSuccess
-            //       because the IsSuccess only check if IsVaildHttpLink() is success,
-            //       but not check if the link is valid.
-            if (!primaryResult.Value) { return false; }
-            if (!IsConnectedInternet()) { return false; }
-            if (await GetWebStatusCodeAsync(link) != HttpStatusCode.OK) { return false; }
+            // First, check if the link is valid.
+            // Then, check if the system is connected to the Internet.
+            // Finally, send a HEAD request to the URL to check if it can be connected.
+            bool primaryResult = IsVaildHttpLink(link);
+            if (!primaryResult) 
+                return false;
+            if (!IsConnectedInternet())
+                return false;
+            if (await GetWebStatusCodeAsync(link) != HttpStatusCode.OK)
+                return false;
             return true;
         }
 
@@ -146,27 +151,42 @@ namespace MultithreadDownload.Utils
         /// </summary>
         /// <param name="link">The link you want to get the file size</param>
         /// <returns>The file size of the link as bytes</returns>
-        public static async Task<Result<long>> GetLinkFileSizeAsync(string link)
+        public static async Task<Result<long, DownloadError>> GetLinkFileSizeAsync(string link)
         {
             // If the link is null or empty, return 0.
             // Otherwise, send a HEAD request to the URL to get the file size and return its file size.
             // If the request takes longer than 2 seconds, cancel it.
             // If the request fails, return Failure.
-            if (string.IsNullOrEmpty(link)) { return Result<long>.Failure($"{link} cannot be null or emprt."); }
+            if (string.IsNullOrEmpty(link))
+                return Result<long, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.InvalidUrl, $"{link} cannot be null or emprt."));
             try
             {
-                using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(60)))
+                using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(120)))
                 {
-                    long fileSize = (await _client.SendAsync(new HttpRequestMessage(HttpMethod.Head, link), cts.Token))
-                        .Content.Headers.ContentLength ?? 0;
-
-                    if (fileSize < 0) { return Result<long>.Failure("Failed to get the file size."); }
-                    return Result<long>.Success(fileSize);
+                    HttpResponseMessage response = await _client.SendAsync(new HttpRequestMessage(HttpMethod.Head, link), cts.Token);
+                    // FIXED: The problem that the file size is not -1 when the link is not exist.
+                    // Therefore, we check the status code of the response.
+                    // If the status code is not OK, return Failure.
+                    // Otherwise, return the file size.
+                    if (response.StatusCode != HttpStatusCode.OK)
+                        return Result<long, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.InvalidUrl, $"{link} does not exist or cannot be connected."));
+                    return Result<long, DownloadError>.Success((long)response.Content.Headers.ContentLength);
                 }
             }
-            catch (Exception)
+            catch (TimeoutException tex)
             {
-                return Result<long>.Failure("Failed to get the file size.");
+                DownloadLogger.LogError($"The request to get the file size of {link} has timed out.", tex);
+                return Result<long, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.Timeout, $"The request to get the file size of {link} has timed out."));
+            }
+            catch (HttpRequestException hex)
+            {
+                DownloadLogger.LogError($"An HTTP request exception has been caught when getting the file size of {link}.", hex);
+                return Result<long, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.HttpError, $"An HTTP request exception has been caught when getting the file size of {link}."));
+            }
+            catch (Exception ex)
+            {
+                DownloadLogger.LogError($"Unexpected or unknown exception has been caught when getting the file size of {link}.", ex);
+                return Result<long, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.UnexpectedOrUnknownException, $"Unexpected or unknown exception has been caught when getting the file size of {link}."));
             }
         }
     }

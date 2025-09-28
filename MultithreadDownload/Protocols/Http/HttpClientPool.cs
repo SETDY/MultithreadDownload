@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Net.Http;
 
 namespace MultithreadDownload.Protocols.Http
@@ -21,7 +22,7 @@ namespace MultithreadDownload.Protocols.Http
         /// <summary>
         /// The maximum timeout for HttpClient requests in milliseconds.
         /// </summary>
-        private const uint MAX_TIME_OUT = 5000;
+        private const uint TIME_OUT = 5000;
 
         static HttpClientPool()
         {
@@ -73,7 +74,10 @@ namespace MultithreadDownload.Protocols.Http
         /// <returns></returns>
         private static HttpClient CreateHttpClient()
         {
-            return new HttpClient();
+            return new HttpClient()
+            {
+                Timeout = TimeSpan.FromMilliseconds(TIME_OUT)
+            };
         }
     }
 }

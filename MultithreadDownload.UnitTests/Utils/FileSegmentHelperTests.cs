@@ -1,4 +1,5 @@
 ﻿using FluentAssertions;
+using MultithreadDownload.Core.Errors;
 using System.Runtime.InteropServices;
 
 namespace MultithreadDownload.UnitTests.Utils
@@ -15,13 +16,13 @@ namespace MultithreadDownload.UnitTests.Utils
             int segmentCount = 4;
 
             // Act
-            Result<long[,]> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
+            Result<long[,], DownloadError> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
 
             // Assert => Whether the processing is successful.
             result.IsSuccess.Should().BeTrue();
 
             // Assert => Whether the result is correct.
-            result.Value.Should().BeEquivalentTo(new long[,]
+            result.Value.Value.Should().BeEquivalentTo(new long[,]
             {
                 {0,  24},
                 {25, 49},
@@ -38,13 +39,13 @@ namespace MultithreadDownload.UnitTests.Utils
             int segmentCount = 4;
 
             // Act
-            Result<long[,]> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
+            Result<long[,], DownloadError> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
 
             // Assert => Whether the processing is successful.
             result.IsSuccess.Should().BeTrue();
 
             // Assert => Whether the result is correct.
-            result.Value.Should().BeEquivalentTo(new long[,]
+            result.Value.Value.Should().BeEquivalentTo(new long[,]
             {
                 {0, 24},
                 {25, 49},
@@ -56,62 +57,80 @@ namespace MultithreadDownload.UnitTests.Utils
         [Theory]
         [InlineData(0)]
         [InlineData(-54)]
-        public void GetFileSegments_ShouldThrowException_WhenFileSizeIsZeroOrNegative(long fileSize)
+        public void GetFileSegments_ShouldReturnError_WhenFileSizeIsZeroOrNegative(long fileSize)
         {
             // Arrange
             int segmentCount = 4;
 
             // Act
-            Result<long[,]> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
+            Result<long[,], DownloadError> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
 
             // Assert => Whether the processing is failed.
             result.IsSuccess.Should().BeFalse();
 
             // Assert => Whether the result is correct.
-            result.Value.Should().BeNull();
+            result.Value.HasValue.Should().BeFalse();
 
-            // Assert => Whether the error message is correct.
-            result.ErrorMessage.Should().Be("File size and segment count must be greater than zero.");
+            // Assert => Whether the error state is correct.
+            result.ErrorState.Should().NotBeNull();
+
+            // Assert => Whether the error category is correct.
+            result.ErrorState.Category.Should().Be(DownloadErrorCategory.Unexpected);
+
+            // Assert => Whether the error code is correct.
+            result.ErrorState.Code.Should().Be(DownloadErrorCode.ArgumentOutOfRange);
         }
 
         [Fact]
-        public void GetFileSegments_ShouldThrowException_WhenSegmentCountIsZero()
+        public void GetFileSegments_ShouldReturnError_WhenSegmentCountIsZero()
         {
             // Arrange
             long fileSize = 100;
             int segmentCount = 0;
 
             // Act
-            Result<long[,]> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
+            Result<long[,], DownloadError> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
 
             // Assert => Whether the processing is failed.
             result.IsSuccess.Should().BeFalse();
 
-            // Assert => Whether the result is correct.
-            result.Value.Should().BeNull();
+            // Assert => Whether the result's value is correct.
+            result.Value.HasValue.Should().BeFalse();
 
-            // Assert => Whether the error message is correct.
-            result.ErrorMessage.Should().Be("File size and segment count must be greater than zero.");
+            // Assert => Whether the error state is correct.
+            result.ErrorState.Should().NotBeNull();
+
+            // Assert => Whether the error category is correct.
+            result.ErrorState.Category.Should().Be(DownloadErrorCategory.Unexpected);
+
+            // Assert => Whether the error code is correct.
+            result.ErrorState.Code.Should().Be(DownloadErrorCode.ArgumentOutOfRange);
         }
 
         [Fact]
-        public void GetFileSegments_ShouldThrowException_WhenSegmentCountIsNegative()
+        public void GetFileSegments_ShouldReturnError_WhenSegmentCountIsNegative()
         {
             // Arrange
             long fileSize = 100;
             int segmentCount = -54;
 
             // Act
-            Result<long[,]> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
+            Result<long[,], DownloadError> result = FileSegmentHelper.CalculateFileSegmentRanges(fileSize, segmentCount);
 
             // Assert => Whether the processing is failed.
             result.IsSuccess.Should().BeFalse();
 
-            // Assert => Whether the result is correct.
-            result.Value.Should().BeNull();
+            // Assert => Whether the result's vaule is correct.
+            result.Value.HasValue.Should().BeFalse();
 
-            // Assert => Whether the error message is correct.
-            result.ErrorMessage.Should().Be("File size and segment count must be greater than zero.");
+            // Assert => Whether the error state is correct.
+            result.ErrorState.Should().NotBeNull();
+
+            // Assert => Whether the error category is correct.
+            result.ErrorState.Category.Should().Be(DownloadErrorCategory.Unexpected);
+
+            // Assert => Whether the error code is correct.
+            result.ErrorState.Code.Should().Be(DownloadErrorCode.ArgumentOutOfRange);
         }
 
         #endregion GetFileSegments()
@@ -141,7 +160,7 @@ namespace MultithreadDownload.UnitTests.Utils
             try
             {
                 // Act
-                var result = FileSegmentHelper.CombineSegmentsSafe(segments, ref finalFileStream);
+                var result = FileSegmentHelper.CombineSegmentsSafe(segments, finalFileStream);
 
                 // Assert => Whether the processing is successful.
                 result.IsSuccess.Should().BeTrue("because the segments should combine successfully");
@@ -174,11 +193,11 @@ namespace MultithreadDownload.UnitTests.Utils
             FileStream finalFileStream = new FileStream(finalFilePath, FileMode.CreateNew);
 
             // Act
-            Result<bool> result = FileSegmentHelper.CombineSegmentsSafe(Array.Empty<string>(), ref finalFileStream);
+            Result<bool, DownloadError> result = FileSegmentHelper.CombineSegmentsSafe(Array.Empty<string>(), finalFileStream);
 
             // Assert => Whether the processing is failed.
             result.IsSuccess.Should().BeFalse("because no segments were provided");
-            result.ErrorMessage.Should().NotBeNullOrWhiteSpace();
+            result.ErrorState.Should().NotBeNull();
 
             // Cleanup testing files
             if (finalFileStream != null)
@@ -201,11 +220,12 @@ namespace MultithreadDownload.UnitTests.Utils
         public void SplitPaths_ShouldReturnFailure_WhenThreadCountIsZeroOrNegative(int maxThreads)
         {
             // Act
-            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, "UserData\\Downloads\\file.zip");
+            Result<string[], DownloadError> result = FileSegmentHelper.SplitPaths(maxThreads, "UserData\\Downloads\\file.zip");
 
             // Assert => Whether the processing is failed.
             result.IsSuccess.Should().BeFalse();
-            result.ErrorMessage.Should().Contain("cannot be 0");
+            result.ErrorState.Category.Should().Be(DownloadErrorCategory.Unexpected);
+            result.ErrorState.Code.Should().Be(DownloadErrorCode.ArgumentOutOfRange);
         }
 
         /// <summary>
@@ -219,12 +239,12 @@ namespace MultithreadDownload.UnitTests.Utils
             string directoryPath = Path.Combine(Path.GetTempPath(), "TestDirectory") + Path.DirectorySeparatorChar;
 
             // Act
-            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, directoryPath);
+            Result<string[], DownloadError> result = FileSegmentHelper.SplitPaths(maxThreads, directoryPath);
 
             // Assert
             result.IsSuccess.Should().BeFalse();
-            result.ErrorMessage.Should().NotBeNullOrEmpty()
-                .And.Contain("file name"); // Assuming your error message mentions that a file name is required
+            result.ErrorState.Category.Should().Be(DownloadErrorCategory.Unexpected);
+            result.ErrorState.Code.Should().Be(DownloadErrorCode.ArgumentOutOfRange);
         }
 
         /// <summary>
@@ -244,14 +264,15 @@ namespace MultithreadDownload.UnitTests.Utils
             string testFilePath = Path.Combine("UserData", "Downloads", "file.zip");
 
             // Act
-            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, testFilePath);
+            Result<string[], DownloadError> result = FileSegmentHelper.SplitPaths(maxThreads, testFilePath);
 
             // Assert => Whether the processing is successful.
             result.IsSuccess.Should().BeTrue();
-            result.Value.Should().HaveCount(maxThreads);
-            for (int i = 0; i < result.Value.Length; i++)
+            string[] valueOfResult = result.Value.UnwrapOrThrow();
+            valueOfResult.Should().HaveCount(maxThreads);
+            for (int i = 0; i < valueOfResult.Length; i++)
             {
-                result.Value[i].Should().Be(Path.Combine("UserData", "Downloads", $"file-{i}.downtemp"));
+                valueOfResult[i].Should().Be(Path.Combine("UserData", "Downloads", $"file-{i}.downtemp"));
             }
         }
 
@@ -266,14 +287,15 @@ namespace MultithreadDownload.UnitTests.Utils
             string testFilePath = Path.Combine("testDir1", "data", "download", "myfile");
 
             // Act
-            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, testFilePath);
+            Result<string[], DownloadError> result = FileSegmentHelper.SplitPaths(maxThreads, testFilePath);
 
             // Assert => Whether the processing is successful.
             result.IsSuccess.Should().BeTrue();
-            result.Value.Should().NotBeNullOrEmpty();
-            result.Value.Should().HaveCount(2);
-            result.Value[0].Should().EndWith("myfile-0.downtemp");
-            result.Value[1].Should().EndWith("myfile-1.downtemp");
+            string[] valueOfResult = result.Value.UnwrapOrThrow();
+            valueOfResult.Should().NotBeNullOrEmpty();
+            valueOfResult.Should().HaveCount(2);
+            valueOfResult[0].Should().EndWith("myfile-0.downtemp");
+            valueOfResult[1].Should().EndWith("myfile-1.downtemp");
         }
 
         /// <summary>
@@ -297,13 +319,14 @@ namespace MultithreadDownload.UnitTests.Utils
             string testFilePath = "C:\\file.iso";
 
             // Act
-            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, testFilePath);
+            Result<string[], DownloadError> result = FileSegmentHelper.SplitPaths(maxThreads, testFilePath);
 
             // Assert
             result.IsSuccess.Should().BeTrue();
-            result.Value.Should().NotBeNullOrEmpty();
-            result.Value.Should().HaveCount(1);
-            result.Value[0].Should().Be("C:\\file-0.downtemp");
+            string[] valueOfResult = result.Value.UnwrapOrThrow();
+            valueOfResult.Should().NotBeNullOrEmpty();
+            valueOfResult.Should().HaveCount(1);
+            valueOfResult[0].Should().Be("C:\\file-0.downtemp");
         }
 
         [Fact]
@@ -314,15 +337,16 @@ namespace MultithreadDownload.UnitTests.Utils
             string path = "home/user/downloads/file.tar.gz";
 
             // Act
-            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, path);
+            Result<string[], DownloadError> result = FileSegmentHelper.SplitPaths(maxThreads, path);
 
             // Assert
             result.IsSuccess.Should().BeTrue();
-            result.Value.Should().NotBeNullOrEmpty();
-            result.Value.Should().HaveCount(2);
+            string[] valueOfResult = result.Value.UnwrapOrThrow();
+            valueOfResult.Should().NotBeNullOrEmpty();
+            valueOfResult.Should().HaveCount(2);
             // Use Path.Combine to ensure corss platform compatibility
-            result.Value[0].Should().Be(Path.Combine("home", "user", "downloads", "file.tar-0.downtemp"));
-            result.Value[1].Should().Be(Path.Combine("home", "user", "downloads", "file.tar-1.downtemp"));
+            valueOfResult[0].Should().Be(Path.Combine("home", "user", "downloads", "file.tar-0.downtemp"));
+            valueOfResult[1].Should().Be(Path.Combine("home", "user", "downloads", "file.tar-1.downtemp"));
         }
 
         [Fact]
@@ -333,15 +357,16 @@ namespace MultithreadDownload.UnitTests.Utils
             string path = Path.Combine("UserData", "Downloads", "bigfile.bin");
 
             // Act
-            Result<string[]> result = FileSegmentHelper.SplitPaths(maxThreads, path);
+            Result<string[], DownloadError> result = FileSegmentHelper.SplitPaths(maxThreads, path);
 
             // Assert
             result.IsSuccess.Should().BeTrue();
-            result.Value.Should().NotBeNullOrEmpty();
-            result.Value.Should().HaveCount(1000);
-            for (int i = 0; i < result.Value.Length; i++)
+            string[] valueOfResult = result.Value.UnwrapOrThrow();
+            valueOfResult.Should().NotBeNullOrEmpty();
+            valueOfResult.Should().HaveCount(1000);
+            for (int i = 0; i < valueOfResult.Length; i++)
             {
-                result.Value[i].Should().EndWith($"bigfile-{i}.downtemp");
+                valueOfResult[i].Should().EndWith($"bigfile-{i}.downtemp");
             }
         }
 
