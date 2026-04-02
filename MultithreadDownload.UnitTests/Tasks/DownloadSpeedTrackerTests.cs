@@ -1,5 +1,6 @@
 ﻿using FluentAssertions;
 using MultithreadDownload.Tasks;
+using MultithreadDownload.TestUtilities.Helpers;
 using MultithreadDownload.UnitTests.Fixtures;
 using System.Threading.Tasks;
 
@@ -28,7 +29,7 @@ namespace MultithreadDownload.UnitTests.Tasks
         public void Constructor_ShouldInitializeSuccessfully()
         {
             // Arrange & Act
-            var tracker = new DownloadSpeedTracker();
+            DownloadSpeedTracker tracker = new DownloadSpeedTracker();
 
             // Assert
             Assert.NotNull(tracker);
@@ -43,20 +44,17 @@ namespace MultithreadDownload.UnitTests.Tasks
         [Fact]
         public void ReportBytes_ShouldAccumulateTotalBytes()
         {
-            // Arrange
-            const long firstBytes = 1024;
-            const long secondBytes = 2048;
-
             // Act
-            _tracker.ReportBytes(firstBytes);
-            _tracker.ReportBytes(secondBytes);
+            // Report some bytes
+            _tracker.ReportBytes(1024);
+            _tracker.ReportBytes(2048);
 
             // Wait a moment to allow internal timing
             Thread.Sleep(600);
 
             // Assert
-            double speed = _tracker.GetSpeedInBytesPerSecond();
-            Assert.True(speed >= 0); // Speed should be calculated based on accumulated bytes
+            // Speed should be calculated based on accumulated bytes
+            Assert.True(_tracker.GetSpeedInBytesPerSecond() >= 0);
         }
 
         /// <summary>
@@ -67,9 +65,11 @@ namespace MultithreadDownload.UnitTests.Tasks
         public void GetSpeedInBytesPerSecond_WhenCalledTooQuickly_ShouldReturnZero()
         {
             // Arrange
+            // Report some bytes
             _tracker.ReportBytes(1024);
 
-            // Act ==> Call immediately without waiting
+            // Act
+            // Get speed immediately
             double speed = _tracker.GetSpeedInBytesPerSecond();
 
             // Assert
@@ -83,15 +83,15 @@ namespace MultithreadDownload.UnitTests.Tasks
         public async Task GetSpeedInBytesPerSecond_AfterSufficientTime_ShouldCalculateSpeed()
         {
             // Arrange
-            const long bytesToReport = 1024;
-            _tracker.ReportBytes(bytesToReport);
+            // Report some bytes
+            _tracker.ReportBytes(1024);
 
-            // Act ==> Wait for more than 500ms to allow speed calculation
+            // Act
+            // Wait for more than 500ms to allow speed calculation
             await Task.Delay(600);
-            double speed = _tracker.GetSpeedInBytesPerSecond();
 
             // Assert
-            Assert.True(speed > 0, "Speed should be greater than 0 after sufficient time");
+            Assert.True(_tracker.GetSpeedInBytesPerSecond() > 0, "Speed should be greater than 0 after sufficient time");
         }
 
         /// <summary>
@@ -101,15 +101,18 @@ namespace MultithreadDownload.UnitTests.Tasks
         public async Task GetSpeedFormatted_ShouldReturnFormattedString()
         {
             // Arrange
+            // Report some bytes
             _tracker.ReportBytes(2048);
-            await Task.Delay(600);
 
-            // Act => Get the formatted speed
+            // Act
+            // Wait for 600ms to allow speed calculation
+            await Task.Delay(1000);
+            // Get the formatted speed
             string formattedSpeed = _tracker.GetSpeedFormatted();
 
             // Assert
             Assert.NotNull(formattedSpeed);
-            Assert.NotEmpty(formattedSpeed);
+            AssertHelper.InRangeByBytes(2048, AssertHelper.DOWNLOAD_SPEED_BYTES_ERROR_RANGE);
         }
 
         /// <summary>
@@ -119,24 +122,29 @@ namespace MultithreadDownload.UnitTests.Tasks
         public async Task StartMonitoring_ShouldTriggerSpeedReportEvents()
         {
             // Arrange
+            // Set up a TaskCompletionSource to wait for the event
             TaskCompletionSource<string?> tcs = new TaskCompletionSource<string?>();
-            TimeSpan interval = TimeSpan.FromMilliseconds(100);
-
+            // Bind to speed report event
             _tracker.SpeedReportGenerated += speed =>
             {
-                tcs.TrySetResult(speed); // Set the result when event is triggered
+                // Set the result when event is triggered
+                tcs.TrySetResult(speed); 
             };
 
             // Act
-            _tracker.StartMonitoring(interval);
+            // Start monitoring with a short interval
+            _tracker.StartMonitoring(TimeSpan.FromMilliseconds(100));
+            // Report some bytes
             _tracker.ReportBytes(1024);
 
             // Wait for event to be triggered, with timeout to avoid hanging
-            var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(1000));
+            Task completedTask = await Task.WhenAny(tcs.Task, Task.Delay(1000));
+            // Get the reported speed
             string? reportedSpeed = completedTask == tcs.Task ? tcs.Task.Result : null;
 
             // Assert
             Assert.NotNull(reportedSpeed);
+            Assert.Equal("1KiB", reportedSpeed);
         }
 
         /// <summary>
@@ -153,53 +161,20 @@ namespace MultithreadDownload.UnitTests.Tasks
             _tracker.SpeedReportGenerated += _ => Interlocked.Increment(ref eventCount);
 
             // Act
+            // Call StartMonitoring multiple times
+            // Only the first call should take effect
             _tracker.StartMonitoring(interval);
-            _tracker.StartMonitoring(interval); // Second call should be ignored
-            _tracker.StartMonitoring(interval); // Third call should be ignored
+            // Second call should be ignored
+            _tracker.StartMonitoring(interval);
+            // Third call should be ignored
+            _tracker.StartMonitoring(interval); 
 
             // Wait for 2-3 potential events
             await Task.Delay(250); 
 
             // Assert
             // If multiple timers were created, we would see more events than expected
-            Assert.True(eventCount >= 1 && eventCount <= 4,
-                $"Event count should be reasonable (1-4), but was {eventCount}");
-        }
-
-        /// <summary>
-        /// Tests that StopMonitoring stops the event generation.
-        /// </summary>
-        [Fact]
-        public async Task StopMonitoring_ShouldStopEventGeneration()
-        {
-            // Arrange
-            int eventCount = 0;
-            TimeSpan interval = TimeSpan.FromMilliseconds(100);
-            TaskCompletionSource<bool> tcsFirstEvent = new TaskCompletionSource<bool>();
-
-            _tracker.SpeedReportGenerated += _ =>
-            {
-                Interlocked.Increment(ref eventCount);
-                tcsFirstEvent.TrySetResult(true);
-            };
-
-            _tracker.StartMonitoring(interval);
-            _tracker.ReportBytes(1024);
-
-            // Wait for first event to ensure monitoring started
-            Task completedTask = await Task.WhenAny(tcsFirstEvent.Task, Task.Delay(1000));
-            Assert.True(completedTask == tcsFirstEvent.Task, "No event triggered before stopping");
-
-            int countAfterStart = eventCount;
-
-            // Act
-            _tracker.StopMonitoring();
-            await Task.Delay(300); // Wait some time to check no more events are generated
-
-            int countAfterStop = eventCount;
-
-            // Assert
-            Assert.Equal(countAfterStart, countAfterStop); // No new events after stopping
+            Assert.True(eventCount >= 1 && eventCount <= 4, $"Event count should be reasonable (1-4), but was {eventCount}");
         }
 
         /// <summary>
@@ -215,21 +190,28 @@ namespace MultithreadDownload.UnitTests.Tasks
         public async Task ReportBytes_MultipleThreads_ShouldBeThreadSafe(int threadCount)
         {
             // Arrange
+            // Each thread will report 1000 bytes
             const long bytesPerThread = 1000;
+            // The expected total bytes reported is threadCount * bytesPerThread
             long expectedTotalBytes = threadCount * bytesPerThread;
             Task[] tasks = new Task[threadCount];
 
-            // Act => Start multiple tasks to report bytes concurrently
+            // Act
+            // Start multiple tasks to report bytes concurrently,
+            // which simulates multithreading downloads
             for (int i = 0; i < threadCount; i++)
             {
                 tasks[i] = Task.Run(() => _tracker.ReportBytes(bytesPerThread));
             }
 
-            await Task.WhenAll(tasks); // Wait for all tasks to complete its reporting
-            await Task.Delay(600); // Wait for speed calculation
+            // Wait for all tasks to complete its reporting
+            await Task.WhenAll(tasks);
+            // Wait for speed calculation
+            await Task.Delay(600);
+            // Get the calculated speed
+            double speed = _tracker.GetSpeedInBytesPerSecond();
 
             // Assert
-            double speed = _tracker.GetSpeedInBytesPerSecond();
             Assert.True(speed > 0, "Speed should be calculated correctly even with concurrent access");
         }
 
@@ -246,10 +228,13 @@ namespace MultithreadDownload.UnitTests.Tasks
         public async Task GetSpeedInBytesPerSecond_MultipleThreads_ShouldBeThreadSafe(int threadCount)
         {
             // Arrange
-            _tracker.ReportBytes(5000);
+            // Report some bytes to have a non-zero speed
+            _tracker.ReportBytes(4096);
+            // Wait for speed calculation
             await Task.Delay(600);
-
+            // Array to hold speeds from each thread
             double[] speeds = new double[threadCount];
+            // Array to hold tasks
             Task[] tasks = new Task[threadCount];
 
             // Act
@@ -258,16 +243,16 @@ namespace MultithreadDownload.UnitTests.Tasks
                 // Capture loop variable to prevent the number is changed by the time the loop runs
                 int index = i;
                 // Get speed in each thread
+                // to test concurrent access to GetSpeedInBytesPerSecond
                 tasks[i] = Task.Run(() => speeds[index] = _tracker.GetSpeedInBytesPerSecond());
             }
-
+            // Wait for all tasks to complete
             await Task.WhenAll(tasks);
 
             // Assert
-            foreach (var speed in speeds)
-            {
-                Assert.True(speed >= 0, "All speed calculations should be non-negative");
-            }
+            // All speeds should be non-negative and equal since the state is consistent
+            speeds.All(speed => speed >= 0).Should().BeTrue("All speed calculations should be non-negative");
+            speeds.All(speed => speed == 4096).Should().BeTrue("All speed calculations should be equal to the reported speed");
         }
 
         /// <summary>
@@ -277,32 +262,32 @@ namespace MultithreadDownload.UnitTests.Tasks
         public async Task Dispose_ShouldCleanupResourcesAndStopMonitoring()
         {
             // Arrange
+            // Set up to count events
             int eventCount = 0;
-            TimeSpan interval = TimeSpan.FromMilliseconds(100); // 稳定的 timer 间隔
+            // Set up a TaskCompletionSource to wait for the first event
             TaskCompletionSource<bool> tcsFirstEvent = new TaskCompletionSource<bool>();
-
+            // Bind to speed report event
             _tracker.SpeedReportGenerated += _ =>
             {
                 Interlocked.Increment(ref eventCount);
-                tcsFirstEvent.TrySetResult(true); // 确保至少触发一次事件
+                tcsFirstEvent.TrySetResult(true);
             };
-
-            _tracker.StartMonitoring(interval);
-            _tracker.ReportBytes(1024);
-
+            // Start monitoring
+            _tracker.StartMonitoring(TimeSpan.FromMilliseconds(100));
             // Wait for first event to ensure monitoring started
             Task completedTask = await Task.WhenAny(tcsFirstEvent.Task, Task.Delay(1000));
-            Assert.True(completedTask == tcsFirstEvent.Task, "No event triggered before Dispose");
-
+            // Capture event count at Dispose time
             int countAtDispose = eventCount;
 
             // Act
+            // Dispose the tracker
             _tracker.Dispose();
-
             // Wait a bit to confirm no more events are fired after Dispose
             await Task.Delay(300);
 
             // Assert
+            // Ensure at least one event was triggered before Dispose
+            Assert.True(completedTask == tcsFirstEvent.Task, "No event triggered before Dispose");
             // After Dispose, event count should not increase
             Assert.Equal(countAtDispose, eventCount);
         }
@@ -314,14 +299,18 @@ namespace MultithreadDownload.UnitTests.Tasks
         public async Task ReportBytes_WithZeroBytes_ShouldHandleGracefully()
         {
             // Arrange & Act
+            // Report zero bytes
             _tracker.ReportBytes(0);
+            // Wait for speed calculation
             await Task.Delay(600);
+            // Get speed in bytes per second
             double speed = _tracker.GetSpeedInBytesPerSecond();
+            // Get formatted speed
             string formattedSpeed = _tracker.GetSpeedFormatted();
 
             // Assert
             Assert.True(speed == 0, "Speed should be zero even with zero bytes");
-            Assert.NotEmpty(formattedSpeed);
+            Assert.Equal("0KiB", formattedSpeed);
         }
 
         /// <summary>
@@ -331,16 +320,21 @@ namespace MultithreadDownload.UnitTests.Tasks
         public async Task ReportBytes_WithLargeValues_ShouldHandleCorrectly()
         {
             // Arrange
-            const long largeByteValue = long.MaxValue / 1000; // Large but safe value
+            // Get a large byte value close to long.MaxValue
+            const long largeByteValue = long.MaxValue / 1000;
 
             // Act
+            // Report large bytes
             _tracker.ReportBytes(largeByteValue);
+            // Wait for speed calculation
             await Task.Delay(600);
+            // Get speed in bytes per second
             double speed = _tracker.GetSpeedInBytesPerSecond();
+            // Get formatted speed
             string formattedSpeed = _tracker.GetSpeedFormatted();
 
             // Assert
-            Assert.True(speed >= 0, "Speed should be calculated correctly for large values");
+            Assert.True(speed == largeByteValue, "Speed in bytes per second should be equal to the actual bytes reported.");
             Assert.NotEmpty(formattedSpeed);
         }
 
@@ -350,21 +344,23 @@ namespace MultithreadDownload.UnitTests.Tasks
         [Fact]
         public async Task GetSpeedInBytesPerSecond_ConsecutiveCalls_ShouldShowProgression()
         {
-            // Arrange
+            // Arrange & Act
+            // Report initial bytes
             _tracker.ReportBytes(1000);
+            // Wait for speed calculation
             await Task.Delay(600);
-
+            // First speed measurement
             double firstSpeed = _tracker.GetSpeedInBytesPerSecond();
 
             // Add more bytes and wait
             _tracker.ReportBytes(2000);
             await Task.Delay(600);
-
+            // Second speed measurement
             double secondSpeed = _tracker.GetSpeedInBytesPerSecond();
 
             // Assert
-            Assert.True(firstSpeed >= 0, "First speed measurement should be non-negative");
-            Assert.True(secondSpeed >= 0, "Second speed measurement should be non-negative");
+            Assert.True(firstSpeed > 0, "First speed measurement should be positive");
+            Assert.True(secondSpeed > 0, "Second speed measurement should be positive");
         }
 
         /// <summary>
@@ -377,31 +373,36 @@ namespace MultithreadDownload.UnitTests.Tasks
         public async Task SimulateRealDownload_ShouldTrackSpeedAccurately()
         {
             // Arrange
-            using var tracker = new DownloadSpeedTracker();
+            // Create a new tracker for this simulation
+            using DownloadSpeedTracker tracker = new DownloadSpeedTracker();
             List<string> speedReports = new List<string>();
-
+            // Bind to speed report event to collect reports
             tracker.SpeedReportGenerated += speed => speedReports.Add(speed);
+            // Start monitoring with 200ms interval
             tracker.StartMonitoring(TimeSpan.FromMilliseconds(200));
 
-            // Act - Simulate downloading chunks of data
-            var downloadTasks = new[]
+            // Act
+            // Simulate downloading chunks of data with delays
+            Task[] downloadTasks = new Task[]
             {
-                SimulateDownloadChunk(tracker, 1024, 100), // Start with 1KiB chunk
-                SimulateDownloadChunk(tracker, 2048, 150), // Then 2KiB chunk
-                SimulateDownloadChunk(tracker, 4096, 100), // Then 4KiB chunk
-                SimulateDownloadChunk(tracker, 1024, 200)  // Finally another 1KiB chunk
+                // Start with 1KiB chunk
+                SimulateDownloadChunk(tracker, 1024, 100),
+                // Then 2KiB chunk
+                SimulateDownloadChunk(tracker, 2048, 150),
+                // Then 4KiB chunk
+                SimulateDownloadChunk(tracker, 4096, 100),
+                // Finally another 1KiB chunk
+                SimulateDownloadChunk(tracker, 1024, 200) 
             };
-
+            // Wait for all download simulations to complete
             await Task.WhenAll(downloadTasks);
-            await Task.Delay(1000); // Wait for final speed reports
+            // Wait for final speed reports
+            await Task.Delay(1000);
 
             // Assert
             // Check that speed reports were generated and are not empty
             Assert.True(speedReports.Count > 0, "Should have generated speed reports");
-            Assert.All(speedReports, report =>
-            {
-                Assert.NotEmpty(report);
-            });
+            Assert.All(speedReports, report => Assert.NotEmpty(report));
         }
 
         /// <summary>

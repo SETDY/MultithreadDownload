@@ -1,5 +1,6 @@
 ﻿using MultithreadDownload.Core.Errors;
 using MultithreadDownload.Logging;
+using MultithreadDownload.Utils;
 using System;
 using System.IO;
 
@@ -12,6 +13,7 @@ namespace MultithreadDownload.Primitives
         /// </summary>
         /// <param name="size"></param>
         /// <returns></returns>
+        [Obsolete("The method is useless in the library as replaced by FormattedSpeed and it will be removed in the future.")]
         public static string ToSpeed(this long downloadSpeedAsBytes)
         {
             // Convert the download speed to a Gib/s
@@ -129,6 +131,20 @@ namespace MultithreadDownload.Primitives
             // Handle any undefined or future enum values
             // This case is impossible to reach, but included for no warning to be raised
             _ => throw new ArgumentOutOfRangeException(nameof(code), $"Unhandled DownloadErrorCode: {code}")
+        };
+
+        /// <summary>
+        /// Get the type of the data unit.
+        /// </summary>
+        /// <param name="unit">The requied data unit</param>
+        /// <returns>The type of the reuqited data unit</returns>
+        /// <exception cref="ArgumentOutOfRangeException">The exception is thrown when an unhandled DataUnit is provided.</exception>
+        public static DataUnitType GetUnitType(this DataUnit unit) => unit switch
+        {
+            DataUnit.Bit or DataUnit.Byte => DataUnitType.Basic,
+            DataUnit.KiB or DataUnit.MiB or DataUnit.GiB or DataUnit.TiB => DataUnitType.IEC,
+            DataUnit.kB or DataUnit.MB or DataUnit.GB or DataUnit.TB => DataUnitType.Metric,
+            _ => throw new ArgumentOutOfRangeException(nameof(unit), $"Unhandled DataUnit: {unit}")
         };
     }
 }

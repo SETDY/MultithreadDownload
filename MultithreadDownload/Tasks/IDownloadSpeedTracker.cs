@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MultithreadDownload.Utils;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -12,7 +13,18 @@ namespace MultithreadDownload.Tasks
         /// <summary>
         /// An event that is triggered with a regular interval to report the formatted download speed.
         /// </summary>
+        [Obsolete("Use FormattedSpeedReportGenerated instead.", false)]
         public event Action<string>? SpeedReportGenerated;
+
+        /// <summary>
+        /// Occurs when a new formatted speed report is generated.
+        /// </summary>
+        /// <remarks>
+        /// Subscribers receive a FormattedSpeed instance containing the latest speed information. 
+        /// This event is typically raised after speed data has been processed and formatted for display or
+        /// logging purposes.
+        /// </remarks>
+        public event Action<FormattedSpeed>? FormattedSpeedReportGenerated;
 #nullable disable
 
         /// <summary>
