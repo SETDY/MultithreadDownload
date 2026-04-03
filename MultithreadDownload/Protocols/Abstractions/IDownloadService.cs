@@ -2,7 +2,7 @@
 using MultithreadDownload.Logging;
 using MultithreadDownload.Primitives;
 using MultithreadDownload.Tasks;
-using MultithreadDownload.Threads;
+using MultithreadDownload.Threads.Abstractions;
 using System.IO;
 
 namespace MultithreadDownload.Protocols.Abstractions

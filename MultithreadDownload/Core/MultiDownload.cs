@@ -3,6 +3,7 @@ using MultithreadDownload.Logging;
 using MultithreadDownload.Protocols;
 using MultithreadDownload.Protocols.Abstractions;
 using MultithreadDownload.Schedulers;
+using MultithreadDownload.Schedulers.Abstractions;
 using MultithreadDownload.Tasks;
 using System;
 using System.Linq;

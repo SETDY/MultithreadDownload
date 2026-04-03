@@ -1,6 +1,6 @@
 ﻿using MultithreadDownload.Protocols.Abstractions;
 
-namespace MultithreadDownload.Threading
+namespace MultithreadDownload.Threads.Abstractions
 {
     /// <summary>
     /// Factory interface for creating instances of ThreadManager.

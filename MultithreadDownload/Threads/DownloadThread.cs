@@ -1,6 +1,5 @@
 ﻿using MultithreadDownload.Downloads;
 using MultithreadDownload.Logging;
-using MultithreadDownload.Threads;
 using MultithreadDownload.Primitives;
 using System;
 using System.IO;
@@ -8,50 +7,26 @@ using System.Threading;
 using System.Threading.Tasks;
 using MultithreadDownload.Core.Errors;
 using MultithreadDownload.Protocols.Abstractions;
+using MultithreadDownload.Threads.Abstractions;
+using MultithreadDownload.Tasks;
+using MultithreadDownload.Threads;
 
 namespace MultithreadDownload.Threading
 {
     public sealed class DownloadThread : IDownloadThread, IDisposable
     {
         /// <summary>
-        /// The ID of the download thread. This is used to identify the thread in the download task.
+        /// The context of this thread
         /// </summary>
-        public byte ID { get; private set; }
-
-        /// <summary>
-        /// The state of the download thread. This indicates whether the thread is running, paused, or stopped.
-        /// </summary>
-        public DownloadState State { get; internal set; }
-
-        /// <summary>
-        /// The download context that contains information about the download operation.
-        /// </summary>
-        public IDownloadTarget DownloadContext { get; private set; }
-
-        /// <summary>
-        /// The path to the file segment that this thread is responsible for downloading.
-        /// </summary>
-        public string FileSegmentPath { get; internal set; }
+        public DownloadThreadContext Context { get; }
 
         /// <summary>
         /// The task that will execute the download operation.
         /// </summary>
-        public Task WorkerTask { get; set; }
+        public Task WorkerTask { get; }
 
-        /// <summary>
-        /// The size of the file that has been downloaded by this thread.
-        /// </summary>
-        public long CompletedBytesSizeCount { get; internal set; }
 
-        /// <summary>
-        /// The status of the download thread.
-        /// </summary>
-        public bool IsAlive { get; private set; }
-
-        /// <summary>
-        /// The download progress of the file that has been downloaded by this thread.
-        /// </summary>
-        public IProgress<sbyte> Progresser { get; private set; }
+        public DownloadProgressTracker TaskProgressTracker { get; }
 
         /// <summary>
         /// The event that is triggered when the download thread is completed.
@@ -77,12 +52,14 @@ namespace MultithreadDownload.Threading
         /// </remarks>
         private readonly Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> _work;
 
-        public DownloadThread(byte id, IDownloadTarget downloadContext, string fileSegmentPath, Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> work)
+        public DownloadThread(
+            DownloadThreadContext threadContext, 
+            DownloadProgressTracker taskProgressTracker, 
+            Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> work)
         {
             // Initialize the properties
-            this.ID = id;
-            this.DownloadContext = downloadContext;
-            this.FileSegmentPath = fileSegmentPath;
+            this.Context = threadContext;
+            this.TaskProgressTracker = taskProgressTracker;
             this._work = work;
             this._cancellation = new CancellationTokenSource();
         }

@@ -5,7 +5,7 @@ using MultithreadDownload.Primitives;
 using System;
 using MultithreadDownload.Protocols.Abstractions;
 
-namespace MultithreadDownload.Schedulers
+namespace MultithreadDownload.Schedulers.Abstractions
 {
     public interface IDownloadTaskScheduler : IDisposable
     {

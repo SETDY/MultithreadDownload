@@ -7,7 +7,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 
-namespace MultithreadDownload.Threads
+namespace MultithreadDownload.Threads.Abstractions
 {
     public interface IDownloadThread : IDisposable
     {

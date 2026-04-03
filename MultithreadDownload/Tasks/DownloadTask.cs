@@ -3,15 +3,16 @@ using MultithreadDownload.Downloads;
 using MultithreadDownload.Events;
 using MultithreadDownload.Exceptions;
 using MultithreadDownload.Logging;
-using MultithreadDownload.Schedulers;
 using MultithreadDownload.Threading;
-using MultithreadDownload.Threads;
 using MultithreadDownload.Primitives;
 using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using MultithreadDownload.Protocols.Abstractions;
+using MultithreadDownload.Threads.Abstractions;
+using MultithreadDownload.Tasks.Abstractions;
+using MultithreadDownload.Schedulers.Abstractions;
 
 namespace MultithreadDownload.Tasks
 {
@@ -21,16 +22,7 @@ namespace MultithreadDownload.Tasks
     public class DownloadTask : IDisposable
     {
         #region Properties
-
-        /// <summary>
-        /// Task ID for identifying the download task.
-        /// </summary>
-        public Guid ID { get; set; }
-
-        /// <summary>
-        /// The download context that contains information about the download operation.
-        /// </summary>
-        public IDownloadTarget DownloadContext { get; private set; }
+        public DownloadTaskContext Context { get; }
 
         /// <summary>
         /// The state of the download task.
@@ -39,43 +31,38 @@ namespace MultithreadDownload.Tasks
         {
             get
             {
-                return this._state;
+                return field;
             }
             private set
             {
                 // Check if the new state is not the same as the current state.
                 // Otherwise, return.
                 // If not, set the state of the download task and invoke the state change event.
-                if (_state == value) return;
+                if (field == value) return;
 
-                _state = value;
+                field = value;
                 StateChange?.Invoke(this, new DownloadDataEventArgs(this));
                 // If the state is changed to TaskCompleted or Failed or Cancelled, invoke the TaskCompleted event.
-                if (_state is DownloadState.Completed or DownloadState.Failed or DownloadState.Cancelled)
+                if (field is DownloadState.Completed or DownloadState.Failed or DownloadState.Cancelled)
                 {
                     // Log the completion of the task.
-                    this.Logger.LogInfo($"The task with id: {ID} have been completed the download process with state: {_state}.");
-                    try
-                    {
-                        this.TaskCompleted?.Invoke();
-                    }
-                    catch (Exception ex)
-                    {
-                        // If the progarmme enter here, that means some methods that scribe to the TaskCompleted event have thrown an exception.
-                        // Therefore, log the error and throw an exception has to be excuted.
-                        // Otherwise, the task will not be funtionally completed but into a dead loop and the user will not know why the task is not userly completed.
-                        this.Logger.LogError($"An error occurred when the TaskCompleted event was invoked for the task with id: {ID}.", ex);
-                        throw new AggregateException(
-                            $"An exception occurred when the TaskCompleted event was invoked for the task with id: {ID}.", ex);
-                    }
+                    this.Logger.LogInfo($"The task with id: {this.Context.Id} have been completed the download process with state: {field}.");
+                    //try
+                    //{
+                    //    this.TaskCompleted?.Invoke();
+                    //}
+                    //catch (Exception ex)
+                    //{
+                    //    // If the progarmme enter here, that means some methods that scribe to the TaskCompleted event have thrown an exception.
+                    //    // Therefore, log the error and throw an exception has to be excuted.
+                    //    // Otherwise, the task will not be funtionally completed but into a dead loop and the user will not know why the task is not userly completed.
+                    //    this.Logger.LogError($"An error occurred when the TaskCompleted event was invoked for the task with id: {ID}.", ex);
+                    //    throw new AggregateException(
+                    //        $"An exception occurred when the TaskCompleted event was invoked for the task with id: {ID}.", ex);
+                    //}
                 }
             }
         }
-
-        /// <summary>
-        /// The field of the property State.
-        /// </summary>
-        private DownloadState _state;
 
         /// <summary>
         /// The logger instance for logging messages related to the download task.
@@ -88,6 +75,16 @@ namespace MultithreadDownload.Tasks
         public IDownloadThreadManager ThreadManager { get; private set; }
 
         /// <summary>
+        /// Gets the progress tracker that monitors the status of the current download operation.
+        /// </summary>
+        /// <remarks>
+        /// Use this property to access real-time progress information, such as bytes downloaded
+        /// and completion percentage, during a download. <br/>
+        /// The returned tracker provides read-only access to progress data and can be used to display or log download progress.
+        /// </remarks>
+        public DownloadProgressTracker ProgressTracker { get; private set; }
+
+        /// <summary>
         /// The download speed tracker for monitoring the download speed.
         /// </summary>
         public IDownloadSpeedTracker SpeedTracker { get; private set; }
@@ -96,14 +93,6 @@ namespace MultithreadDownload.Tasks
         /// When the state of download is changed, this event will be invoked
         /// </summary>
         public event EventHandler<DownloadDataEventArgs> StateChange;
-
-        /// <summary>
-        /// When the download is completed or failed or cancelled, this event will be invoked.
-        /// </summary>
-        /// <remarks>
-        /// It can be seen as the higher implement of StateChange, suitabling some paticulat situation.
-        /// </remarks>
-        public event Action TaskCompleted;
 
         #endregion Properties
 
@@ -118,19 +107,9 @@ namespace MultithreadDownload.Tasks
         /// <remarks>
         /// This constructor initializes the download task with the specified parameters, designed to be used when the user does not provide a custom speed tracker.
         /// </remarks>
-        private DownloadTask(Guid taskID, byte maxThreads, IDownloadThreadManagerFactory factory, IDownloadTarget downloadContext)
-        {
-            // Initialize the download task with the given download delegate, download context ,and factory.
-            // Initialize the speed monitor with the method to get the downloaded size.
-            this.ID = taskID;
-            this._state = DownloadState.Waiting;
-            this.DownloadContext = downloadContext;
-            this.ThreadManager = factory.Create(new DownloadThreadFactory(),
-                this.DownloadContext, maxThreads);
-            this.SpeedTracker = new DownloadSpeedTracker();
-            this.Logger = DownloadLogger.For(Option<string>.Some(this.ID.ToString()), Option<byte>.None());
-
-        }
+        private DownloadTask(DownloadTaskContext downloadContext, IDownloadThreadManagerFactory threadManagerFactory) :
+            this(downloadContext, threadManagerFactory, new DownloadThreadFactory(), new DownloadSpeedTracker())
+        { }
 
         /// <summary>
         /// Initialize a new instance of the <see cref="DownloadTask"/> class with the general parameters.
@@ -142,17 +121,20 @@ namespace MultithreadDownload.Tasks
         /// <remarks>
         /// This constructor initializes the download task with the specified parameters, designed to be used when the user provides a custom speed tracker.
         /// </remarks>
-        private DownloadTask(Guid taskID, byte maxThreads, IDownloadThreadManagerFactory factory, IDownloadSpeedTracker speedTracker, IDownloadTarget downloadContext)
+        private DownloadTask(
+            DownloadTaskContext downloadContext, 
+            IDownloadThreadManagerFactory threadManagerFactory, 
+            IDownloadThreadFactory threadFactory, 
+            IDownloadSpeedTracker speedTracker)
         {
-            // Initialize the download task with the given download delegate, download context ,and factory.
-            // Initialize the speed monitor with the method to get the downloaded size.
-            this.ID = taskID;
-            this._state = DownloadState.Waiting;
-            this.DownloadContext = downloadContext;
-            this.ThreadManager = factory.Create(new DownloadThreadFactory(),
-                this.DownloadContext, maxThreads);
-            this.SpeedTracker = speedTracker;
-            this.Logger = DownloadLogger.For(Option<string>.Some(this.ID.ToString()), Option<byte>.None());
+            // Initialize the download task properties.
+            this.Context = downloadContext;
+            this.ThreadManager = threadManagerFactory.Create(threadFactory, downloadContext.DownloadTarget, downloadContext.TotalThreads);
+            this.ProgressTracker = new DownloadProgressTracker(
+                (long)(downloadContext.DownloadTarget.SupportsRange ? 0 : downloadContext.DownloadTarget.ContentLength));
+            this.SpeedTracker = new DownloadSpeedTracker();
+            this.Logger = DownloadLogger.For(Option<string>.Some(downloadContext.Id.ToString()), Option<byte>.None());
+
         }
         #endregion Constructors
 
@@ -356,19 +338,10 @@ namespace MultithreadDownload.Tasks
         /// </summary>
         /// <param name="url"></param>
         /// <param name="path"></param>
-        public static DownloadTask Create(Guid taskID, IDownloadTarget downloadContext)
+        public static DownloadTask Create(Guid taskID, IDownloadTarget downloadTarget, DownloadTaskContext taskContext)
         {
-            // If the download context is valid, create a new download task with the given parameters.
-            // Otherwise, throw an exception.
-            if (downloadContext.IsPropertiesVaild().IsSuccess)
-            {
-                DownloadLogger.LogInfo($"The task with id: {taskID} is created.");
-                return new DownloadTask(taskID, downloadContext.ThreadCount, new DownloadThreadManagerFactory(), downloadContext);
-            }
-            else
-            {
-                throw new DownloadContextInvaildException(downloadContext);
-            }
+            DownloadLogger.LogInfo($"The task with id: {taskID} is created.");
+            return new DownloadTask(taskID, downloadTarget.ThreadCount, new DownloadThreadManagerFactory(), downloadContext);
         }
     }
 }

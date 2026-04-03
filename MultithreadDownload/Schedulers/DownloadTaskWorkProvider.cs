@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Linq;
 using MultithreadDownload.Protocols.Abstractions;
 using MultithreadDownload.Utils.IO;
+using MultithreadDownload.Schedulers.Abstractions;
 
 namespace MultithreadDownload.Schedulers
 {

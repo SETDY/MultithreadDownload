@@ -1,6 +1,5 @@
 ﻿using MultithreadDownload.Downloads;
 using MultithreadDownload.Logging;
-using MultithreadDownload.Threads;
 using MultithreadDownload.Primitives;
 using System;
 using System.Collections.Generic;
@@ -11,6 +10,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using MultithreadDownload.Core.Errors;
+using MultithreadDownload.Threads.Abstractions;
 
 namespace MultithreadDownload.Protocols.Http
 {

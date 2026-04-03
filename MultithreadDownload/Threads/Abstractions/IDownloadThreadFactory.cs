@@ -1,11 +1,10 @@
-﻿using MultithreadDownload.Threads;
-using MultithreadDownload.Primitives;
+﻿using MultithreadDownload.Primitives;
 using System;
 using System.IO;
 using MultithreadDownload.Core.Errors;
 using MultithreadDownload.Protocols.Abstractions;
 
-namespace MultithreadDownload.Threading
+namespace MultithreadDownload.Threads.Abstractions
 {
     public interface IDownloadThreadFactory
     {

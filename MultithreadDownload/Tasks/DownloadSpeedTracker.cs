@@ -1,4 +1,5 @@
 ﻿using MultithreadDownload.Primitives;
+using MultithreadDownload.Tasks.Abstractions;
 using MultithreadDownload.Utils;
 using System;
 using System.Diagnostics;

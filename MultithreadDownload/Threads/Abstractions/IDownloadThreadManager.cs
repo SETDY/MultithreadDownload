@@ -1,12 +1,11 @@
-﻿using MultithreadDownload.Threads;
-using MultithreadDownload.Primitives;
+﻿using MultithreadDownload.Primitives;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using MultithreadDownload.Core.Errors;
 using MultithreadDownload.Logging;
 
-namespace MultithreadDownload.Threading
+namespace MultithreadDownload.Threads.Abstractions
 {
     /// <summary>
     /// Interface for managing download threads.

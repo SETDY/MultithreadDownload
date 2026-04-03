@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace MultithreadDownload.Tasks
+namespace MultithreadDownload.Tasks.Abstractions
 {
     public interface IDownloadSpeedTracker : IDisposable
     {

@@ -1,4 +1,5 @@
 ﻿using MultithreadDownload.Protocols.Abstractions;
+using MultithreadDownload.Threads.Abstractions;
 
 namespace MultithreadDownload.Threading
 {

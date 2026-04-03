@@ -4,6 +4,7 @@ using MultithreadDownload.Core.Errors;
 using MultithreadDownload.Downloads;
 using MultithreadDownload.Protocols.Abstractions;
 using MultithreadDownload.Schedulers;
+using MultithreadDownload.Schedulers.Abstractions;
 using System.Reflection;
 
 namespace MultithreadDownload.UnitTests.Schedulers

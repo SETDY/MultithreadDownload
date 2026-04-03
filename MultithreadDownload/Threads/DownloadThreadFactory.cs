@@ -1,9 +1,9 @@
-﻿using MultithreadDownload.Threads;
-using MultithreadDownload.Primitives;
+﻿using MultithreadDownload.Primitives;
 using System;
 using System.IO;
 using MultithreadDownload.Core.Errors;
 using MultithreadDownload.Protocols.Abstractions;
+using MultithreadDownload.Threads.Abstractions;
 
 namespace MultithreadDownload.Threading
 {

@@ -1,5 +1,4 @@
 ﻿using MultithreadDownload.Downloads;
-using MultithreadDownload.Threads;
 using MultithreadDownload.Primitives;
 using System;
 using System.Collections.Generic;
@@ -10,6 +9,7 @@ using MultithreadDownload.Core.Errors;
 using MultithreadDownload.Logging;
 using MultithreadDownload.Protocols.Abstractions;
 using MultithreadDownload.Utils.IO;
+using MultithreadDownload.Threads.Abstractions;
 
 namespace MultithreadDownload.Threading
 {

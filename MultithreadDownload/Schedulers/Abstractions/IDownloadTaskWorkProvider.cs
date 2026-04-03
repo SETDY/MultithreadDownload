@@ -4,7 +4,7 @@ using System.IO;
 using MultithreadDownload.Core.Errors;
 using MultithreadDownload.Protocols.Abstractions;
 
-namespace MultithreadDownload.Schedulers
+namespace MultithreadDownload.Schedulers.Abstractions
 {
     public interface IDownloadTaskWorkProvider
     {

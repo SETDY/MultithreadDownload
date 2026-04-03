@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using MultithreadDownload.Core.Errors;
 using MultithreadDownload.Utils;
 using MultithreadDownload.Protocols.Abstractions;
+using MultithreadDownload.Schedulers.Abstractions;
 
 namespace MultithreadDownload.Schedulers
 {
