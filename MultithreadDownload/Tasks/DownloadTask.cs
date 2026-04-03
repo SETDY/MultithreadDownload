@@ -3,7 +3,6 @@ using MultithreadDownload.Downloads;
 using MultithreadDownload.Events;
 using MultithreadDownload.Exceptions;
 using MultithreadDownload.Logging;
-using MultithreadDownload.Protocols;
 using MultithreadDownload.Schedulers;
 using MultithreadDownload.Threading;
 using MultithreadDownload.Threads;
@@ -12,6 +11,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
+using MultithreadDownload.Protocols.Abstractions;
 
 namespace MultithreadDownload.Tasks
 {
@@ -30,7 +30,7 @@ namespace MultithreadDownload.Tasks
         /// <summary>
         /// The download context that contains information about the download operation.
         /// </summary>
-        public IDownloadContext DownloadContext { get; private set; }
+        public IDownloadTarget DownloadContext { get; private set; }
 
         /// <summary>
         /// The state of the download task.
@@ -118,7 +118,7 @@ namespace MultithreadDownload.Tasks
         /// <remarks>
         /// This constructor initializes the download task with the specified parameters, designed to be used when the user does not provide a custom speed tracker.
         /// </remarks>
-        private DownloadTask(Guid taskID, byte maxThreads, IDownloadThreadManagerFactory factory, IDownloadContext downloadContext)
+        private DownloadTask(Guid taskID, byte maxThreads, IDownloadThreadManagerFactory factory, IDownloadTarget downloadContext)
         {
             // Initialize the download task with the given download delegate, download context ,and factory.
             // Initialize the speed monitor with the method to get the downloaded size.
@@ -142,7 +142,7 @@ namespace MultithreadDownload.Tasks
         /// <remarks>
         /// This constructor initializes the download task with the specified parameters, designed to be used when the user provides a custom speed tracker.
         /// </remarks>
-        private DownloadTask(Guid taskID, byte maxThreads, IDownloadThreadManagerFactory factory, IDownloadSpeedTracker speedTracker, IDownloadContext downloadContext)
+        private DownloadTask(Guid taskID, byte maxThreads, IDownloadThreadManagerFactory factory, IDownloadSpeedTracker speedTracker, IDownloadTarget downloadContext)
         {
             // Initialize the download task with the given download delegate, download context ,and factory.
             // Initialize the speed monitor with the method to get the downloaded size.
@@ -356,7 +356,7 @@ namespace MultithreadDownload.Tasks
         /// </summary>
         /// <param name="url"></param>
         /// <param name="path"></param>
-        public static DownloadTask Create(Guid taskID, IDownloadContext downloadContext)
+        public static DownloadTask Create(Guid taskID, IDownloadTarget downloadContext)
         {
             // If the download context is valid, create a new download task with the given parameters.
             // Otherwise, throw an exception.

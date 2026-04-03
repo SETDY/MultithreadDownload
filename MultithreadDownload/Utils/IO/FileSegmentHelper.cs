@@ -1,10 +1,11 @@
 ﻿using MultithreadDownload.Core.Errors;
 using MultithreadDownload.Logging;
+using MultithreadDownload.Primitives;
 using System;
 using System.IO;
 using System.Linq;
 
-namespace MultithreadDownload.Primitives
+namespace MultithreadDownload.Utils.IO
 {
     /// <summary>
     /// The FileSegmentHelper class provides methods to handle file segmentation for multithreaded downloads.

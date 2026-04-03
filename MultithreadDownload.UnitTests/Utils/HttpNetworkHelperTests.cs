@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 using MultithreadDownload.UnitTests.Fixtures;
 using MultithreadDownload.Core.Errors;
+using MultithreadDownload.Utils.Helpers;
 
 namespace MultithreadDownload.UnitTests.Utils
 {

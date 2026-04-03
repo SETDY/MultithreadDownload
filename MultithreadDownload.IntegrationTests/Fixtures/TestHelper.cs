@@ -30,7 +30,7 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
         /// <param name="outputPath">The path where the downloaded file will be saved.</param>
         /// <param name="realFilePath">The path to the real file on the server.</param>
         /// <returns></returns>
-        public static async Task<(LocalHttpFileServer Server, MultiDownload Manager, HttpDownloadContext? Context)>
+        public static async Task<(LocalHttpFileServer Server, MultiDownload Manager, HttpDownloadTarget? Context)>
         PrepareFullHttpDownloadEnvironment(DownloadServiceType downloadServiceType ,byte maxParallelTasks, byte maxDownloadThreads, string outputPath, string realFilePath)
         {
             return await PrepareFullHttpDownloadEnvironment(downloadServiceType, maxParallelTasks, maxDownloadThreads, outputPath, File.ReadAllBytes(realFilePath));
@@ -45,7 +45,7 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
         /// <param name="outputPath">The path where the downloaded file will be saved.</param>
         /// <param name="testData">The byte array containing the test data to be served by the local HTTP server.</param>
         /// <returns></returns>
-        public static async Task<(LocalHttpFileServer Server, MultiDownload Manager, HttpDownloadContext? Context)>
+        public static async Task<(LocalHttpFileServer Server, MultiDownload Manager, HttpDownloadTarget? Context)>
         PrepareFullHttpDownloadEnvironment(DownloadServiceType downloadServiceType, byte maxParallelTasks, byte maxDownloadThreads, string outputPath, byte[] testData)
         {
             (var server, var manager, var url) = PreparePartialHttpDownloadEnvironment(downloadServiceType, maxParallelTasks, testData);
@@ -98,10 +98,10 @@ namespace MultithreadDownload.IntegrationTests.Fixtures
         /// <param name="url">The link to the file to be downloaded.</param>
         /// <param name="outputPath">The path where the downloaded file will be saved.</param>
         /// <returns>The HTTP download context containing information about the download task.</returns>
-        public static async Task<HttpDownloadContext> GetHttpDownloadContext(byte maxDownloadThreads,string url, string outputPath)
+        public static async Task<HttpDownloadTarget> GetHttpDownloadContext(byte maxDownloadThreads,string url, string outputPath)
         {
-            Result<HttpDownloadContext, DownloadError> contextResult =
-                await HttpDownloadContext.GetDownloadContext(maxDownloadThreads, outputPath, url);
+            Result<HttpDownloadTarget, DownloadError> contextResult =
+                await HttpDownloadTarget.GetDownloadContext(maxDownloadThreads, outputPath, url);
             contextResult.Should().NotBeNull();
             contextResult.IsSuccess.Should().BeTrue();
             contextResult.Value.Should().NotBeNull();

@@ -2,7 +2,7 @@
 using MultithreadDownload.Downloads;
 using MultithreadDownload.Logging;
 using MultithreadDownload.Primitives;
-using MultithreadDownload.Protocols;
+using MultithreadDownload.Protocols.Abstractions;
 using System;
 using System.IO;
 using System.Threading.Tasks;
@@ -21,7 +21,7 @@ namespace MultithreadDownload.Threads
         /// </summary>
         public long CompletedBytesSizeCount { get; }
 
-        public IDownloadContext DownloadContext { get; }
+        public IDownloadTarget DownloadContext { get; }
 
         /// <summary>
         /// The current state of the download thread.

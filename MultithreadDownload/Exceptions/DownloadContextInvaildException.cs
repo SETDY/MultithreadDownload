@@ -1,4 +1,4 @@
-﻿using MultithreadDownload.Protocols;
+﻿using MultithreadDownload.Protocols.Abstractions;
 using System;
 
 namespace MultithreadDownload.Exceptions
@@ -10,8 +10,8 @@ namespace MultithreadDownload.Exceptions
         {
         }
 
-        public DownloadContextInvaildException(IDownloadContext downloadContext)
-            : base($"The download context is invalid. The target path of it is {downloadContext.TargetPath}")
+        public DownloadContextInvaildException(IDownloadTarget downloadContext)
+            : base($"The download context is invalid. The target path of it is {downloadContext.SavedPath}")
         {
         }
 

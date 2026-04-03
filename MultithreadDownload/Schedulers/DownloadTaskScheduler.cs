@@ -1,7 +1,6 @@
 ﻿using MultithreadDownload.Downloads;
 using MultithreadDownload.Events;
 using MultithreadDownload.Logging;
-using MultithreadDownload.Protocols;
 using MultithreadDownload.Tasks;
 using MultithreadDownload.Primitives;
 using System;
@@ -12,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MultithreadDownload.Core.Errors;
 using MultithreadDownload.Utils;
+using MultithreadDownload.Protocols.Abstractions;
 
 namespace MultithreadDownload.Schedulers
 {
@@ -151,7 +151,7 @@ namespace MultithreadDownload.Schedulers
                 // Otherwise, block the task to wait
                 this._downloadSlots.Wait(_allocatorTokenSource.Token);
                 // Log the start of the task
-                //DownloadLogger.LogInfo($"The Task with id: {task.ID} and path: {task.DownloadContext.TargetPath} has been started.");
+                //DownloadLogger.LogInfo($"The Task with id: {task.ID} and path: {task.DownloadContext.SavedPath} has been started.");
                 task.ExecuteDownloadTask(_workProvider, _downloadService);
                 // Return success result
                 return Result<bool, DownloadError>.Success(true);
@@ -159,7 +159,7 @@ namespace MultithreadDownload.Schedulers
             catch (Exception)
             {
                 // If there is an exception, log the error and continue to the next task
-                DownloadLogger.For(Option<string>.Some(task.ID.ToString()), Option<byte>.None()).LogError($"Unexpected error when starting the task with path: {task.DownloadContext.TargetPath}.");
+                DownloadLogger.For(Option<string>.Some(task.ID.ToString()), Option<byte>.None()).LogError($"Unexpected error when starting the task with path: {task.DownloadContext.SavedPath}.");
                 // Return failure result
                 return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.UnexpectedOrUnknownException, $"Unexpected error when starting the task with ID {task.ID.ToString()}."));
             }
@@ -272,14 +272,14 @@ namespace MultithreadDownload.Schedulers
         /// </summary>
         /// <param name="downloadContext">The download context to use.</param>
         /// <returns>The task that is added to the queue.</returns>
-        public DownloadTask AddTask(IDownloadContext downloadContext)
+        public DownloadTask AddTask(IDownloadTarget downloadContext)
         {
             // Create a new task with the given download context and maximum number of threads
             // Hook the event such that the queue progress can be invoked when the task is completed.
             DownloadTask task = DownloadTask.Create(Guid.NewGuid(), downloadContext);
 
             // Log the creation of the task
-            //DownloadLogger.LogInfo($"A Task is created with id: {task.ID} and path: {downloadContext.TargetPath}");
+            //DownloadLogger.LogInfo($"A Task is created with id: {task.ID} and path: {downloadContext.SavedPath}");
 
             task.TaskCompleted += delegate
             {
@@ -299,7 +299,7 @@ namespace MultithreadDownload.Schedulers
             _taskQueue.Add(task);
 
             // Log the additon of the queued task
-            DownloadLogger.LogInfo($"The Task is queued with id: {task.ID} and path: {downloadContext.TargetPath}");
+            DownloadLogger.LogInfo($"The Task is queued with id: {task.ID} and path: {downloadContext.SavedPath}");
 
             // Add an ? to prevent the event is invoked when it is null.
             TaskQueueProgressChanged?.Invoke(task, new DownloadDataEventArgs(task));

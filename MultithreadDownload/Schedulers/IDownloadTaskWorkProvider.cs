@@ -1,8 +1,8 @@
-﻿using MultithreadDownload.Protocols;
-using MultithreadDownload.Tasks;
+﻿using MultithreadDownload.Tasks;
 using MultithreadDownload.Primitives;
 using System.IO;
 using MultithreadDownload.Core.Errors;
+using MultithreadDownload.Protocols.Abstractions;
 
 namespace MultithreadDownload.Schedulers
 {
@@ -22,7 +22,7 @@ namespace MultithreadDownload.Schedulers
         /// <param name="maxParallelThreads"></param>
         /// <param name="downloadContext"></param>
         /// <returns>The final file stream for the task to write to.</returns>
-        public Result<Stream, DownloadError> GetTaskFinalStream(IDownloadContext downloadContext);
+        public Result<Stream, DownloadError> GetTaskFinalStream(IDownloadTarget downloadContext);
 
         /// <summary>
         /// Finalize the work of the download task.

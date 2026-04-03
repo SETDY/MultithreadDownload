@@ -1,9 +1,9 @@
 ﻿using MultithreadDownload.Downloads;
 using MultithreadDownload.Events;
-using MultithreadDownload.Protocols;
 using MultithreadDownload.Tasks;
 using MultithreadDownload.Primitives;
 using System;
+using MultithreadDownload.Protocols.Abstractions;
 
 namespace MultithreadDownload.Schedulers
 {
@@ -54,7 +54,7 @@ namespace MultithreadDownload.Schedulers
         /// Add a task to the queue.
         /// </summary>
         /// <param name="downloadContext">The download context to use.</param>
-        DownloadTask AddTask(IDownloadContext downloadContext);
+        DownloadTask AddTask(IDownloadTarget downloadContext);
 
 
         /// <summary>

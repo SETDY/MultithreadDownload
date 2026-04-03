@@ -1,6 +1,5 @@
 ﻿using MultithreadDownload.Downloads;
 using MultithreadDownload.Logging;
-using MultithreadDownload.Protocols;
 using MultithreadDownload.Threads;
 using MultithreadDownload.Primitives;
 using System;
@@ -8,6 +7,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using MultithreadDownload.Core.Errors;
+using MultithreadDownload.Protocols.Abstractions;
 
 namespace MultithreadDownload.Threading
 {
@@ -26,7 +26,7 @@ namespace MultithreadDownload.Threading
         /// <summary>
         /// The download context that contains information about the download operation.
         /// </summary>
-        public IDownloadContext DownloadContext { get; private set; }
+        public IDownloadTarget DownloadContext { get; private set; }
 
         /// <summary>
         /// The path to the file segment that this thread is responsible for downloading.
@@ -77,7 +77,7 @@ namespace MultithreadDownload.Threading
         /// </remarks>
         private readonly Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> _work;
 
-        public DownloadThread(byte id, IDownloadContext downloadContext, string fileSegmentPath, Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> work)
+        public DownloadThread(byte id, IDownloadTarget downloadContext, string fileSegmentPath, Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> work)
         {
             // Initialize the properties
             this.ID = id;

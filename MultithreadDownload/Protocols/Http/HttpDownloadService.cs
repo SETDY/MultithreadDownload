@@ -14,6 +14,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using MultithreadDownload.Utils;
 using System.Collections.Generic;
+using MultithreadDownload.Protocols.Abstractions;
+using MultithreadDownload.Utils.IO;
 
 namespace MultithreadDownload.Protocols.Http
 {
@@ -41,10 +43,10 @@ namespace MultithreadDownload.Protocols.Http
         /// <param name="downloadContext"></param>
         /// <param name="rangePostions"></param>
         /// <returns>The streams for each of the download threads of the download task</returns>
-        public Result<Stream[], DownloadError> GetStreams(IDownloadContext downloadContext, DownloadScopedLogger logger)
+        public Result<Stream[], DownloadError> GetStreams(IDownloadTarget downloadContext, DownloadScopedLogger logger)
         {
             // Log the start of getting streams for the download task
-            logger.LogInfo($"Getting streams for download task: {downloadContext.TargetPath}");
+            logger.LogInfo($"Getting streams for download task: {downloadContext.SavedPath}");
             // Set the enumerator for the range positions of the download context
             // to get the streams for each of the download threads of the download task.
             IEnumerable<Result<Stream, DownloadError>> resultEnumerator = 
@@ -72,7 +74,7 @@ namespace MultithreadDownload.Protocols.Http
         /// This method is used to handle the exceptions that may occur when getting the stream.
         /// Therefore, Should use this method instead of GetStream directly.
         /// </remarks>
-        private Result<Stream, DownloadError> GetStreamSafe(IDownloadContext downloadContext, long startPosition, long endPosition)
+        private Result<Stream, DownloadError> GetStreamSafe(IDownloadTarget downloadContext, long startPosition, long endPosition)
         {
             try
             {
@@ -99,11 +101,11 @@ namespace MultithreadDownload.Protocols.Http
         /// <param name="startPosition">The start position of the file to be downloaded</param>
         /// <param name="endPosition">The end position of the file to be downloaded</param>
         /// <returns></returns>
-        private Result<Stream, DownloadError> GetStream(IDownloadContext downloadContext, long startPosition, long endPosition)
+        private Result<Stream, DownloadError> GetStream(IDownloadTarget downloadContext, long startPosition, long endPosition)
         {
             // Get the download context from the download thread.
-            // Since the class is about Http, we can just cast it to HttpDownloadContext.
-            HttpDownloadContext httpDownloadContext = (HttpDownloadContext)downloadContext;
+            // Since the class is about Http, we can just cast it to HttpDownloadTarget.
+            HttpDownloadTarget httpDownloadContext = (HttpDownloadTarget)downloadContext;
             // Get a new httpClient instance.
             // Create a request message for a new httpClient instance.
             // Send a request and get the response.
@@ -304,12 +306,12 @@ namespace MultithreadDownload.Protocols.Http
         /// </summary>
         /// <param name="downloadContext">The download context to evaluate for support. Cannot be null.</param>
         /// <returns>true if the specified download context is supported; otherwise, false.</returns>
-        public bool IsSupportedDownloadContext(IDownloadContext downloadContext)
+        public bool IsSupportedDownloadContext(IDownloadTarget downloadContext)
         {
             // Check if the download context is null
             ArgumentNullException.ThrowIfNull(downloadContext, "Download context cannot be null.");
-            // Check if the download context is of type HttpDownloadContext
-            return downloadContext is HttpDownloadContext;
+            // Check if the download context is of type HttpDownloadTarget
+            return downloadContext is HttpDownloadTarget;
         }
 
         #region Internal static methods for cleaning up the download progress

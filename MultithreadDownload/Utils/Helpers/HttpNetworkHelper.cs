@@ -1,5 +1,6 @@
 ﻿using MultithreadDownload.Core.Errors;
 using MultithreadDownload.Logging;
+using MultithreadDownload.Primitives;
 using System;
 using System.Net;
 using System.Net.Http;
@@ -8,7 +9,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace MultithreadDownload.Primitives
+namespace MultithreadDownload.Utils.Helpers
 {
     /// <summary>
     /// A class that provides http network-related helper methods.

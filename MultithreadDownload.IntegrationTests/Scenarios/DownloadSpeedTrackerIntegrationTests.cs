@@ -251,7 +251,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                 DownloadServiceType.Http, 1, TestConstants.LARGE_TESTFILE_PATH);
 
             var speedTrackers = new List<DownloadSpeedTracker>();
-            var downloadContexts = new List<HttpDownloadContext>();
+            var downloadContexts = new List<HttpDownloadTarget>();
             var completionSources = new List<TaskCompletionSource>();
             var speedReportCounts = new ConcurrentDictionary<int, int>();
 
@@ -288,7 +288,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                         // Verify all downloads completed successfully
                         for (int i = 0; i < concurrentTasks; i++)
                         {
-                            TestHelper.VerifyFileContent(downloadContexts[i].TargetPath, TestConstants.LARGE_TESTFILE_PATH);
+                            TestHelper.VerifyFileContent(downloadContexts[i].SavedPath, TestConstants.LARGE_TESTFILE_PATH);
                         }
 
                         // Verify speed tracking for each task
@@ -325,8 +325,8 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                         server?.Stop();
                         downloadContexts.ForEach(context =>
                         {
-                            if (File.Exists(context.TargetPath))
-                                File.Delete(context.TargetPath);
+                            if (File.Exists(context.SavedPath))
+                                File.Delete(context.SavedPath);
                         });
                     }
                 }
@@ -379,7 +379,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
 
             // Arrange
             string url = "https://builds.dotnet.microsoft.com/dotnet/Sdk/9.0.300/dotnet-sdk-9.0.300-win-x64.exe";
-            var downloadContext = await HttpDownloadContext.GetDownloadContext(4, Path.GetTempPath(), url);
+            var downloadContext = await HttpDownloadTarget.GetDownloadContext(4, Path.GetTempPath(), url);
 
             downloadContext.IsSuccess.Should().BeTrue("Download context should be created successfully");
             downloadContext.Value.Should().NotBeNull();
@@ -402,8 +402,8 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                 try
                 {
                     // Verify download integrity
-                    File.Exists(downloadContext.Value.Value.TargetPath).Should().BeTrue("Downloaded file should exist");
-                    TestHelper.VerifyFileSHA512(downloadContext.Value.Value.TargetPath,
+                    File.Exists(downloadContext.Value.Value.SavedPath).Should().BeTrue("Downloaded file should exist");
+                    TestHelper.VerifyFileSHA512(downloadContext.Value.Value.SavedPath,
                         "5d58e5b1b40ffbd87d99eabaa30ff55baafb0318e35f38e0e220ac3630974a652428284e3ceb8841bf1a2c90aff0f6e7dfd631ca36f1b65ee1efd638fc68b0c8");
 
                     // Verify speed tracking under real network conditions
@@ -430,8 +430,8 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                 finally
                 {
                     speedTracker?.Dispose();
-                    if (File.Exists(downloadContext.Value.Value.TargetPath))
-                        File.Delete(downloadContext.Value.Value.TargetPath);
+                    if (File.Exists(downloadContext.Value.Value.SavedPath))
+                        File.Delete(downloadContext.Value.Value.SavedPath);
                 }
             };
 
@@ -503,7 +503,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             {
                 // Act
                 var downloadManager = new MultiDownload(1, DownloadServiceType.Http);
-                var contextResult = await HttpDownloadContext.GetDownloadContext(1, outputPath, invalidUrl);
+                var contextResult = await HttpDownloadTarget.GetDownloadContext(1, outputPath, invalidUrl);
 
                 // Assert
                 contextResult.IsSuccess.Should().BeFalse("Invalid URL should fail to create context");

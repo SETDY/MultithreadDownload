@@ -60,7 +60,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
             (var server, var downloadManager, var url) = TestHelper.PreparePartialHttpDownloadEnvironment(
                 DownloadServiceType.Http, 1, TestConstants.LARGE_TESTFILE_PATH);
             // Get download task context (including segment information, etc.)
-            List<HttpDownloadContext> contexts = new List<HttpDownloadContext>();
+            List<HttpDownloadTarget> contexts = new List<HttpDownloadTarget>();
             for (int i = 0; i < concurrentTasks; i++)
             {
                 contexts.Add( await TestHelper.GetHttpDownloadContext
@@ -74,7 +74,7 @@ namespace MultithreadDownload.IntegrationTests.Scenarios
                 contexts.ForEach(c =>
                 {
                     // Assert => Check if the file exists and its content is correct
-                    TestHelper.VerifyFileContent(c.TargetPath, TestConstants.LARGE_TESTFILE_PATH);
+                    TestHelper.VerifyFileContent(c.SavedPath, TestConstants.LARGE_TESTFILE_PATH);
                 });
             };
 

@@ -5,7 +5,7 @@ using MultithreadDownload.Tasks;
 using MultithreadDownload.Threads;
 using System.IO;
 
-namespace MultithreadDownload.Protocols
+namespace MultithreadDownload.Protocols.Abstractions
 {
     /// <summary>
     /// Represents a download service implementation (e.g. HTTP, FTP).
@@ -18,7 +18,7 @@ namespace MultithreadDownload.Protocols
         /// <param name="downloadContext"></param>
         /// <param name="rangePostions"></param>
         /// <returns>The streams for each of the download threads of the download task</returns>
-        Result<Stream[], DownloadError> GetStreams(IDownloadContext downloadContext, DownloadScopedLogger logger);
+        Result<Stream[], DownloadError> GetStreams(IDownloadTarget downloadContext, DownloadScopedLogger logger);
 
         /// <summary>
         /// Performs the actual download using the given input and output streams.
@@ -42,6 +42,6 @@ namespace MultithreadDownload.Protocols
         /// </summary>
         /// <param name="downloadContext">The download context to evaluate for support. Cannot be null.</param>
         /// <returns>true if the specified download context is supported; otherwise, false.</returns>
-        bool IsSupportedDownloadContext(IDownloadContext downloadContext);
+        bool IsSupportedDownloadContext(IDownloadTarget downloadContext);
     }
 }

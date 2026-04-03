@@ -1,6 +1,7 @@
 ﻿using MultithreadDownload.Events;
 using MultithreadDownload.Logging;
 using MultithreadDownload.Protocols;
+using MultithreadDownload.Protocols.Abstractions;
 using MultithreadDownload.Schedulers;
 using MultithreadDownload.Tasks;
 using System;
@@ -120,7 +121,7 @@ namespace MultithreadDownload.Core
         /// Add a task to the download queue.
         /// </summary>
         /// <param name="downloadContext">Download context.</param>
-        public DownloadTask AddTask(IDownloadContext downloadContext)
+        public DownloadTask AddTask(IDownloadTarget downloadContext)
         {
             // Validate the download context
             // First, check if the download context is null
@@ -135,7 +136,7 @@ namespace MultithreadDownload.Core
             // Add the task to the scheduler
             DownloadTask addedTask = _taskScheduler.AddTask(downloadContext);
             // Log the addition of the task
-            DownloadLogger.LogInfo($"The Task is added with id: {addedTask.ID} and path: {downloadContext.TargetPath}");
+            DownloadLogger.LogInfo($"The Task is added with id: {addedTask.ID} and path: {downloadContext.SavedPath}");
             // Return the added task
             return addedTask;
         }

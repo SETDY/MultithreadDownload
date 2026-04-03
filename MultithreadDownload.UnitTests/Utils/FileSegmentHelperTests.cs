@@ -1,5 +1,6 @@
 ﻿using FluentAssertions;
 using MultithreadDownload.Core.Errors;
+using MultithreadDownload.Utils.IO;
 using System.Runtime.InteropServices;
 
 namespace MultithreadDownload.UnitTests.Utils
