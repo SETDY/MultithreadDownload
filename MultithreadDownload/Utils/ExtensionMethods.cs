@@ -47,8 +47,10 @@ namespace MultithreadDownload.Primitives
         {
             try
             {
-                if (stream == null) 
+                if (stream == null)
+                {
                     return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.NullReference, "It is impossible to clean up a null stream."));
+                }
                 stream.Close();
                 stream.Dispose();
                 return Result<bool, DownloadError>.Success(true);

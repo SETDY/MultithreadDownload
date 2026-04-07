@@ -116,6 +116,19 @@ namespace MultithreadDownload.Primitives
         /// <typeparam name="U">The type of the next operation's success value.</typeparam>
         /// <param name="next">The function to execute if this Result is successful.</param>
         /// <returns>The result of the next operation if this Result is successful, otherwise the same error.</returns>
+        public Result<U, ErrorCode> AndThen<U>(Func<Result<U, ErrorCode>> next)
+        {
+            return IsSuccess
+                ? next()
+                : Result<U, ErrorCode>.Failure(ErrorState);
+        }
+
+        /// <summary>
+        /// Chains another operation that returns a Result, only executing if this Result is successful.
+        /// </summary>
+        /// <typeparam name="U">The type of the next operation's success value.</typeparam>
+        /// <param name="next">The function to execute if this Result is successful.</param>
+        /// <returns>The result of the next operation if this Result is successful, otherwise the same error.</returns>
         public async Task<Result<U, ErrorCode>> AndThenAnsyc<U>(Func<T, Task<Result<U, ErrorCode>>> next)
         {
             return IsSuccess

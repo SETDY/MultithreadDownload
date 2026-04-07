@@ -1,202 +1,116 @@
-﻿using MultithreadDownload.Downloads;
-using MultithreadDownload.Logging;
-using MultithreadDownload.Primitives;
+﻿using MultithreadDownload.Core.Errors;
+using MultithreadDownload.Protocols.Abstractions;
+using MultithreadDownload.Threads.Events;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using MultithreadDownload.Core.Errors;
-using MultithreadDownload.Protocols.Abstractions;
-using MultithreadDownload.Threads.Abstractions;
-using MultithreadDownload.Tasks;
-using MultithreadDownload.Threads;
 
-namespace MultithreadDownload.Threading
+namespace MultithreadDownload.Threads
 {
-    public sealed class DownloadThread : IDownloadThread, IDisposable
+    public class DownloadThread
     {
-        /// <summary>
-        /// The context of this thread
-        /// </summary>
         public DownloadThreadContext Context { get; }
 
+        private IDownloadService Service { get; }
+
+        private CancellationTokenSource CancellationToken { get; } = new CancellationTokenSource();
+
+#nullable enable
         /// <summary>
-        /// The task that will execute the download operation.
+        /// The event that is triggered when the download thread reports progress, 
+        /// which includes the current context of the download thread and the total bytes downloaded so far.
         /// </summary>
-        public Task WorkerTask { get; }
-
-
-        public DownloadProgressTracker TaskProgressTracker { get; }
-
-        /// <summary>
-        /// The event that is triggered when the download thread is completed.
-        /// </summary>
-        public event Action<IDownloadThread> Completed;
+        public event Action<DownloadThreadDataEventArgs, long>? ProgressChanged;
 
         /// <summary>
-        /// The logger instance for logging messages related to the download thread.
+        /// The event that is triggered when the download thread changes its state.
         /// </summary>
-        public DownloadScopedLogger Logger { get; private set; }
+        public event Action<DownloadThreadDataEventArgs, DownloadThreadState>? OnStateChange;
 
         /// <summary>
-        /// The cancellation token source for cancelling the download operation.
+        /// The event that is triggered when the download thread is completed, 
+        /// which includes the current context of the download thread.
         /// </summary>
-        private readonly CancellationTokenSource _cancellation;
+        public event Action<DownloadThreadDataEventArgs> OnCompleted;
 
         /// <summary>
-        /// The function that will be executed in the download thread to perform the download operation.
+        /// The event that is triggered when the download thread is failed, 
+        /// which includes the current context of the download thread and the error information of the failure.
         /// </summary>
-        /// <remarks>
-        /// For example, <see cref="Protocols.Http.HttpDownloadService"/>.DownloadFile(Stream inputStream, Stream outputStream, IDownloadThread downloadThread) 
-        /// is a work of download threads.
-        /// </remarks>
-        private readonly Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> _work;
+        public event Action<DownloadThreadDataEventArgs, DownloadError>? OnFailed;
+        #nullable disable
 
-        public DownloadThread(
-            DownloadThreadContext threadContext, 
-            DownloadProgressTracker taskProgressTracker, 
-            Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> work)
+        public DownloadThread(DownloadThreadContext context, IDownloadService service)
         {
-            // Initialize the properties
-            this.Context = threadContext;
-            this.TaskProgressTracker = taskProgressTracker;
-            this._work = work;
-            this._cancellation = new CancellationTokenSource();
+            this.Context = context;
+            this.Service = service;
         }
 
         /// <summary>
-        /// Starts the download operation in a new thread.
+        /// Starts the download thread, which will continuously download chunks of data until the download is complete or failed.
         /// </summary>
-        public void Start(Stream inputStream, Stream outputStream)
+        /// <param name="input"></param>
+        /// <param name="output"></param>
+        /// <returns></returns>
+        public async Task StartAsync(Stream inputStream, Stream outputStream)
         {
-            this.IsAlive = true;
-            this.WorkerTask = Task.Run(() =>
+            try
             {
-                // Execute the download operation using the provided work function
-                Result<bool, DownloadError> downloadResult = _work(inputStream, outputStream, this);
-                // If the download operation is failed, log the error and set the state to failed
-                // FIXED: This is used to fix when the download operation is failed, the thread will not be completed and the state will not be set to failed.
-                downloadResult.OnFailure(error =>
+                // Invoke the state machine to start the download process.
+                this.Context.StateMachine.Start();
+
+                // Continuously download chunks of data until the download is complete or failed.
+                while (this.Context.CurrentPostion < Context.EndPositon)
                 {
-                    // Log the error if the download operation fails
-                    DownloadLogger.LogError($"Download thread {ID} failed with error: {error.Message}");
-                    // Set the state to failed
-                    this.State = DownloadState.Failed;
-                    // Report the progress as -1 to indicate failure
-                    SetDownloadProgress(-1);
-                });
-                // Set the thread's properties after the download operation is completed
-                this.IsAlive = false;
-                this.Completed?.Invoke(this);
-            });
-        }
+                    this.CancellationToken.Token.ThrowIfCancellationRequested();
 
-        public void Pause()
-        {
-            throw new NotImplementedException();
-        }
+                    Result<> downloadChunkResult = await this.Service.DownloadChunkAsync(
+                        inputStream,
+                        outputStream,
+                        Context,
+                        CancellationToken.Token);
 
-        public void Resume()
-        {
-            throw new NotImplementedException();
-        }
+                    if (result.IsFailure)
+                    {
+                        throw new InvalidOperationException($"Failed to download chunk at position {Context.CurrentPostion} with error: {result.Error}");
+                    }
 
-        public void Stop()
-        {
-            throw new NotImplementedException();
-        }
+                    long bytes = result.Value;
 
-        public void Dispose()
-        {
-            // Cancel the download operation and clean up resources
-            this.Cancel();
-        }
+                    Context.CurrentOffset += bytes;
 
-        /// <summary>
-        /// Sets the logger instance to be used for download-related operations.
-        /// </summary>
-        /// <param name="logger">The logger to associate with download operations. Cannot be null.</param>
-        public void SetLogger(DownloadScopedLogger logger)
-        {
-            this.Logger = logger;
-        }
+                    ProgressChanged?.Invoke(bytes);
+                }
 
-        // TODO: This method should not be public in term of constructional design, but it is needed for download working perfectly now.
-        //       It should be refactored later to be private or internal.
-        /// <summary>
-        /// Adds the completed bytes size count for this thread.
-        /// </summary>
-        /// <param name="size">The size of the completed bytes to add.</param>
-        /// <exception cref="ArgumentOutOfRangeException">The size is negative.</exception>
-        public void AddCompletedBytesSizeCount(long size)
-        {
-            if (size < 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(size), "Size cannot be negative.");
+                Context.StateMachine.Complete();
+                Completed?.Invoke();
             }
-            // Set the completed bytes size count for this thread
-            this.CompletedBytesSizeCount += size;
-            // Log the completed bytes size count
-            // DownloadLogger.LogInfo($"Thread ID: {ID}, TaskCompleted Bytes Size Count: {CompletedBytesSizeCount} and add {size} in this round");
-        }
-
-        public void SetProgresser(IProgress<sbyte> progresser)
-        {
-            this.Progresser = progresser;
-        }
-
-        /// <summary>
-        /// Sets the download progress for this thread.
-        /// </summary>
-        /// <param name="progress">The progress value to set.</param>
-        public void SetDownloadProgress(sbyte progress)
-        {
-            // If the progress is less than -1 or greater than 100, throw an exception
-            if (progress < -1 || progress > 100)
+            catch (OperationCanceledException)
             {
-                throw new ArgumentOutOfRangeException(nameof(progress), "Progress must be between 0 and 100.");
+                // If the download is cancelled, change the state of the download thread to cancelled and
+                // invoke the OnFailed event with the cancellation error information.
+                this.Context.StateMachine.Cancel();
+                this.OnStateChange?.Invoke(
+                    new DownloadThreadDataEventArgs(this.Context),
+                    this.Context.StateMachine.Current);
             }
-            if (progress == -1 || progress == 100)
+            catch (Exception ex)
             {
-                // If the progress is -1, it indicates that the download has been cancelled.
-                // If the progress is 100, it indicates that the download is complete
-                if (!this._cancellation.IsCancellationRequested)
-                    this._cancellation?.Cancel();
+                // If an unexpected or unknown exception occurs during the download process,
+                // change the state of the download thread to failed and
+                // invoke the OnFailed event with the error information of the exception and also
+                // invoke the OnStateChange event to notify the state change of the download thread.
+                this.Context.StateMachine.Fail();
+                this.OnFailed?.Invoke(
+                    new DownloadThreadDataEventArgs(this.Context),
+                    DownloadError.Create(DownloadErrorCode.UnexpectedOrUnknownException, ex.Message));
+                this.OnStateChange?.Invoke(
+                    new DownloadThreadDataEventArgs(this.Context),
+                    this.Context.StateMachine.Current);
             }
-            // Report the download progress
-            this.Progresser.Report(progress);
-        }
-
-        /// <summary>
-        /// Sets the state of the download thread.
-        /// </summary>
-        /// <param name="taskState">The state of task to set.</param>
-        public void SetState(DownloadState taskState)
-        {
-            // Set the state of the download thread
-            this.State = taskState;
-        }
-
-        /// <summary>
-        /// Cancels the download operation.
-        /// </summary>
-        /// <returns>Whether the cancellation was successful.</returns>
-        public Result<bool, DownloadError> Cancel()
-        {
-            // If the thread is null or not alive, return failure result.
-            // Otherwise, cancel the thread and wait for it to finish
-            if (this._work == null)
-                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.NullReference, "Thread is not exist so it cannot be cancelled"));
-            if (this._cancellation == null)
-                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.NullReference, "Thread cancellation token source is not exist so it cannot be cancelled"));
-            if (this.IsAlive == false)
-                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.ThreadNotFound, "Thread is not alive so it cannot be cancelled"));
-            if (this._cancellation.IsCancellationRequested)
-                return Result<bool, DownloadError>.Failure(DownloadError.Create(DownloadErrorCode.ThreadCancelled, "Thread is already cancelled"));
-            this._cancellation.Cancel();
-            this._cancellation.Dispose();
-            this.Dispose();
-            return Result<bool, DownloadError>.Success(true);
         }
     }
 }
