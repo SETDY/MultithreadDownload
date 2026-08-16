@@ -1,22 +1,25 @@
-﻿using MultithreadDownload.Downloads;
+﻿using MultithreadDownload.Core.Errors;
+using MultithreadDownload.Core.Primitives;
+using MultithreadDownload.Downloads;
+using MultithreadDownload.Exceptions;
 using MultithreadDownload.Logging;
 using MultithreadDownload.Primitives;
+using MultithreadDownload.Threads;
+using MultithreadDownload.Threads.Abstractions;
+using MultithreadDownload.Utils;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using MultithreadDownload.Core.Errors;
-using MultithreadDownload.Threads.Abstractions;
-using MultithreadDownload.Threads;
-using System.Net.Http;
 
 namespace MultithreadDownload.Protocols.Http
 {
-    internal class HttpFileDownloader
+    internal sealed class HttpFileDownloader
     {
         #region Private Properties
         /// <summary>
@@ -39,7 +42,7 @@ namespace MultithreadDownload.Protocols.Http
         /// </summary>
         private Stream OutputStream { get; }
 
-        private CancellationToken CancellationToken { get; }
+        private CancellationToken AbortCancellationToken { get; }
 
         /// <summary>
         /// The number of bytes that are required to be downloaded for a chuck of file segment 
@@ -51,15 +54,6 @@ namespace MultithreadDownload.Protocols.Http
         /// The buffer used for reading and writing data
         /// </summary>
         private byte[] DownloadBuffer { get; set; }
-
-        /// <summary>
-        /// The number of retries for reading and writing data in the same process loop
-        /// </summary>
-        /// <remarks>
-        /// The retry count is used to keep track of the number of retries for reading and writing data in same process loop
-        /// Therefore, if the write operation fails and then the read operation fails, the retry count will be incremented by 2 totally
-        /// </remarks>
-        private byte RetryCount { get; set; } = 0;
         #endregion
 
         /// <summary>
@@ -73,7 +67,7 @@ namespace MultithreadDownload.Protocols.Http
             Stream output, 
             long bytesCount, 
             HttpDownloadOptions options,
-            CancellationToken cancellationToken,
+            CancellationToken abortToken,
             DownloadScopedLogger logger)
         {
             // Initialize the properties
@@ -81,7 +75,7 @@ namespace MultithreadDownload.Protocols.Http
             this.OutputStream = output;
             this.RequiredDownloadBytesCount = bytesCount;
             this.DownloadOptions = options;
-            this.CancellationToken = cancellationToken;
+            this.AbortCancellationToken = abortToken;
             this.Logger = logger;
             this.DownloadBuffer = new byte[DownloadOptions.BufferSize];
         }
@@ -89,73 +83,56 @@ namespace MultithreadDownload.Protocols.Http
         /// <summary>
         /// Download the file using the input and output streams
         /// </summary>
-        /// <returns>
-        /// The remaing bytes count to download; if the download process is completed successfully, which should be 0 in normal cases;
-        /// </returns>
-        public async Task<Result<long, DownloadFailureInfo>> DownloadFileAsync()
+        public async Task<Result<long, DownloadError>> DownloadFileAsync()
         {
             // Log the start of the download process with the expected range size
             this.Logger.LogInfo($"Starting download for {this.RequiredDownloadBytesCount} bytes");
+            // A variable is used to keep track of the actual number of bytes that have been downloaded for the file segment
+            long actualDownloadedBytesCount = 0;
             // Since the download process may fail due to various exceptions,
             // use a try-catch block to catch any exceptions that may be thrown during the download process.
             try
             {
-                // If the download process is not canceled or thrown any exception,
+                // If the download process is not aborted or thrown any exception,
                 // a while loop is used for keeping reading and writing data until the end of the stream is reached.
                 while (true)
                 {
-                    // Check if the download process has been canceled before starting each read and write operation
-                    this.CancellationToken.ThrowIfCancellationRequested();
+                    // Check if the download process has been aborted before starting each read and write operation
+                    this.AbortCancellationToken.ThrowIfCancellationRequested();
 
-                    this.CancellationToken.ThrowIfCancellationRequested();
                     // Read a chunk of data from the input stream
                     // If the read operation failed, check if the maximum number of retries has been reached
                     // If is, this method will throw an exception to break the loop.
-                    int bytesReadCount = await this.TryReadChunkAsync();
-                    // Since the read operation was successful, reset the retry count
-                    this.RetryCount = 0;
+                    int bytesReadCount = (await this.TryReadChunkAsync()).UnwrapOrThrow();
+
                     // If the read operation was successful, check if the end of the stream has been reached
                     // If is, finish the download process
                     if (this.IsEndOfStream(bytesReadCount))
-                        return this.FinishSuccessfully();
+                        return this.FinishSuccessfully(actualDownloadedBytesCount);
 
                     // Write the chunk of data to the output stream
                     // If the write operation failed, check if the maximum number of retries has been reached
                     // If is, this method will throw an exception to break the loop.
-                    // Report the number of completed bytes to the download thread
-                    await this.TryWriteChunk(bytesReadCount);
+                    (await this.TryWriteChunk(bytesReadCount)).UnwrapOrThrow();
+                    // Update the download  by reporting the number of completed bytes to the download thread
+                    this.UpdataDownloadProgress(bytesReadCount);
+                    actualDownloadedBytesCount += bytesReadCount;
                 }
             }
-            // If any exception is thrown during the download process,
-            // create an error and finish the download process with specific error information based on the type of the exception.
+            // If any exception is thrown during the download process, create an error and finish the download process
+            catch (ResultFailureException<DownloadError> ex)
+            {
+                return Result<long, DownloadError>.Failure(ex.Error);
+            }
             catch (OperationCanceledException)
             {
-                return FinishFailed(DownloadError.Create(
-                    DownloadErrorCode.ThreadCancelled,
-                    "The download process was canceled."));
+                return Result<long, DownloadError>.Failure(DownloadError.Create(
+                    DownloadErrorCode.ThreadAborted,
+                    "The download process was aborted."));
             }
-            catch (IOException ex)
+            catch (Exception ex)
             {
-                return FinishFailed(DownloadError.Create(
-                    DownloadErrorCode.DiskOperationFailed,
-                    $"An I/O error occurred while downloading the file: {ex.Message}"));
-            }
-            catch (ArgumentOutOfRangeException ex)
-            {
-                return FinishFailed(DownloadError.Create(
-                    DownloadErrorCode.ArgumentOutOfRange,
-                    $"An argument out of range error occurred while downloading the file: {ex.Message}"));
-
-            }
-            catch (ObjectDisposedException ex)
-            {
-                return FinishFailed(DownloadError.Create(
-                    DownloadErrorCode.NullReference,
-                    $"An object disposed error occurred while downloading the file: {ex.Message}"));
-            }
-            catch (UnreachableException ex)
-            {
-                return FinishFailed(DownloadError.Create(
+                return Result<long, DownloadError>.Failure(DownloadError.Create(
                     DownloadErrorCode.UnexpectedOrUnknownException,
                     $"An unexpected exception is thrown while downloading the file: {ex.InnerException?.Message}"));
             }
@@ -168,42 +145,22 @@ namespace MultithreadDownload.Protocols.Http
         /// <param name="bytesRead">The number of bytes read</param>
         /// <param name="retryCount">The number of retries</param>
         /// <returns>The result of the operation</returns>
-        private  async Task<int> TryReadChunkAsync()
+        private  async Task<Result<int, DownloadError>> TryReadChunkAsync()
         {
-            // Since the read operation may fail due to various exceptions, 
-            // use a while loop to keep trying to read a chunk of data from the input stream until
-            // it is successful or the maximum number of retries is reached.
-            while (true)
-            {
-                try
-                {
-                    // Check if the download process has been canceled before starting the read operation
-                    this.CancellationToken.ThrowIfCancellationRequested();
+            // Check if the download process has been aborted before starting the read operation
+            this.AbortCancellationToken.ThrowIfCancellationRequested();
 
-                    // Try to read a chunk of data from the input stream
-                    return await ReadChunkAsync();
-                }
-                // If the retry count exceeds the maximum number of retries, throw an exception to indicate that the read operation failed
-                catch (Exception ex)
-                {
-                    // If the read operation failed, check if the maximum number of retries has been reached
-                    // If not, wait for a specified time and retry the read operation
-                    // If the maximum number of retries has been reached, throw an exception to indicate that the read operation failed
-                    if (await HandleRetryAsync())
-                    {
-                        continue;
-                    }
-                    // Depending on the type of exception, throw a specific exception or a general exception to indicate that the read operation failed
-                    throw ex switch
-                    {
-                        OperationCanceledException or IOException or ArgumentOutOfRangeException or ObjectDisposedException => ex,
-                        _ => new UnreachableException("Unexpectedly failed to read data.", ex)
-                    };
-                }
-            }
+            // Try to read a chunk of data from the input stream
+            return await RetryHelper.RetryAsync(
+                this.DownloadOptions.MaxRetries,
+                TimeSpan.FromMicroseconds(this.DownloadOptions.BaseRetryDelayMs),
+                TimeSpan.FromMicroseconds(this.DownloadOptions.MaxRetryDelayMs),
+                () => this.ReadChunkAsync(),
+                this.AbortCancellationToken);
+            
         }
 
-        private async Task<int> ReadChunkAsync()
+        private async Task<Result<int, DownloadError>> ReadChunkAsync()
         {
             // FIXED:
             // The problem is that the thread will download over the expected range size as there is no check for the remaining bytes to download in the while loop.
@@ -213,7 +170,7 @@ namespace MultithreadDownload.Protocols.Http
             if (this.RequiredDownloadBytesCount == 0)
             {
                 // return 0 to indicate that the end of the stream has been reached
-                return 0;
+                return Result<int,DownloadError>.Success(0);
             }
 
             // FIXED:
@@ -223,9 +180,37 @@ namespace MultithreadDownload.Protocols.Http
             // This will ensure that the buffer size is always equal to or less than the remaining bytes to download, to prevent reading more data than needed.
             // Otherwise, keep the buffer size as it is.
             if (this.DownloadBuffer.Length > this.RequiredDownloadBytesCount)
+            {
                 this.DownloadBuffer = new byte[this.RequiredDownloadBytesCount];
+            }
+
             // Read the data from the input stream into the buffer and return the number of bytes read
-            return await this.InputStream.ReadAsync(this.DownloadBuffer, 0, this.DownloadBuffer.Length);
+            try
+            {
+                return Result<int, DownloadError>.Success(await this.InputStream.ReadAsync(
+                    this.DownloadBuffer, 
+                    0, 
+                    this.DownloadBuffer.Length, 
+                    this.AbortCancellationToken));
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                return Result<int, DownloadError>.Failure(DownloadError.Create(
+                    DownloadErrorCode.ArgumentOutOfRange,
+                    $"An argument out of range error occurred while reading a chunk of data: {ex.Message}"));
+            }
+            catch (OperationCanceledException ex)
+            {
+                return Result<int, DownloadError>.Failure(DownloadError.Create(
+                    DownloadErrorCode.ThreadAborted,
+                    $"The download process was aborted while reading a chunk of data: {ex.Message}"));
+            }
+            catch(Exception ex)
+            {
+                return Result<int, DownloadError>.Failure(DownloadError.Create(
+                    DownloadErrorCode.UnexpectedOrUnknownException,
+                    $"An unexpected exception is thrown while reading a chunk of data: {ex.Message}"));
+            }
         }
 
         /// <summary>
@@ -234,56 +219,44 @@ namespace MultithreadDownload.Protocols.Http
         /// <param name="bytesRead">The number of bytes read</param>
         /// <param name="retryCount"><The number of retries</param>
         /// <returns>The result of the operation</returns>
-        private async Task TryWriteChunk(int bytesCount)
+        private async Task<Result<None, DownloadError>> TryWriteChunk(int bytesCount)
         {
-            // Since the read operation may fail due to various exceptions, 
-            // use a while loop to keep trying to read a chunk of data from the input stream until
-            // it is successful or the maximum number of retries is reached.
-            while (true)
-            {
-                try
-                {
-                    // Check if the download process has been canceled before starting the write operation
-                    this.CancellationToken.ThrowIfCancellationRequested();
-
-                    // Try to read a chunk of data from the input stream
-                    await this.OutputStream.WriteAsync(this.DownloadBuffer, 0, bytesCount);
-                    // Update the download progress
-                    this.UpdataDownloadProgress(bytesCount);
-                }
-                // If the retry count exceeds the maximum number of retries, throw an exception to indicate that the write operation failed
-                catch (Exception ex)
-                {
-                    // If the write operation failed, check if the maximum number of retries has been reached
-                    // If not, wait for a specified time and retry the read operation
-                    // If the maximum number of retries has been reached, throw an exception to indicate that the read operation failed
-                    if (await HandleRetryAsync())
-                    {
-                        continue;
-                    }
-                    // Depending on the type of exception, throw a specific exception or a general exception to indicate that the write operation failed
-                    throw ex switch
-                    {
-                        OperationCanceledException or IOException or ArgumentOutOfRangeException or ObjectDisposedException => ex,
-                        _ => new UnreachableException("Unexpectedly failed to read data.", ex)
-                    };
-                }
-            }
+            // Try to write a chunk of data from the input stream
+            return await RetryHelper.RetryAsync(
+                this.DownloadOptions.MaxRetries,
+                TimeSpan.FromMicroseconds(this.DownloadOptions.BaseRetryDelayMs),
+                TimeSpan.FromMicroseconds(this.DownloadOptions.MaxRetryDelayMs),
+                () => this.WriteChunkAsync(bytesCount),
+                this.AbortCancellationToken);
         }
 
-        /// <summary>
-        /// Handle the retry logic for reading and writing data
-        /// </summary>
-        /// <param name="retryCount">The number of retries</param>
-        /// <returns>The result of the operation</returns>
-        private async Task<bool> HandleRetryAsync()
+        private async Task<Result<None, DownloadError>> WriteChunkAsync(int bytesCount)
         {
-            // If the maximum number of retries has been reached, return false
-            // Otherwise, wait for a specified time and return true to retry the operation
-            if (++this.RetryCount >= this.DownloadOptions.MaxRetries)
-                return false;
-            await Task.Delay(this.DownloadOptions.RetryDelayMs);
-            return true;
+
+            // Write the data from the input stream into the output stream
+            try
+            {
+                await this.OutputStream.WriteAsync(this.DownloadBuffer, 0, bytesCount, this.AbortCancellationToken);
+                return Result<None, DownloadError>.Success(None.Create());
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                return Result<None, DownloadError>.Failure(DownloadError.Create(
+                    DownloadErrorCode.ArgumentOutOfRange,
+                    $"An argument out of range error occurred while reading a chunk of data: {ex.Message}"));
+            }
+            catch (OperationCanceledException ex)
+            {
+                return Result<None, DownloadError>.Failure(DownloadError.Create(
+                    DownloadErrorCode.ThreadAborted,
+                    $"The download process was aborted while reading a chunk of data: {ex.Message}"));
+            }
+            catch (Exception ex)
+            {
+                return Result<None, DownloadError>.Failure(DownloadError.Create(
+                    DownloadErrorCode.UnexpectedOrUnknownException,
+                    $"An unexpected exception is thrown while reading a chunk of data: {ex.Message}"));
+            }
         }
 
         /// <summary>
@@ -316,7 +289,7 @@ namespace MultithreadDownload.Protocols.Http
         /// </summary>
         /// <param name="output">The output stream</param>
         /// <returns></returns>
-        private Result<long, DownloadFailureInfo> FinishSuccessfully()
+        private Result<long, DownloadError> FinishSuccessfully(long actualDownloadedBytesCount)
         {
             // Ensure that the download process is completed successfully
             EnsureDownloadCompleted();
@@ -324,8 +297,8 @@ namespace MultithreadDownload.Protocols.Http
             // Log the successful completion of the download process
             this.Logger.LogInfo($"A chuck of the file segment has been downloaded successfully.");
             // Return the result of the operation
-            // Since the download process is completed successfully, return 0 to indicate that there are no remaining bytes to download
-            return Result<long, DownloadFailureInfo>.Success(0);
+            // Since the download process is completed successfully, return the actual number of bytes downloaded
+            return Result<long, DownloadError>.Success(actualDownloadedBytesCount);
         }
 
         /// <summary>
@@ -337,22 +310,6 @@ namespace MultithreadDownload.Protocols.Http
             {
                 throw new UnreachableException("The download process is completed but the required download bytes count is not zero, which is unexpected.");
             }
-        }
-
-        /// <summary>
-        /// Finish the download process failed
-        /// </summary>
-        /// <param name="output">The output stream</param>
-        /// 
-        /// <param name="context">The download context</param>
-        /// <param name="retries">The number of retryment</param>
-        /// <returns>The result of the operation</returns>
-        private Result<long, DownloadFailureInfo> FinishFailed(DownloadError error)
-        {
-            // Log the failure of the download process with the specific error information
-            this.Logger.LogError($"A chuck of the file segment has been failed to download due to {error.Message}");
-            // Return the result of the operation with the specific error information
-            return Result<long, DownloadFailureInfo>.Failure(new DownloadFailureInfo(error, this.RequiredDownloadBytesCount));
         }
 
         ///// <summary>

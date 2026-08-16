@@ -1,5 +1,6 @@
 ﻿using MultithreadDownload.Primitives;
 using MultithreadDownload.Tasks;
+using MultithreadDownload.Threads.Core;
 using System;
 using System.Collections.Generic;
 using System.Text;

@@ -1,6 +1,6 @@
 ﻿using MultithreadDownload.Protocols.Abstractions;
 using MultithreadDownload.Threading;
-using MultithreadDownload.Threads;
+using MultithreadDownload.Threads.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -8,7 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace MultithreadDownload.Tasks
+namespace MultithreadDownload.Tasks.Core
 {
     public class DownloadTaskContext
     {

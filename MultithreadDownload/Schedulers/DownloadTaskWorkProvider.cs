@@ -1,15 +1,15 @@
-﻿using MultithreadDownload.Tasks;
-using MultithreadDownload.Primitives;
+﻿using MultithreadDownload.Primitives;
 using System;
 using System.IO;
 using MultithreadDownload.Core.Errors;
 using MultithreadDownload.Logging;
-using MultithreadDownload.Downloads;
 using System.Collections.Generic;
 using System.Linq;
 using MultithreadDownload.Protocols.Abstractions;
 using MultithreadDownload.Utils.IO;
 using MultithreadDownload.Schedulers.Abstractions;
+using MultithreadDownload.Tasks.Core;
+using MultithreadDownload.Tasks.States;
 
 namespace MultithreadDownload.Schedulers
 {

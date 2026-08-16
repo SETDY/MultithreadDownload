@@ -1,7 +1,8 @@
 ﻿using MultithreadDownload.Protocols.Abstractions;
+using MultithreadDownload.Threading;
 using MultithreadDownload.Threads.Abstractions;
 
-namespace MultithreadDownload.Threading
+namespace MultithreadDownload.Threads.Managers
 {
     /// <summary>
     /// Factory class for creating instances of ThreadManager.
@@ -17,7 +18,7 @@ namespace MultithreadDownload.Threading
         /// <returns></returns>
         public IDownloadThreadManager Create(IDownloadThreadFactory downloadThreadFactory, IDownloadTarget downloadContext, byte maxThreads)
         {
-            return new DownloadThreadManager(downloadThreadFactory, maxThreads, downloadContext);
+            return new DownloadThreadManager1(downloadThreadFactory, maxThreads, downloadContext);
         }
     }
 }

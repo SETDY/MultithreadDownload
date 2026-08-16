@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MultithreadDownload.Exceptions;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -69,8 +70,37 @@ namespace MultithreadDownload.Primitives
         public T UnwrapOrThrow(string? message = null)
         {
             if (IsSuccess)
+            {
                 return Value.Value!;
-            throw new InvalidOperationException(message ?? $"Result was failure: {ErrorState}");
+            }
+            throw new InvalidOperationException(message ?? $"Result was failure: {ErrorState}", );
+        }
+
+        /// <summary>
+        /// Unwraps the result value or throws an exception if the operation failed.
+        /// </summary>
+        /// <param name="message">Optional custom error message to throw.</param>
+        /// <returns>The value of the result if the result is successful.</returns>
+        public T UnwrapOrThrow(Exception exception)
+        {
+            if (IsSuccess)
+            {
+                return Value.Value!;
+            }
+            throw exception;
+        }
+
+        /// <summary>
+        /// Unwraps the result value or throws an ResultFailureException if the operation failed.
+        /// </summary>
+        /// <returns>The value of the result if the result is successful.</returns>
+        public T UnwrapOrThrow()
+        {
+            if (IsSuccess)
+            {
+                return Value.Value!;
+            }
+            throw new ResultFailureException<ErrorCode>(this.ErrorState);
         }
 #nullable disable
 

@@ -1,5 +1,4 @@
-﻿using MultithreadDownload.Downloads;
-using MultithreadDownload.Primitives;
+﻿using MultithreadDownload.Primitives;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -10,10 +9,11 @@ using MultithreadDownload.Logging;
 using MultithreadDownload.Protocols.Abstractions;
 using MultithreadDownload.Utils.IO;
 using MultithreadDownload.Threads.Abstractions;
+using MultithreadDownload.Tasks.States;
 
 namespace MultithreadDownload.Threading
 {
-    public class DownloadThreadManager : IDownloadThreadManager
+    public class DownloadThreadManager1 : IDownloadThreadManager
     {
 
         /// <summary>
@@ -77,7 +77,7 @@ namespace MultithreadDownload.Threading
         /// <param name="factory">The factory for creating download threads.</param>
         /// <param name="downloadContext">The context that contains information about the download operation.</param>
         /// <param name="maxThreads">The maximum number of threads that can be used for downloading.</param>
-        public DownloadThreadManager(IDownloadThreadFactory factory, byte maxThreads, IDownloadTarget downloadContext)
+        public DownloadThreadManager1(IDownloadThreadFactory factory, byte maxThreads, IDownloadTarget downloadContext)
         {
             // Initialize the properties
             this._threads = new List<IDownloadThread>(maxThreads);

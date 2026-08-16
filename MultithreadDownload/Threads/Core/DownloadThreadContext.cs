@@ -1,4 +1,5 @@
 ﻿using MultithreadDownload.Downloads;
+using MultithreadDownload.Threads.States;
 using MultithreadDownload.Utils.IO;
 using System;
 using System.Collections.Generic;
@@ -6,14 +7,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace MultithreadDownload.Threads
+namespace MultithreadDownload.Threads.Core
 {
     public class DownloadThreadContext
     {
         /// <summary>
         /// The id of the download thread, which is a unique identifier for each download thread.
         /// </summary>
-        public int Id { get; }
+        public Guid Id { get; }
 
         /// <summary>
         /// The path to the file segment that this download thread is responsible for downloading.
@@ -36,6 +37,11 @@ namespace MultithreadDownload.Threads
         public long CurrentPostion { get; private set; }
 
         /// <summary>
+        /// The size of the each chunk that the download thread will download in each iteration untile the whole file segement is completed, in bytes.
+        /// </summary>
+        public long ChunkSize { get; }
+
+        /// <summary>
         /// The total size of the file has be downloaded for this thread, in bytes.
         /// </summary>
         public long TotalDownloaded => CurrentPostion - StartPositon;
@@ -43,9 +49,9 @@ namespace MultithreadDownload.Threads
         /// <summary>
         /// The state of the download thread, which indicates the current status of the download thread.
         /// </summary>
-        internal DownloadThreadStateMachine StateMachine { get; }
+        internal DownloadTaskStateMachine StateMachine { get; }
 
-        public DownloadThreadContext(int id, FilePath fileSegementPath, long startPos, long endPos)
+        public DownloadThreadContext(Guid id, FilePath fileSegementPath, long startPos, long endPos, long chunkSize)
         {
             // Initialize the thread context properties.
             this.Id = id;
@@ -53,7 +59,8 @@ namespace MultithreadDownload.Threads
             this.StartPositon = startPos;
             this.EndPositon = endPos;
             this.CurrentPostion = startPos;
-            this.StateMachine = new DownloadThreadStateMachine();
+            this.ChunkSize = chunkSize;
+            this.StateMachine = new DownloadTaskStateMachine();
         }
 
         /// <summary>

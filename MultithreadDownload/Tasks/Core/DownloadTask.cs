@@ -1,5 +1,4 @@
 ﻿using MultithreadDownload.Core.Errors;
-using MultithreadDownload.Downloads;
 using MultithreadDownload.Events;
 using MultithreadDownload.Exceptions;
 using MultithreadDownload.Logging;
@@ -13,8 +12,10 @@ using MultithreadDownload.Protocols.Abstractions;
 using MultithreadDownload.Threads.Abstractions;
 using MultithreadDownload.Tasks.Abstractions;
 using MultithreadDownload.Schedulers.Abstractions;
+using MultithreadDownload.Tasks.States;
+using MultithreadDownload.Tasks.Trackers;
 
-namespace MultithreadDownload.Tasks
+namespace MultithreadDownload.Tasks.Core
 {
     /// <summary>
     /// Represents a download task that contains information about the download operation.
@@ -37,16 +38,17 @@ namespace MultithreadDownload.Tasks
             {
                 // Check if the new state is not the same as the current state.
                 // Otherwise, return.
-                // If not, set the state of the download task and invoke the state change event.
                 if (field == value) return;
 
+                // If not, set the state of the download task and invoke the state change event.
                 field = value;
                 StateChange?.Invoke(this, new DownloadDataEventArgs(this));
                 // If the state is changed to TaskCompleted or Failed or Cancelled, invoke the TaskCompleted event.
                 if (field is DownloadState.Completed or DownloadState.Failed or DownloadState.Cancelled)
                 {
                     // Log the completion of the task.
-                    this.Logger.LogInfo($"The task with id: {this.Context.Id} have been completed the download process with state: {field}.");
+                    this.Logger.LogInfo($"The task download process is end with its state: {field}.");
+
                     //try
                     //{
                     //    this.TaskCompleted?.Invoke();

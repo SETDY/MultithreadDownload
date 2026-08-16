@@ -1,9 +1,9 @@
-﻿using MultithreadDownload.Downloads;
-using MultithreadDownload.Events;
-using MultithreadDownload.Tasks;
+﻿using MultithreadDownload.Events;
 using MultithreadDownload.Primitives;
 using System;
 using MultithreadDownload.Protocols.Abstractions;
+using MultithreadDownload.Tasks.Core;
+using MultithreadDownload.Tasks.States;
 
 namespace MultithreadDownload.Schedulers.Abstractions
 {

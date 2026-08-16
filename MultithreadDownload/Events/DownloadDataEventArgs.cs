@@ -1,4 +1,4 @@
-﻿using MultithreadDownload.Tasks;
+﻿using MultithreadDownload.Tasks.Core;
 using System;
 
 namespace MultithreadDownload.Events

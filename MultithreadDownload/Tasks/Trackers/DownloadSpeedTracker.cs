@@ -5,7 +5,7 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 
-namespace MultithreadDownload.Tasks
+namespace MultithreadDownload.Tasks.Trackers
 {
     /// <summary>
     /// This class is used to track the download speed of a file.

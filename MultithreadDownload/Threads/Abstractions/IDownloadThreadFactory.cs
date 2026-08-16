@@ -1,13 +1,19 @@
-﻿using MultithreadDownload.Primitives;
+﻿using MultithreadDownload.Core.Errors;
+using MultithreadDownload.Logging;
+using MultithreadDownload.Primitives;
+using MultithreadDownload.Protocols.Abstractions;
+using MultithreadDownload.Threads.Core;
 using System;
 using System.IO;
-using MultithreadDownload.Core.Errors;
-using MultithreadDownload.Protocols.Abstractions;
 
 namespace MultithreadDownload.Threads.Abstractions
 {
-    public interface IDownloadThreadFactory
+    public interface IDownloadThreadFactory<TTarget> where TTarget : IDownloadTarget
     {
-        IDownloadThread Create(byte id, IDownloadTarget downloadContext,string fileSegmentPath, Func<Stream, Stream, IDownloadThread, Result<bool, DownloadError>> work);
+        public IDownloadThread<TTarget> Create(
+            DownloadThreadContext context,
+            TTarget target,
+            IDownloadService<TTarget> service,
+            DownloadScopedLogger logger);
     }
 }

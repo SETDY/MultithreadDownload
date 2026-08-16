@@ -120,6 +120,8 @@ namespace MultithreadDownload.Primitives
             DownloadErrorCode.TaskNotStarted or
             DownloadErrorCode.ThreadNotFound or
             DownloadErrorCode.ThreadCancelled or
+            DownloadErrorCode.ThreadAborted or
+            DownloadErrorCode.ThreadNotFound or
             DownloadErrorCode.TaskNotStarted or
             DownloadErrorCode.TaskContextInvalid =>
                 DownloadErrorCategory.Internal,

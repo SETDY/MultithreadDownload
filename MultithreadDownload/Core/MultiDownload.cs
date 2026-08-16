@@ -5,6 +5,7 @@ using MultithreadDownload.Protocols.Abstractions;
 using MultithreadDownload.Schedulers;
 using MultithreadDownload.Schedulers.Abstractions;
 using MultithreadDownload.Tasks;
+using MultithreadDownload.Tasks.Core;
 using System;
 using System.Linq;
 

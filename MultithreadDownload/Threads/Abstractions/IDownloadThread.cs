@@ -1,86 +1,87 @@
 ﻿using MultithreadDownload.Core.Errors;
 using MultithreadDownload.Downloads;
+using MultithreadDownload.Exceptions;
 using MultithreadDownload.Logging;
 using MultithreadDownload.Primitives;
 using MultithreadDownload.Protocols.Abstractions;
+using MultithreadDownload.Threads.Core;
+using MultithreadDownload.Threads.Events;
+using MultithreadDownload.Utils.Threading;
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace MultithreadDownload.Threads.Abstractions
 {
-    public interface IDownloadThread : IDisposable
+    public interface IDownloadThread<TTarget> : IDisposable where TTarget : IDownloadTarget
     {
-        /// <summary>
-        /// The ID of the download thread. This is used to identify the thread in the download task.
-        /// </summary>
-        public byte ID { get; }
+        public DownloadThreadContext Context { get; }
 
+#nullable enable
         /// <summary>
-        /// The size of the file that has been downloaded by this thread.
+        /// The event that is triggered when the download thread reports progress, 
+        /// which includes the current context of the download thread and delta bytes.
         /// </summary>
-        public long CompletedBytesSizeCount { get; }
-
-        public IDownloadTarget DownloadContext { get; }
+        public event Action<DownloadThreadDataEventArgs, long>? ProgressChanged;
 
         /// <summary>
-        /// The current state of the download thread.
+        /// The event that is triggered when the download thread changes its state.
         /// </summary>
-        DownloadState State { get; }
+        public event Action<DownloadThreadDataEventArgs>? OnStateChange;
 
         /// <summary>
-        /// The status of the download thread.
+        /// The event that is triggered when the download thread fails, 
+        /// which includes the current context of the download thread and the error information of the failure.
         /// </summary>
-        public bool IsAlive { get; }
+        public event Action<DownloadThreadDataEventArgs, DownloadError>? OnFailed;
+
+#nullable disable
 
         /// <summary>
-        /// The path to the file segment that this thread is responsible for downloading.
+        /// Starts the download thread, which will continuously download chunks of data until the download is complete or failed.
         /// </summary>
-        public string FileSegmentPath { get; }
+        /// <param name="inputStream">
+        /// The input stream from which the download thread will read data, which is usually the network stream of the download connection.
+        /// </param>
+        /// <param name="outputStream">
+        /// The output stream to which the download thread will write data, which is usually the file stream of the target file on disk.
+        /// </param>
+        /// <returns>
+        /// The task that represents the asynchronous download operation.
+        /// </returns>
+        public Task StartAsync(Stream outputStream);
 
         /// <summary>
-        /// The task that will execute the download operation.
+        /// Cancels the download thread, which will trigger the OperationCanceledException in the StartAsync method and change the state of the download thread to cancelled.
         /// </summary>
-        public Task WorkerTask { get; }
+        /// <returns>
+        /// The task that represents the asynchronous cancellation operation
+        /// </returns>
+        public Task CancelAsync();
 
         /// <summary>
-        /// The download progress of the file that has been downloaded by this thread.
+        /// Aborts the download thread, which will change the state of the download thread to aborted and release all the resources used by the download thread immediately.
         /// </summary>
-        IProgress<sbyte> Progresser { get; }
+        /// <returns></returns>
+        public Task AbortAsync();
 
         /// <summary>
-        /// The logger instance for logging messages related to the download thread.
+        /// Pauses the download thread, which will change the state of the download thread to paused.
         /// </summary>
-        public DownloadScopedLogger Logger { get; }
+        /// <returns>
+        /// The task that represents the asynchronous pause operation
+        /// </returns>
+        public Task PauseAsync();
 
         /// <summary>
-        /// Start newly the download thread.
+        /// Resumes the download thread, which will change the state of the download thread from paused to downloading and continue the download process.
         /// </summary>
-        void Start(Stream inputStream, Stream outputStream);
+        /// <returns>
+        /// The task that represents the asynchronous resuming operation
+        /// </returns>
+        public Task ResumeAsync();
 
-        /// <summary>
-        /// Pause the download thread.
-        /// </summary>
-        void Pause();
-
-        /// <summary>
-        /// Resume the download thread.
-        /// </summary>
-        void Resume();
-
-        /// <summary>
-        /// Cancel the download thread.
-        /// </summary>
-        Result<bool, DownloadError> Cancel();
-
-        void SetLogger(DownloadScopedLogger logger);
-
-        void SetProgresser(IProgress<sbyte> progresser);
-
-        internal void SetState(DownloadState state);
-
-        void SetDownloadProgress(sbyte progress);
-
-        internal void AddCompletedBytesSizeCount(long count);
+        public void Dispose();
     }
 }

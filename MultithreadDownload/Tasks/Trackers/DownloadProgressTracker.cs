@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace MultithreadDownload.Tasks
+namespace MultithreadDownload.Tasks.Trackers
 {
     /// <summary>
     /// The class that is responsible for tracking the download progress of a download task.

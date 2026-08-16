@@ -44,6 +44,7 @@ namespace MultithreadDownload.Core.Errors
         ThreadCreationFailed,
         ThreadNotFound,
         ThreadCancelled,
+        ThreadAborted,
         OutputStreamCountMismatch,
 
         // Protocol-related errors that can occur during the download process.

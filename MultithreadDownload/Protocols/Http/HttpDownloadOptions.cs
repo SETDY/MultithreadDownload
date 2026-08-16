@@ -9,10 +9,21 @@ namespace MultithreadDownload.Protocols.Http
     /// </summary>
     public sealed class HttpDownloadOptions
     {
-        public int BufferSize { get; init; } = 4096;
+        public uint BufferSize { get; init; } = 4096;
 
-        public int MaxRetries { get; init; } = 5;
+        public uint MaxRetries { get; init; } = 5;
 
-        public int RetryDelayMs { get; init; } = 2000;
+        public uint BaseRetryDelayMs { get; init; } = 2000;
+
+        /// <summary>
+        /// The maximum retry delay in milliseconds, which is calculated based on the base retry delay and the maximum number of retries using an exponential backoff strategy. <br/>
+        /// </summary>
+        public uint MaxRetryDelayMs
+        {
+            get
+            {
+                return (uint)(BaseRetryDelayMs * Math.Pow(2, this.MaxRetries));
+            }
+        }
     }
 }
